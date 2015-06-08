@@ -7,3 +7,5 @@ greybox_tmp/*
 /FPGA/incremental_db/*
 /FPGA/output_files/*
 
+/Firm_STM32/objs/*
+
