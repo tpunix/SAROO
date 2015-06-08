@@ -1,0 +1,8 @@
+
+greybox_tmp/*
+/FPGA/.qsys_edit/*
+/FPGA/cqsys/*
+/FPGA/db/*
+/FPGA/incremental_db/*
+/FPGA/output_files/*
+
