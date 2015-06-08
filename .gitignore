@@ -9,3 +9,5 @@ greybox_tmp/*
 
 /Firm_STM32/objs/*
 
+/Firm_Saturn/obj/*
+
