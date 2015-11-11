@@ -93,14 +93,14 @@ set_interface_property ext_bus PORT_NAME_MAP ""
 set_interface_property ext_bus CMSIS_SVD_VARIABLES ""
 set_interface_property ext_bus SVD_ADDRESS_GROUP ""
 
-add_interface_port ext_bus addr export Input 32
-add_interface_port ext_bus ncs export Input 1
-add_interface_port ext_bus rd_start export Input 1
-add_interface_port ext_bus wr_start export Input 1
-add_interface_port ext_bus data_in export Input 16
-add_interface_port ext_bus data_out export Output 16
-add_interface_port ext_bus wait_out export Output 1
-add_interface_port ext_bus byte_en export Input 2
+add_interface_port ext_bus addr addr Input 32
+add_interface_port ext_bus ncs ncs Input 1
+add_interface_port ext_bus rd_start rd_start Input 1
+add_interface_port ext_bus wr_start wr_start Input 1
+add_interface_port ext_bus data_in data_in Input 16
+add_interface_port ext_bus data_out data_out Output 16
+add_interface_port ext_bus wait_out wait_out Output 1
+add_interface_port ext_bus byte_en byte_en Input 2
 
 
 # 

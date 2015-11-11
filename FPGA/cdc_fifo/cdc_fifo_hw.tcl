@@ -66,13 +66,13 @@ set_interface_property conduit_end PORT_NAME_MAP ""
 set_interface_property conduit_end CMSIS_SVD_VARIABLES ""
 set_interface_property conduit_end SVD_ADDRESS_GROUP ""
 
-add_interface_port conduit_end reg_fifo_ctrl export Input 16
-add_interface_port conduit_end reg_blk_addr export Input 32
-add_interface_port conduit_end reg_blk_size export Input 16
-add_interface_port conduit_end rd_start export Input 1
-add_interface_port conduit_end data_out export Output 16
-add_interface_port conduit_end blk_dma_end export Output 1
-add_interface_port conduit_end reg_fifo_stat export Output 16
+add_interface_port conduit_end reg_fifo_ctrl reg_fifo_ctrl Input 16
+add_interface_port conduit_end reg_blk_addr reg_blk_addr Input 32
+add_interface_port conduit_end reg_blk_size reg_blk_size Input 16
+add_interface_port conduit_end rd_start rd_start Input 1
+add_interface_port conduit_end data_out data_out Output 16
+add_interface_port conduit_end blk_dma_end blk_dma_end Output 1
+add_interface_port conduit_end reg_fifo_stat reg_fifo_stat Output 16
 
 
 # 
