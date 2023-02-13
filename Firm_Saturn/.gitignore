@@ -1,0 +1,6 @@
+
+/obj/*
+/ramimage.bin
+/ramimage.elf
+/dump.txt
+

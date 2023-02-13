@@ -1,0 +1,8 @@
+
+/objs/
+/*.uvgui*
+/*.bak
+/*.dep
+/JLinkLog.txt
+
+
