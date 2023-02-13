@@ -41,20 +41,17 @@ void mkdir_p(char *dname)
 }
 
 
-static char lfn[64 + 1];
-int scan_dir(char *dirname, int level, void (*func)(char*))
+int scan_dir(char *dirname, int level, int (*func)(char *, char*, int))
 {
 	FRESULT retv;
 	DIR dir;
 	FILINFO info;
-	char tmp[128 + 1];
+	char tmp[192];
 	char *fn;
 
 	memset(&dir, 0, sizeof(dir));
 	memset(&info, 0, sizeof(info));
 
-	info.lfname = lfn;
-	info.lfsize = sizeof(lfn);
 
 	retv = f_opendir(&dir, dirname);
 	if(retv)
@@ -67,10 +64,7 @@ int scan_dir(char *dirname, int level, void (*func)(char*))
 		if(info.fname[0]=='.')
 			continue;
 
-		if(info.lfname[0])
-			fn = info.lfname;
-		else
-			fn = info.fname;
+		fn = info.fname;
 		sprintk(tmp, "%s/%s", dirname, fn);
 
 		if(info.fattrib & AM_DIR){
@@ -80,9 +74,11 @@ int scan_dir(char *dirname, int level, void (*func)(char*))
 			scan_dir(tmp, level+1, func);
 		}else{
 			if(func==NULL){
-				sps(level); printk("%s\n", fn);
+				sps(level); printk("%9d  %s\n", info.fsize, fn);
 			}else{
-				func(tmp);
+				if(func(dirname, tmp, level)){
+					break;
+				}
 			}
 		}
 	}

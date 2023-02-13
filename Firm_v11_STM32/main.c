@@ -52,7 +52,6 @@ void SystemInit(void)
 	while((RCC->CFGR&0x0c)!=0x08);
 
 
-	__set_BASEPRI(13);
 	NVIC_SetPriorityGrouping(3);
 	SCB->VTOR = FLASH_BASE;
 
@@ -116,13 +115,47 @@ void device_init(void)
 
 /******************************************************************************/
 
+
+void do_hardfault(u32 *sp, u32 *esp)
+{
+	char hbuf[128];
+	int i;
+	for(i=0; i<10000000; i++){
+		__asm volatile("nop");
+	}
+	_puts("\r\n\r\nHardFault!\r\n");
+	sprintk(hbuf, "HFSR=%08x CFSR=%08x BFAR=%08x MMFAR=%08x\n",
+			SCB->HFSR, SCB->CFSR, SCB->BFAR, SCB->MMFAR);
+	_puts(hbuf);
+
+	sprintk(hbuf, "  R0 : %08x\n", esp[0]); _puts(hbuf);
+	sprintk(hbuf, "  R1 : %08x\n", esp[1]); _puts(hbuf);
+	sprintk(hbuf, "  R2 : %08x\n", esp[2]); _puts(hbuf);
+	sprintk(hbuf, "  R3 : %08x\n", esp[3]); _puts(hbuf);
+	sprintk(hbuf, "  R4 : %08x\n", sp[0]);  _puts(hbuf);
+	sprintk(hbuf, "  R5 : %08x\n", sp[1]);  _puts(hbuf);
+	sprintk(hbuf, "  R6 : %08x\n", sp[2]);  _puts(hbuf);
+	sprintk(hbuf, "  R7 : %08x\n", sp[3]);  _puts(hbuf);
+	sprintk(hbuf, "  R8 : %08x\n", sp[4]);  _puts(hbuf);
+	sprintk(hbuf, "  R9 : %08x\n", sp[5]);  _puts(hbuf);
+	sprintk(hbuf, "  R10: %08x\n", sp[6]);  _puts(hbuf);
+	sprintk(hbuf, "  R11: %08x\n", sp[7]);  _puts(hbuf);
+	sprintk(hbuf, "  R12: %08x\n", esp[4]); _puts(hbuf);
+	sprintk(hbuf, "  SP : %08x\n", esp);    _puts(hbuf);
+	sprintk(hbuf, "  LR : %08x\n", esp[5]); _puts(hbuf);
+	sprintk(hbuf, "  PC : %08x\n", esp[6]); _puts(hbuf);
+	sprintk(hbuf, "  PSR: %08x\n", esp[7]); _puts(hbuf);
+
+	while(1);
+}
+
+
+/******************************************************************************/
+
 OS_TID main_id;
 
 
 FATFS sdfs;
-u8 fs_task_stack[0x1000];
-
-int scan_dir(char *dirname, int level, void (*func)(char*));
 
 __task void fs_mount(void)
 {
@@ -131,13 +164,16 @@ __task void fs_mount(void)
 	retv = f_mount(&sdfs, "0:", 1);
 	printk("Mount SDFS: %08x\n\n", retv);
 
-	//scan_dir("/", 0, NULL);
+	if(retv==0){
+		fpga_config();
+		saturn_config();
+	}else{
+		printk("\nReset system!\n\n");
+		os_dly_wait(100);
+		NVIC_SystemReset();
+	}
 
-	fpga_config();
-
-	saturn_config();
-
-	//simple_shell();
+	simple_shell();
 
 	os_tsk_delete_self();
 }
@@ -156,7 +192,7 @@ __task void main_task(void)
 	printk("\n\nSTM32 RTX start!\n\n");
 
 	sdio_init();
-	os_tsk_create_user(fs_mount, 10, fs_task_stack, 0x1000);
+	os_tsk_create(fs_mount, 10);
 
 	main_count = 0;
 	last_count = 0xffffffff;
@@ -168,7 +204,7 @@ __task void main_task(void)
 
 		main_count += 1;
 		if(disk_run_count==last_count){
-			printk("\n\n==== main_task: disk_task stop! count=%08x ====\n\n", disk_run_count);
+			//printk("\n\n==== main_task: disk_task stop! count=%08x ====\n\n", disk_run_count);
 		}
 		last_count = disk_run_count;
 	}

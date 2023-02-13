@@ -255,12 +255,67 @@ int fpga_set_config(int val)
 	return (GPIOA->IDR&0x0010)? 1 : 0;
 }
 
+void fpga_reset(int val)
+{
+	if(val)
+		GPIOC->BSRR = 0x0020;
+	else
+		GPIOC->BSRR = 0x0020<<16;
+}
+
+#if 0
+
 void fpga_config(void)
 {
 	FIL fp;
 	int i, retv, addr;
 	u32 rv;
 	u8 fbuf[256];
+
+	fpga_reset(0);
+
+	// 等待FPGA配置完成
+	for(i=0; i<10; i++){
+		if(fpga_config_done())
+			break;
+		os_dly_wait(10);
+	}
+	if(i==10){
+		printk("FPGA config timeout!\n");
+	}else{
+		printk("FPGA config done!\n");
+	}
+
+	printk("FPGA state:\n");
+	printk("    config done: %d\n", fpga_config_done());
+	printk("      init done: %d\n", fpga_init_done());
+	printk("         status: %d\n", fpga_status());
+	printk("\n");
+
+
+	if(fpga_config_done()){
+		fpga_reset(1);
+		return;
+	}
+	return;
+}
+
+#else
+
+void fpga_config(void)
+{
+	FIL fp;
+	int i, retv, addr;
+	u32 rv;
+	u8 fbuf[256];
+
+	while(fpga_status()==0);
+
+	printk("FPGA state:\n");
+	printk("    config done: %d\n", fpga_config_done());
+	printk("      init done: %d\n", fpga_init_done());
+	printk("         status: %d\n", fpga_status());
+	printk("\n");
 
 	// 检查是否有升级文件. 如果有,就升级. 如果没有,就继续.
 	retv = f_open(&fp, "/SSMaster.rbf", FA_READ);
@@ -329,6 +384,8 @@ void fpga_config(void)
 	printk("\n");
 
 }
+
+#endif
 
 /******************************************************************************/
 

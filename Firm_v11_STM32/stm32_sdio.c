@@ -15,7 +15,9 @@
 /******************************************************************************/
 
 #define SDCLK_LOW  198
-#define SDCLK_HIGH 4
+#define SDCLK_HIGH 3  // 24MHz
+//#define SDCLK_HIGH 4  // 18MHz
+//#define SDCLK_HIGH 6  // 12MHz
 
 #define RESP_NONE(cmd)  ((cmd&0x00c0)==0x0000)
 #define RESP_SHORT(cmd) ((cmd&0x00c0)==0x0040)
@@ -76,8 +78,11 @@ static void sd_clk_set(int div)
 	u32 val;
 
 	val = SDIO->CLKCR;
-	val &= 0xffffff00;
+	val &= 0xfffffd00;
 	val |= div;
+	if(div!=SDCLK_LOW){
+		//val |= 0x0200;
+	}
 	SDIO->CLKCR = val;
 }
 
@@ -197,7 +202,7 @@ int sd_read_blocks(u32 block, int count, u8 *buf)
 
 	dsize = count*512;
 
-	SDIO->DTIMER = 0x000fffff;
+	SDIO->DTIMER = 0x0fffffff;
 	SDIO->DLEN   = dsize;
 	SDIO->DCTRL  = 0x0000009b;
 
@@ -228,7 +233,7 @@ int sd_write_blocks(u32 block, int count, u8 *buf)
 
 	dsize = count*512;
 
-	SDIO->DTIMER = 0x000fffff;
+	SDIO->DTIMER = 0x0fffffff;
 	SDIO->DLEN   = dsize;
 	SDIO->DCTRL  = 0x00000099;
 
@@ -259,16 +264,95 @@ int sd_write_blocks(u32 block, int count, u8 *buf)
 
 /******************************************************************************/
 
+#if 0
+
+#define SDBUF_SIZE 8
+
+static u8 sdbuf[SDBUF_SIZE*512];
+
+int sd_read_sector(u32 start, int size, u8 *buf)
+{
+	int rsize, retv;
+	u32 type = ((u32)buf)>>24;
+
+	if(sd_rca==0)
+		return -1;
+
+	if(type==0x20){
+		return sd_read_blocks(start, size, buf);
+	}
+
+	while(size){
+		rsize = (size>SDBUF_SIZE)? SDBUF_SIZE : size;
+		retv = sd_read_blocks(start, rsize, sdbuf);
+		if(retv)
+			return retv;
+		memcpy(buf, sdbuf, rsize*512);
+		buf += rsize*512;
+		size -= rsize;
+		start += rsize;
+	}
+	
+	return 0;
+}
+
+
+int sd_write_sector(u32 start, int size, u8 *buf)
+{
+	int rsize, retv;
+	u32 type = ((u32)buf)>>24;
+
+	if(sd_rca==0)
+		return -1;
+
+	if(type==0x20){
+		return sd_write_blocks(start, size, buf);
+	}
+
+	while(size){
+		rsize = (size>SDBUF_SIZE)? SDBUF_SIZE : size;
+		memcpy(sdbuf, buf, rsize*512);
+		retv = sd_write_blocks(start, rsize, sdbuf);
+		if(retv)
+			return retv;
+		buf += rsize*512;
+		size -= rsize;
+		start += rsize;
+	}
+	
+	return 0;
+}
+
+#else
+
+int sd_read_sector(u32 start, int size, u8 *buf)
+{
+	return sd_read_blocks(start, size, buf);
+}
+
+
+int sd_write_sector(u32 start, int size, u8 *buf)
+{
+	return sd_write_blocks(start, size, buf);
+}
+
+#endif
+
+/******************************************************************************/
+
 int sdcard_identify(void)
 {
 	int retv, hcs;
 	char tmp[8];
 
+	os_dly_wait(10);
 	sd_cmd(CMD_00, 0);
-	os_dly_wait(1);
+	os_dly_wait(10);
+	sd_cmd(CMD_00, 0);
+	os_dly_wait(10);
 
 	retv = sd_cmd(CMD_08, 0x000001aa);
-	//printk("CMD_08: retv=%08x resp0=%08x\n", retv, cmd_resp[0]);
+	printk("CMD_08: retv=%08x resp0=%08x\n", retv, cmd_resp[0]);
 	if(retv)
 		hcs = 0;
 	else
@@ -363,12 +447,14 @@ int sdcard_identify(void)
 	sd_cmd(CMD_16, 512);
 	//printk("CMD_16: resp=%08x\n", cmd_resp[0]);
 
+#if 1
 	// Switch to 4bit
 	retv = sd_acmd(CMD_06, 2);
 	if(retv)
 		return retv;
 	//printk("ACMD06: resp=%08x\n", cmd_resp[0]);
 	sd_bus_width(4);
+#endif
 
 	retv = sd_acmd(CMD_13, 0);
 	if(retv)
@@ -387,6 +473,8 @@ int sdio_init(void)
 	SDIO->ICR  = 0x00c007ff;
 	SDIO->DCTRL= 0;
 	SDIO->CMD  = 0;
+	SDIO->CLKCR = 0x0000;
+	SDIO->CLKCR = 0x2000;
 
 	sd_rca = 0;
 	os_sem_init(&cmd_sem, 0);

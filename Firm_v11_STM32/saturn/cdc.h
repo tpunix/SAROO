@@ -3,37 +3,37 @@
 
 /******************************************************************************/
 
+#define REG8(x)  ( *(volatile unsigned char*) (x) )
+#define REG16(x) ( *(volatile unsigned short*)(x) )
+#define REG(x)   ( *(volatile unsigned int*)  (x) )
+
+#define FPGA_BASE 0x60000000
+
+
 #define STIRQ_CDC  0x0001
 #define STIRQ_CMD  0x0002
 #define STIRQ_DAT  0x0004
 
-#define ST_CTRL   REG16(0x60000004)
-#define ST_STAT   REG16(0x60000006)
+#define ST_CTRL   REG16(FPGA_BASE+0x04)
+#define ST_STAT   REG16(FPGA_BASE+0x06)
+#define FIFO_DATA REG16(FPGA_BASE+0x08)
+#define FIFO_STAT REG16(FPGA_BASE+0x0c)
+#define SS_CMD    REG16(FPGA_BASE+0x10)
+#define SS_ARG    REG16(FPGA_BASE+0x12)
+#define SS_CTRL   REG16(FPGA_BASE+0x14)
 
-#define BLK_ADDR  REG  (0x60000008)
-#define BLK_SIZE  REG16(0x6000000c)
-#define FIFO_CTRL REG16(0x60000010)
-#define FIFO_STAT REG16(0x60000012)
-
-#define SS_CTRL   REG16(0x60000014)
-#define HIRQ_CLR  REG16(0x60000016)
-
-#define RESP1     REG16(0x60000018)
-#define RESP2     REG16(0x6000001a)
-#define RESP3     REG16(0x6000001c)
-#define RESP4     REG16(0x6000001e)
-
-#define SSCR1     REG16(0x60000020)
-#define SSCR2     REG16(0x60000022)
-#define SSCR3     REG16(0x60000024)
-#define SSCR4     REG16(0x60000026)
-#define HIRQ      REG16(0x60000028)
-#define HMSK      REG16(0x6000002a)
-#define SCMD      REG16(0x6000002e)
-
-#define FIFO_RCNT REG  (0x60000030)
-
-
+#define RESP1     REG16(FPGA_BASE+0x18)
+#define RESP2     REG16(FPGA_BASE+0x1a)
+#define RESP3     REG16(FPGA_BASE+0x1c)
+#define RESP4     REG16(FPGA_BASE+0x1e)
+#define SSCR1     REG16(FPGA_BASE+0x20)
+#define SSCR2     REG16(FPGA_BASE+0x22)
+#define SSCR3     REG16(FPGA_BASE+0x24)
+#define SSCR4     REG16(FPGA_BASE+0x26)
+#define HIRQ      REG16(FPGA_BASE+0x28)
+#define HMSK      REG16(FPGA_BASE+0x2a)
+#define HIRQ_CLR  REG16(FPGA_BASE+0x2c)
+#define SS_MRGB   REG16(FPGA_BASE+0x2e)
 
 
 
@@ -93,6 +93,9 @@
 #define PLAYTYPE_DIR    3
 
 
+#define MSF_TO_FAD(m,s,f) ((m * 4500) + (s * 75) + f)
+
+
 typedef struct BLOCK_T
 {
 	s32 size;
@@ -130,12 +133,14 @@ typedef struct
 
 typedef struct
 {
+	FIL *fp;
+	u32 fad_0;
 	u32 fad_start;
 	u32 fad_end;
 	u32 file_offset;
 	u16 sector_size;
 	u8  ctrl_addr;
-	u8  unuse;
+	u8  mode;
 }TRACK_INFO;
 
 typedef struct
@@ -181,9 +186,8 @@ typedef struct
 	u8 ctrladdr;
 	u8 track;
 	u8 index;
-	
-	// 写CR4后置1. 读CR4后清0.
-	u8 in_cmd;
+	u8 unuse;
+
 
 ////// 数据传输类型 ///////////////////////////////////////////
 	u8 trans_type;
@@ -196,6 +200,7 @@ typedef struct
 	u8 trans_bk;            // 当前传输的扇区
 	u8 trans_block_end;     // 分区中最后一个要传输的扇区+1
 	BLOCK *trans_block;
+	u16 trans_size;
 
 	u8 last_buffer;
 
@@ -220,7 +225,8 @@ typedef struct
 
 
 ////// ISO相关 ////////////////////////////////////////////////
-	FIL fp;
+	int track_num;
+	TRACK_INFO *tracks;
 
 	// TOC缓存, 共102项
 	u32 *TOC;
@@ -255,12 +261,14 @@ extern OS_SEM sem_wait_disc;
 extern int in_isr;
 
 
-__task void scmd_task(void);
-__task void scdc_task(void);
 void cdc_cmd_process(void);
 
 
 void set_report(u8 status);
+void set_status(u8 status);
+
+void disk_task_wakeup(void);
+void cdc_delay(int ticks);
 
 BLOCK *find_block(PARTITION *part, int index);
 void remove_block(PARTITION *part, int index);
@@ -272,19 +280,20 @@ int handle_diread(void);
 BLOCK *alloc_block(void);
 void free_block(BLOCK *block);
 
-int filter_sector(BLOCK *wblk);
+int filter_sector(TRACK_INFO *track, BLOCK *wblk);
 
 TRACK_INFO *get_track_info(int tn);
 u32 track_to_fad(u16 track_index);
 int fad_to_track(u32 fad);
 u32 bswap32(u32 d);
+void init_toc(void);
+
+void list_disc(void);
+int load_disc(int index);
+int unload_disc(void);
 
 
 extern CDBLOCK cdb;
-
-
-
-
 
 
 

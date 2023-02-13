@@ -25,7 +25,7 @@
 //   <i> Define max. number of tasks that will run at the same time.
 //   <i> Default: 6
 #ifndef OS_TASKCNT
- #define OS_TASKCNT     6
+ #define OS_TASKCNT     4
 #endif
 
 //   <o>Number of tasks with user-provided stack <0-250>
@@ -40,7 +40,7 @@
 //   <i> Set the stack size for tasks which is assigned by the system.
 //   <i> Default: 512
 #ifndef OS_STKSIZE
- #define OS_STKSIZE     256
+ #define OS_STKSIZE     511
 #endif
 
 // <q>Check for the stack overflow
@@ -100,7 +100,7 @@
 //   <i> Define max. number of user timers that will run at the same time.
 //   <i> Default: 0  (User timers disabled)
 #ifndef OS_TIMERCNT
- #define OS_TIMERCNT    1
+ #define OS_TIMERCNT    0
 #endif
 
 //   <o>ISR FIFO Queue size<4=>   4 entries  <8=>   8 entries
@@ -172,8 +172,7 @@ void os_error (U32 err_code) {
   /* 'err_code' holds the runtime error code (defined in RTL.H).         */
 
   /* HERE: include optional code to be executed on runtime error. */
-  eprint("os_error: %08x\n", err_code);
-  for (;;);
+  //for (;;);
 }
 
 

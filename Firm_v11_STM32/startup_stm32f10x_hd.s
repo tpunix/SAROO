@@ -154,24 +154,6 @@ Reset_Handler   PROC
                 BX      R0
                 ENDP
 
-get_sp PROC
-	EXPORT get_sp
-	mov	r0, sp
-	bx lr
-	ENDP
-
-disable_irq PROC
-	EXPORT disable_irq
-	mrs	r0, FAULTMASK
-	cpsid f
-	bx lr
-	ENDP
-
-restore_irq PROC
-	EXPORT restore_irq
-	msr FAULTMASK, r0
-	bx lr
-	ENDP
 
 ; Dummy Exception Handlers (infinite loops which can be modified)
 
@@ -182,6 +164,17 @@ NMI_Handler     PROC
 HardFault_Handler\
                 PROC
                 EXPORT  HardFault_Handler          [WEAK]
+				IMPORT	do_hardfault
+				MRS		R1, MSP
+				MOV		R0, LR
+				AND		R0, #4
+				CBZ		R0, __msp
+				MRS		R1, PSP
+__msp
+				PUSH	{R4-R11}
+				MOV		R0, SP
+				LDR		R2, =do_hardfault
+				BX		R2
                 B       .
                 ENDP
 MemManage_Handler\

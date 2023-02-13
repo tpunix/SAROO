@@ -86,7 +86,7 @@ int vsnprintk(char *buf, int size, char *fmt, va_list args)
 	str = buf;
 	end = buf+size;
 
-	while(*fmt){
+	while(str<end && *fmt){
 		if(*fmt!='%'){
 			if(*fmt=='\n')
 				OUT_C('\r');
@@ -253,34 +253,23 @@ int vsnprintk(char *buf, int size, char *fmt, va_list args)
 	return str-buf;
 }
 
-static char printk_buf[128];
 
 int printk(char *fmt, ...)
 {
 	va_list args;
 	int printed_len;
+	char printk_buf[128];
 
 	/* Emit the output into the temporary buffer */
 	va_start(args, fmt);
 	printed_len = vsnprintk(printk_buf, sizeof(printk_buf), fmt, args);
 	va_end(args);
 
-	usart1_puts(printk_buf, printed_len);
-
-	return printed_len;
-}
-
-int eprint(char *fmt, ...)
-{
-	va_list args;
-	int printed_len;
-
-	/* Emit the output into the temporary buffer */
-	va_start(args, fmt);
-	printed_len = vsnprintk(printk_buf, sizeof(printk_buf), fmt, args);
-	va_end(args);
-
+#if 0
 	_puts(printk_buf);
+#else
+	usart1_puts(printk_buf, printed_len);
+#endif
 
 	return printed_len;
 }

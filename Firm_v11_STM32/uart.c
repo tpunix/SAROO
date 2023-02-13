@@ -3,7 +3,7 @@
 
 /******************************************************************************/
 
-#define BUF_SIZE 8192
+#define BUF_SIZE 4096
 
 static u8  qbuf[BUF_SIZE];
 static u32 rp, wp, new_rp;
@@ -14,12 +14,11 @@ void usart1_dma_send(void *data, int length)
 	DMA1_Channel4->CNDTR = length;
 	DMA1_Channel4->CPAR = (u32)&(USART1->DR);
 	DMA1_Channel4->CMAR = (u32)data;
+	DMA1_Channel4->CCR = 0x0091;
 	
 	USART1->SR &= ~USART_SR_TC;
 	USART1->CR3 |= USART_CR3_DMAT;
 	USART1->CR1 |= USART_CR1_TCIE;
-
-	DMA1_Channel4->CCR = 0x0091;
 }
 
 void usart1_send_start(void)
@@ -41,19 +40,15 @@ void usart1_send_start(void)
 
 void USART1_IRQHandler(void)
 {
-	int key = disable_irq();
-
 	DMA1->IFCR = 0x0000f000;
 	DMA1_Channel4->CCR = 0x0000;
+	while(DMA1_Channel4->CCR&1);
 	USART1->CR1 &= ~USART_CR1_TCIE;
 	USART1->SR &= ~USART_SR_TC;
 	USART1->CR3 &= ~USART_CR3_DMAT;
 
 	rp = new_rp;
-
 	usart1_send_start();
-
-	restore_irq(key);
 }
 
 /******************************************************************************/
@@ -131,6 +126,7 @@ void usart1_init(void)
 	USART1->CR3  = 0;
 	USART1->BRR  = 0x0;    // Reset
 	USART1->BRR |= 0x0271; // 设置波特比率寄存器为115200
+//	USART1->BRR |= 0x0048; // 设置波特比率寄存器为1000000
 	USART1->CR1 |= 0x2000; // Enable UART1
 
 	NVIC_SetPriority(USART1_IRQn, 8);
@@ -157,7 +153,7 @@ void _puts(char *str)
 int _getc(void)
 {
 	while((USART1->SR&0x20)==0){ //等待RXNE不为1 
-		os_dly_wait(1);
+		os_dly_wait(10);
 	}
 
 	return USART1->DR;
