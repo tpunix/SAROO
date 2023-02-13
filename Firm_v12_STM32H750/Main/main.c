@@ -1,0 +1,231 @@
+
+#include "main.h"
+#include "rtx_os.h"
+#include "ff.h"
+
+/******************************************************************************/
+
+void set_mpu_entry(int index, u32 addr, u32 attr)
+{
+	MPU->RNR = index;
+	MPU->RBAR = addr;
+	MPU->RASR = attr;
+}
+
+void mpu_config(void)
+{
+	//set_mpu_entry(0, 0x00000000, 0x17000001|(31<<1));  // BackGround
+	//set_mpu_entry(1, 0x00000000, 0x03020001|(28<<1));  // Code
+	//set_mpu_entry(2, 0x20000000, 0x030b0001|(28<<1));  // SRAM
+	//set_mpu_entry(3, 0x40000000, 0x13000001|(28<<1));  // InternalDevice
+	set_mpu_entry(4, 0x60000000, 0x13000001|(28<<1));  // ExternalDevice
+
+	MPU->CTRL = 0x0005;
+}
+
+
+void device_init(void)
+{
+	RCC->AHB3ENR  = 0x00011001;  /* SDMMC1 FMC MDMA*/
+	RCC->AHB1ENR  = 0x08000003;  /* OTG2_FS DMA2 DMA1 */
+	RCC->AHB2ENR  = 0xe0000000;  /* SRAM3 SRAM2 SRAM1 */
+	RCC->AHB4ENR  = 0x000007ff;  /* GPIO */
+
+	RCC->APB1LENR = 0x0008c001;  /* USART4 SPI3 SPI2 TIM2 */
+	RCC->APB1HENR = 0x00000000;  /* */
+	RCC->APB2ENR  = 0x00001001;  /* SPI1 TIM1 */
+	RCC->APB3ENR  = 0x00000000;  /* */
+	RCC->APB4ENR  = 0x00010002;  /* RTC SYSCFG */
+	
+	RCC->AHB1LPENR &= ~0x14000000;
+
+	GPIOA->MODER  = 0x2aa00000;
+	GPIOA->OTYPER = 0x00000018;
+	GPIOA->OSPEEDR= 0x16805400;
+	GPIOA->PUPDR  = 0x40000040;
+	GPIOA->AFR[0] = 0x55500000;
+	GPIOA->AFR[1] = 0x000aaa00;
+	GPIOA->ODR    = 0x00000008;
+
+	GPIOB->MODER  = 0x8a0a9a80;
+	GPIOB->OTYPER = 0x00000000;
+	GPIOB->OSPEEDR= 0x8a008a80;
+	GPIOB->PUPDR  = 0x00400008;
+	GPIOB->AFR[0] = 0xc0766000;
+	GPIOB->AFR[1] = 0x55550088;
+	GPIOB->ODR    = 0x00000040;
+
+	GPIOC->MODER  = 0x06aa2400;
+	GPIOC->OTYPER = 0x00000000;
+	GPIOC->OSPEEDR= 0x02aa2000;
+	GPIOC->PUPDR  = 0x00000100;
+	GPIOC->AFR[0] = 0x05000000;
+	GPIOC->AFR[1] = 0x000ccccc;
+
+	GPIOD->MODER  = 0xaaaaaaaa;
+	GPIOD->OTYPER = 0x00000000;
+	GPIOD->OSPEEDR= 0xaaaaaaaa;
+	GPIOD->PUPDR  = 0x00000000;
+	GPIOD->AFR[0] = 0xcccccccc;
+	GPIOD->AFR[1] = 0xcccccccc;
+
+	GPIOE->MODER  = 0xaaaaaaaa;
+	GPIOE->OTYPER = 0x00000000;
+	GPIOE->OSPEEDR= 0xaaaaaaaa;
+	GPIOE->PUPDR  = 0x00000000;
+	GPIOE->AFR[0] = 0xcccccccc;
+	GPIOE->AFR[1] = 0xcccccccc;
+
+
+	uart4_init();
+
+	// FMC的地址复用模式, 只在MType为PSRAM/FLASH时可用.
+	// 各种模式的优先级: ExtMode > MuxMode > Mode1/2
+	// PSRAM模式下, 单次写入会扩展为带BL信号的4次写入. 所以FMC只能选择FLASH模式.
+	// FMC_CS1: 0xc0000000
+	FMC_Bank1_R->BTCR[0]  = 0x8000b05b;
+	FMC_Bank1_R->BTCR[1]  = 0x00020612;
+}
+
+
+/******************************************************************************/
+
+
+void do_hardfault(u32 *sp, u32 *esp)
+{
+	char hbuf[128];
+	int i;
+	for(i=0; i<10000000; i++){
+		__asm volatile("nop");
+	}
+	_puts("\r\n\r\nHardFault!\r\n");
+	sprintk(hbuf, "HFSR=%08x CFSR=%08x BFAR=%08x MMFAR=%08x\n",
+			SCB->HFSR, SCB->CFSR, SCB->BFAR, SCB->MMFAR);
+	_puts(hbuf);
+
+	sprintk(hbuf, "  R0 : %08x\n", esp[0]); _puts(hbuf);
+	sprintk(hbuf, "  R1 : %08x\n", esp[1]); _puts(hbuf);
+	sprintk(hbuf, "  R2 : %08x\n", esp[2]); _puts(hbuf);
+	sprintk(hbuf, "  R3 : %08x\n", esp[3]); _puts(hbuf);
+	sprintk(hbuf, "  R4 : %08x\n", sp[0]);  _puts(hbuf);
+	sprintk(hbuf, "  R5 : %08x\n", sp[1]);  _puts(hbuf);
+	sprintk(hbuf, "  R6 : %08x\n", sp[2]);  _puts(hbuf);
+	sprintk(hbuf, "  R7 : %08x\n", sp[3]);  _puts(hbuf);
+	sprintk(hbuf, "  R8 : %08x\n", sp[4]);  _puts(hbuf);
+	sprintk(hbuf, "  R9 : %08x\n", sp[5]);  _puts(hbuf);
+	sprintk(hbuf, "  R10: %08x\n", sp[6]);  _puts(hbuf);
+	sprintk(hbuf, "  R11: %08x\n", sp[7]);  _puts(hbuf);
+	sprintk(hbuf, "  R12: %08x\n", esp[4]); _puts(hbuf);
+	sprintk(hbuf, "  SP : %08x\n", esp);    _puts(hbuf);
+	sprintk(hbuf, "  LR : %08x\n", esp[5]); _puts(hbuf);
+	sprintk(hbuf, "  PC : %08x\n", esp[6]); _puts(hbuf);
+	sprintk(hbuf, "  PSR: %08x\n", esp[7]); _puts(hbuf);
+
+	while(1);
+}
+
+
+/******************************************************************************/
+
+void    *osRtxMemoryAlloc(void *mem, uint32_t size, uint32_t type);
+uint32_t osRtxMemoryFree (void *mem, void *block);
+
+
+void *malloc(uint32_t size)
+{
+	void *p = osRtxMemoryAlloc(osRtxInfo.mem.common, size, 0);
+	//printk("malloc: %08x  %d\n", p, size);
+	return p;
+}
+
+
+void free(void *p)
+{
+	//printk("free: %08x\n", p);
+	osRtxMemoryFree(osRtxInfo.mem.common, p);
+}
+
+
+void memcpy32(void *dst, void *src, int len)
+{
+	u32 *dp = (u32*)dst;
+	u32 *sp = (u32*)src;
+
+	while(len>0){
+		*dp++ = *sp++;
+		len -= 4;
+	}
+
+}
+
+
+/******************************************************************************/
+
+FATFS sdfs;
+
+void fs_mount(void *arg)
+{
+	FRESULT retv;
+
+	retv = f_mount(&sdfs, "0:", 1);
+	printk("Mount SDFS: %08x\n\n", retv);
+	if(retv==0){
+		//scan_dir("/", 0, NULL);
+	}
+
+}
+
+
+/******************************************************************************/
+
+void fpga_config(void);
+
+
+void main_task(void *arg)
+{
+	int cnt = 0;
+
+	device_init();
+
+	printk("\n\nSSMaster start!\n\n");
+	
+	mpu_config();
+
+	sdio_init();
+	
+	fs_mount(0);
+	
+	fpga_config();
+
+	saturn_config();
+
+	simple_shell();
+
+	while(1){
+		GPIOC->BSRR = 0x2000<<16;
+		osDelay(50);
+
+		GPIOC->BSRR = 0x2000;
+		osDelay(50);
+
+		cnt += 1;
+	}
+
+}
+
+
+int main(void)
+{
+	osKernelInitialize();
+
+	osThreadAttr_t attr;
+	memset(&attr, 0, sizeof(attr));
+	attr.priority = osPriorityLow;
+
+	osThreadNew(main_task, NULL, &attr);
+
+	osKernelStart();
+
+	return 0;
+}
+
