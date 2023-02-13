@@ -4,35 +4,19 @@
 
 /**********************************************************/
 
-typedef struct {
-	u32     pr;
-	u32     gbr;
-	u32     vbr;
-	u32     mach;
-	u32     macl;
-	u32     r15;
-	u32     r14;
-	u32     r13;
-	u32     r12;
-	u32     r11;
-	u32     r10;
-	u32     r9;
-	u32     r8;
-	u32     r7;
-	u32     r6;
-	u32     r5;
-	u32     r4;
-	u32     r3;
-	u32     r2;
-	u32     r1;
-	u32     r0;
-	u32     pc;
-	u32     sr;
-}REGS;
+
 
 void vbi_isr_entry(void);
 void ubr_isr_entry(void);
-void debug_shell(void);
+void debug_shell(void *arg);
+
+
+static int auto_break;
+static int game_break_pc;
+static void (*game_break_handle)(REGS *reg);
+
+
+/**********************************************************/
 
 static inline u32 get_sr(void)
 {
@@ -48,7 +32,6 @@ static inline void set_sr(u32 sr)
 }
 
 
-
 void show_regs(REGS *reg)
 {
 	printk("SH2 Registers:\n");
@@ -59,41 +42,93 @@ void show_regs(REGS *reg)
 	printk("PC =%08X PR =%08x SR =%08x GBR=%08x\n", reg->pc, reg->pr, reg->sr, reg->gbr);
 }
 
-void set_break_pc(u32 addr)
+
+/**********************************************************/
+
+
+void set_break_pc(u32 addr, u32 mask)
 {
-	BARA = addr;
-	BAMRA = 0;
-	BBRA = 0x0054;
-	BRCR = 0x1400;
+	if(addr){
+		BARA = addr;
+		BAMRA = mask;
+		BBRA = 0x0054;
+		BRCR = 0x1400;
+	}else{
+		BBRA = 0;
+	}
 }
+
+
+void set_break_rw(u32 addr, u32 mask, int rw)
+{
+	if(addr){
+		BARB = addr;
+		BAMRB = mask;
+		BBRB = (0x0060|rw);
+		BRCR = 0x1400;
+	}else{
+		BBRB = 0;
+	}
+}
+
 
 void ubr_handle(REGS *reg)
 {
+	BRCR = 0x1400;
+
+	if(auto_break){
+		// 修改设置SR时的参数, 打开ubr中断
+		if(reg->pc==0x0000044c){
+			reg->r0 = 0xe0;
+			set_break_pc(0x000002b0, 0);
+		}
+
+		// memset
+		if(reg->pc==0x000002b2){
+			// 避免LRAM被BIOS清0
+			if(reg->r3==0x00200000){
+				reg->r6 = 0x00020000;
+				set_break_pc(0x000002c2, 0);
+			}
+		}
+
+		// memcpy
+		if(reg->pc==0x000002c4){
+			// 避免向量表被BIOS重设
+			if(reg->r3==0x06000000){
+				reg->r6 = 0x0c;
+				set_break_pc(0x000002a4, 0);
+				//set_break_pc(0x060011bc, 0); // --> bios:000011bc
+				//0x060011bc处会重设cdplayer的地址。
+				//设置到这里，有可能断不下来，游戏也不启动了。
+			}
+		}
+
+		// last
+		if(reg->pc==0x000002a6){
+		//if(reg->pc==0x060011be){
+		//	*(u32*)(0x0600026c) = 0x02000f00;
+			if(game_break_pc){
+				set_break_pc(game_break_pc, 0);
+				printk("Set game break at %08x\n", game_break_pc);
+			}
+			auto_break = 0;
+		}
+		return;
+	}
+
+
 	sci_init();
 	printk("\nubr_handle! BRCR=%04x\n", BRCR);
 	show_regs(reg);
-	BRCR = 0x1400;
 
-	// 修改设置SR时的参数, 打开ubr中断
-	if(reg->pc==0x0000044c){
-		reg->r0 = 0xe0;
-		set_break_pc(0x000002c2);
-	}
-
-	// memcpy
-	if(reg->pc==0x000002c4){
-		// 避免向量表被BIOS重设
-		if(reg->r3==0x06000000){
-			reg->r6 = 0x0c;
-			set_break_pc(0x06004000);
-		}
-	}
-
-	if(reg->pc==0x06006180){
-		printk("Game Start!\n");
-		debug_shell();
+	if(reg->pc==game_break_pc+2 && game_break_handle){
+		game_break_handle(reg);
+	}else{
+		debug_shell(reg);
 	}
 }
+
 
 void vbi_handle(REGS *reg)
 {
@@ -104,61 +139,97 @@ void vbi_handle(REGS *reg)
 }
 
 
+void break_in_game(int break_pc, void *handle)
+{
+	auto_break = 1;
+	game_break_pc = break_pc;
+	game_break_handle = handle;
+
+	set_break_pc(0x0000044a, 0);
+	install_ubr_isr();
+}
+
+
+void break_in_game_next(int break_pc, void *handle)
+{
+	game_break_pc = break_pc;
+	game_break_handle = handle;
+	set_break_pc(break_pc, 0);
+}
+
+
 void install_ubr_isr(void)
 {
-	u32 sr;
-
-	//*(u32*)(0x06000100) = (u32)vbi_isr_entry;
 	*(u32*)(0x06000030) = (u32)ubr_isr_entry;
 
-	set_break_pc(0x0000044a);
-
-	sr = get_sr();
+	u32 sr = get_sr();
 	sr &= 0xffffffef;
 	set_sr(sr);
 }
 
 
-
 /**********************************************************/
 
-int gets(char *buf, int len);
-int parse_arg(char *str, char *argv[]);
-void dump(int argc, char *argv[]);
-void mrd(int argc, char *argv[]);
-void mwr(int argc, char *argv[]);
-void command_go(int go_addr);
-void mem_dump(char *str, void *addr, int size);
 
-void debug_shell(void)
+#define CMD_START if(0){}
+#define CMD(x) else if(strcmp(cmd, #x)==0)
+
+void debug_shell(void *ctx)
 {
-	int ch;
-	char str[128];
-	int argc;
-	char *argv[16];
+	char cmd[128];
+	u32 argc, arg[4];
+	REGS *reg = (REGS*)ctx;
 
 	while(1){
-		ch = gets(str, 128);
-		argc = parse_arg(str, argv);
-		if(argv[0][0]=='d')
-			dump(argc, argv);
-		if(argv[0][0]=='r')
-			mrd(argc, argv);
-		if(argv[0][0]=='w')
-			mwr(argc, argv);
-		if(argv[0][0]=='g'){
-			int addr = strtoul(argv[1], 0, 0, 0);
-			command_go(addr);
+		gets(cmd, 128);
+		char *sp = strchr(cmd, ' ');
+		if(sp){
+			*sp = 0;
+			sp += 1;
+			argc = str2hex(sp, arg);
+		}else{
+			argc = 0;
 		}
 
-		if(argv[0][0]=='b'){
-			int addr = strtoul(argv[1], 0, 0, 0);
-			set_break_pc(addr);
-		}
+		CMD_START
+		CMD(rb){ printk("%08x: %02x\n", arg[0], *(u8*)arg[0]);  }
+		CMD(rw){ printk("%08x: %04x\n", arg[0], *(u16*)arg[0]); }
+		CMD(rd){ printk("%08x: %08x\n", arg[0], *(u32*)arg[0]); }
+		CMD(wb){ printk("%08x= %02x\n", arg[0], (u8)arg[1]);  *(u8*)arg[0]  = arg[1]; }
+		CMD(ww){ printk("%08x= %04x\n", arg[0], (u16)arg[1]); *(u16*)arg[0] = arg[1]; }
+		CMD(wd){ printk("%08x= %08x\n", arg[0], (u32)arg[1]); *(u32*)arg[0] = arg[1]; }
+		CMD(db){ dump(argc, arg, 1); }
+		CMD(dw){ dump(argc, arg, 2); }
+		CMD(dd){ dump(argc, arg, 4); }
+		CMD(d) { dump(argc, arg, 0); }
+		CMD(go){ void (*go)(void) = (void(*)(void))arg[0]; go(); }
 
-		if(argv[0][0]=='c'){
+		CMD(r0){ reg->r0 = arg[0];}
+		CMD(r6){ reg->r6 = arg[0];}
+
+		CMD(b ){
+			u32 addr = 0, mask = 0;
+			if(argc>0) addr = arg[0];
+			if(argc>1) mask = arg[1];
+			set_break_pc(addr, mask);
 			break;
 		}
+		CMD(br) {
+			u32 addr = 0, mask = 0;
+
+			if(argc>0) addr = arg[0];
+			if(argc>1) mask = arg[1];
+			set_break_rw(addr, mask, BRK_READ);
+		}
+		CMD(bw) {
+			u32 addr = 0, mask = 0;
+
+			if(argc>0) addr = arg[0];
+			if(argc>1) mask = arg[1];
+			set_break_rw(addr, mask, BRK_WRITE);
+		}
+
+		CMD(c ){ break; }
 	}
 
 }

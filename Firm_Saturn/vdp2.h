@@ -153,6 +153,7 @@
 #define LSTA1L  (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xa6))
 #define LCTAU   (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xa8))
 #define LCTAL   (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xaa))
+#define BKTA    (*(volatile unsigned   int *)(VDP2_REGISTER_BASE+0xac))
 #define BKTAU   (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xac))
 #define BKTAL   (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xae))
 #define RPMD    (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xb0))

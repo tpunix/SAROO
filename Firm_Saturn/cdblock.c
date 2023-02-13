@@ -111,7 +111,7 @@ int cdc_cmd(int wait, CDCMD *cmd, CDCMD *resp, char *cmdname)
 	CR4 = cmd->cr4;
 
 	if(wait_hirq(HIRQ_CMOK)){
-		printk("CMOK TIMEOUT! HIRQ=%04x wait=%04x\n", HIRQ, wait);
+		printk("CMOK TIMEOUT! HIRQ=%04x wait=%04x %s\n", HIRQ, wait, cmdname);
 		return -3;
 	}
 
@@ -134,7 +134,7 @@ int cdc_cmd(int wait, CDCMD *cmd, CDCMD *resp, char *cmdname)
 			printk("HIRQ TIMEOUT! HIRQ=%04x wait=%04x\n", HIRQ, wait);
 		}
 	}
-	clear_hirq(wait|HIRQ_CMOK);
+	//clear_hirq(wait|HIRQ_CMOK);
 
 	//printk("   resp: %04x %04x %04x %04x\n", resp->cr1,resp->cr2,resp->cr3,resp->cr4);
 
@@ -174,6 +174,24 @@ int cdc_get_status(int *status)
 		*status = resp.cr1>>8;
 	return retv;
 }
+
+int cdc_get_hwinfo(int *status)
+{
+	CDCMD cmd, resp;
+	int retv;
+
+	cmd.cr1 = 0x0100;
+	cmd.cr2 = 0x0000;
+	cmd.cr3 = 0x0000;
+	cmd.cr4 = 0x0000;
+
+	retv = cdc_cmd(0, &cmd, &resp, "cdc_get_hwinfo");
+
+	if(status)
+		*status = resp.cr1>>8;
+	return retv;
+}
+
 
 int cdc_cdb_init(int standby)
 {
@@ -542,10 +560,10 @@ int cdc_auth_status(int *status)
 	cmd.cr3 = 0x0000;
 	cmd.cr4 = 0x0000;
 
-	cdc_cmd(0, &cmd, &resp, "cdc_auth_status");
+	int retv = cdc_cmd(0, &cmd, &resp, "cdc_auth_status");
 
 	*status = resp.cr2;
-	return 0;
+	return retv;
 }
 
 
@@ -585,10 +603,10 @@ int cdc_auth_device(void)
 		printk("STATUS: %02x  HIRQ: %04x\n", status, HIRQ);
 	}
 
-	cdc_auth_status(&status);
+	int retv = cdc_auth_status(&status);
 	printk("AUTH: %02x\n\n", status);
 
-	return 0;
+	return retv;
 }
 
 /**********************************************************/
@@ -730,9 +748,13 @@ void cdc_file_test(void)
 	cdc_read_file(1, 6, 0);
 	show_selector(1);
 
-	cdc_get_numsector(1, &free);
-	printk("cdc_get_numsector 1: %d HIRQ=%04x\n", free, HIRQ);
+	do{
+		cdc_get_numsector(1, &free);
+		printk("cdc_get_numsector 1: %d HIRQ=%04x\n", free, HIRQ);
+	}while(free<200);
+
 	cdc_get_buffer_size(&total, &npart, &free);
+	printk("cdc_get_buffer_size: free=%d\n", free);
 
 	cdc_get_del_data(1, 0, 128);
 	cdc_get_numsector(1, &free);
@@ -772,7 +794,7 @@ void cdc_file_test(void)
 
 #define bios_loadcd_read    INDIRECT_CALL(0x060002cc, int,  void) // 00001912
 
-#define bios_loadcd_boot    INDIRECT_CALL(0x06000288, int,  int)  // 000018A8
+#define bios_loadcd_boot    INDIRECT_CALL(0x06000288, int,  void)  // 000018A8
 
 
 int old_mplayer_addr;
@@ -782,6 +804,7 @@ void my_myplayer(int addr)
 	int retv;
 	int (*go)(int) = (void*)old_mplayer_addr;
 
+	sci_init();
 	printk("\n-- read_main! addr=%08x --\n", addr);
 
 	retv = go(addr);
@@ -791,7 +814,8 @@ void my_myplayer(int addr)
 
 int my_bios_loadcd_init(void)
 {
-	printk("\n\nmy_bios_loadcd_init!\n");
+	printk("\nmy_bios_loadcd_init!\n");
+
 	*(u32*)(0x06000278) = 0;
 	*(u32*)(0x0600027c) = 0;
 
@@ -800,98 +824,67 @@ int my_bios_loadcd_init(void)
 	cdc_reset_selector(0xfc, 0);
 	cdc_set_size(0);
 
-	cdc_auth_device();
+	// This is needed for Yabause: Clear the diskChange flag.
+	int status;
+	cdc_get_hwinfo(&status);
 
 	return 0;
 }
 
+
 int my_bios_loadcd_read(void)
 {
-	int total, npart, free;
-	int status;
+	int status, tm;
 	u8 *sbuf = (u8*)0x06002000;
+
+	printk("\nmy_bios_loadcd_read!\n");
 
 	cdc_reset_selector(0, 0);
 	cdc_cddev_connect(0);
 	cdc_play_fad(0, 150, 16);
 
-	printk("\n\nwait play end ...        \n");
 	HIRQ = 0;
-	while(1){
-		cdc_get_status(&status);
-		printk("STATUS: %02x  HIRQ=%04x        \n", status, HIRQ);
+	tm = 10000000;
+	while(tm){
 		if(HIRQ&HIRQ_PEND)
 			break;
+		tm -= 1;
+	}
+	if(tm==0){
+		printk("  PLAY timeout!\n");
+		return -1;
 	}
 
 	cdc_get_data(0, 0, 16);
 	cdc_trans_data(sbuf, 2048*16);
 	cdc_end_trans(&status);
+
 	*(u16*)(0x060003a0) = 1;
 
-	//cdc_get_buffer_size(&total, &npart, &free);
-	//mem_dump("Sector Data", sbuf, 256);
+	patch_game((char*)0x06002020);
 
 	return 0;
 }
 
-#if 0
+#if 1
 
-void bios_cd_cmd(void)
+int bios_cd_cmd(void)
 {
 	int retv;
 
-#if 0
-	retv = my_bios_loadcd_init();
-	printk("my_bios_loadcd_init  retv=%d\n", retv);
+	//old_mplayer_addr = *(u32*)(0x0600026c);
+	//*(u32*)(0x0600026c) = my_mplayer;
+
+	my_bios_loadcd_init();
 
 	retv = my_bios_loadcd_read();
-	printk("my_bios_loadcd_read  retv=%d\n", retv);
+	if(retv)
+		return retv;
 
-	retv = bios_loadcd_boot(0);
+	retv = bios_loadcd_boot();
 	printk("bios_loadcd_boot  retv=%d\n", retv);
-#else
 
-	retv = bios_loadcd_init(0);
-	printk("bios_loadcd_init  retv=%d        \n", retv);
-
-	printk("wait auth ...\n");
-	while(1){
-		int i;
-		for(i=0; i<1000000; i++);
-		cdc_get_status(&retv);
-		if(retv!=0xff)
-			break;
-		printk("STATUS: %02x  HIRQ: %04x\n", retv, HIRQ);
-	}
-
-
-#if 0
-	retv = bios_loadcd_read();
-	printk("bios_loadcd_read  retv=%d\n", retv);
-
-	HIRQ = 0xffef;
-	while(1){
-		if(HIRQ&HIRQ_PEND)
-			break;
-	}
-	cdc_get_status(&retv);
-	printk("STATUS: %02x  HIRQ=%04x\n", retv, HIRQ);
-
-#endif
-	retv = my_bios_loadcd_read();
-	printk("my_bios_loadcd_read  retv=%d        \n", retv);
-
-	wait_peri();
-
-	retv = bios_loadcd_boot(0);
-	printk("bios_loadcd_boot  retv=%d        \n", retv);
-
-#endif
-
-
-
-
+	return retv;
 }
 
 #else
@@ -906,14 +899,16 @@ int bios_cd_cmd(void)
 {
 	int retv, save_sp, times;
 
-	old_mplayer_addr = *(u32*)(0x060002d0);
-	*(u32*)(0x060002d0) = my_myplayer;
+	old_mplayer_addr = *(u32*)(0x0600026c);
+	*(u32*)(0x0600026c) = my_mplayer;
 
 	printk("bios_cd_cmd!\n");
-	cdc_cdb_init(0);
 
+#if 0
+	cdc_cdb_init(0);
 	cdc_change_dir(23, 0xffffff);
 	cdc_abort_file();
+#endif
 
 	printk("bios_loadcd_init ...\n");
 	retv = bios_loadcd_init(0);
@@ -922,19 +917,19 @@ int bios_cd_cmd(void)
 		return retv;
 
 #if 1
-	times = 400;
-	save_sp = set_sp(0x06002000);
+	times = 4000;
+	//save_sp = set_sp(0x06002000);
 	while(times){
-		retv = bios_loadcd_boot(0);
+		retv = bios_loadcd_boot();
 		printk("bios_loadcd_boot: %d\n", retv);
 		if(retv<0)
 			break;
 		times -= 1;
 	}
-	set_sp(save_sp);
+	//set_sp(save_sp);
 #else
 	bios_loadcd_boot(0);
-	my_myplayer(0x06040000);
+	my_mplayer(0x06040000);
 #endif
 
 	return retv;
@@ -1025,17 +1020,17 @@ void cdc_read_test(void)
 	int old_hirq, old_cr1, old_cr2, old_cr3, old_cr4;
 
 	u8 *sbuf = 0x06040000;
-	char *logbuf = (char*)0x06100000;
+	char *logbuf = (char*)0x06080000;
 	int log_p = 0;
 
 	cdc_set_size(0);
 	cdc_reset_selector(0, 0);
 	cdc_cddev_connect(0);
 
+	HIRQ = 0;
 	cdc_play_fad(0, 0xd5, 0x40);
 
 	printk("\n\nwait play end ...\n");
-	HIRQ = 0;
 	reset_timer();
 	while(1){
 		hirq = HIRQ;
@@ -1045,6 +1040,7 @@ void cdc_read_test(void)
 		cr4 = CR4;
 		if(old_hirq!=hirq || old_cr1!=cr1 || old_cr4!=cr4){
 			cdc_get_buffer_size(&total, &npart, &free);
+			printk("%08x: HIRQ=%04x CR1=%04x CR4=%04x free=%d\n", get_timer(), hirq, cr1, cr4, free);
 			log_p += sprintf(logbuf+log_p, "%08x: HIRQ=%04x CR1=%04x CR4=%04x free=%d\n",
 							get_timer(), hirq, cr1, cr4, free);
 		}

@@ -116,6 +116,20 @@ int strncmp(char *s1, char *s2, int n)
     return r;
 }
 
+
+char *strchr(char *s1, int ch)
+{
+	while(1){
+		char t = *s1;
+		if(t==0)
+			return (char*)0;
+		if(t==ch)
+			return s1;
+		s1++;
+	}
+}
+
+
 int strlen(char *s)
 {
     register char *p = s;

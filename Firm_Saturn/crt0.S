@@ -25,21 +25,44 @@ start:
 	shll2   r0
 	ldc     r0,sr
 
+	! set ASR0
+	mov.l   asr0_ptr, r0
+	mov.l	asr0_val, r1
+	mov.l	r1, @r0
+	mov		#0x13, r1
+	mov.l	r1, @(8,r0)
+
+	! Relocate self
+	mova	_real, r0
+	mov.l	start_ptr, r1
+_real:
+	shlr8	r0
+	shll8	r0
+	cmp/eq	r1, r0
+	bt		_clear_bss
+
+	mov.l	end_ptr, r2
+1:
+	mov.l	@r0, r3
+	mov.l	r3, @r1
+	add		#4, r0
+	add		#4, r1
+	cmp/hs	r2, r1
+	bf		1b
+
+_clear_bss:
 	! Clear BSS
 	mov.l   bss_start,r0
 	mov.l   bss_end,r1
 	mov     #0,r2
-lbss:
-	cmp/ge  r0,r1
-	bt      lbss_end
-	add     #1,r0
+1:
 	mov.b   r2,@r0
-	bra     lbss
-lbss_end:
+	add     #1,r0
+	cmp/hs  r1,r0
+	bf		1b
 
     ! Set initial stack pointer. Stack is from 0x6002000-0x6003FFF
     mov.l   stack_ptr,r15
-
     ! Jump to _main()
     mov.l   main_ptr,r0
     jsr		@r0
@@ -53,13 +76,17 @@ lbss_end:
 end:
     bra     end
     nop
+
 .align	4
 
+start_ptr:  .long start
+end_ptr:    .long __ip_end
 main_ptr:   .long __main
 stack_ptr:  .long __stack_end
 bss_start:  .long __bss_start
 bss_end:    .long __bss_end
-
+asr0_ptr:   .long 0x25fe00b0
+asr0_val:   .long 0x34403440
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -120,10 +147,6 @@ _ubr_isr_entry:
 	rte
 	nop
 .align	4
-
-brcr_addr:
-		.long 0xffffff78
-
 
 
 .global _vbi_isr_entry

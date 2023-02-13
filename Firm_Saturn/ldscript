@@ -9,16 +9,16 @@
 
 
 
-/*
 OUTPUT_FORMAT("elf32-sh")
-*/
 OUTPUT_FORMAT("binary")
 SECTIONS
 {
-    . = 0x002a0000;
+/*  . = 0x002a0000;*/
+	. = 0x02000000;
     __ip_start = .;
     .text :
     {
+        KEEP(*(.sysid))
         *(.text)
     }
 	.rodata :
