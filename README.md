@@ -7,10 +7,11 @@ SAROO同时还提供1MB/4MB加速卡功能。
 --------
 ### 一些图片
 
-<img src="doc/saroo_v12_top.jpg" width="500"/>  <img src="doc/saroo_v12_bot.jpg" width="500"/>
-<img src="doc/saroo_scr1.png" width="500"/>  <img src="doc/saroo_scr2.png" width="500"/>
+<img src="doc/saroo_v12_top.jpg" width=48%/>  <img src="doc/saroo_v12_bot.jpg" width=48%/>
+<img src="doc/saroo_scr1.png" width=48%/>  <img src="doc/saroo_scr2.png" width=48%/>
 <img src="doc/saroo_dev1.png"/>
 <img src="doc/saroo_devhw.jpg"/>
+
 
 --------
 ### 开发历史
