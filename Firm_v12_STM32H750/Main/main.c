@@ -161,6 +161,113 @@ void memcpy32(void *dst, void *src, int len)
 
 /******************************************************************************/
 
+
+int flash_erase(int addr)
+{
+	int retv;
+
+	if(FLASH->CR1 & 1){
+		FLASH->KEYR1 = 0x45670123;
+		FLASH->KEYR1 = 0xcdef89ab;
+	}
+
+	addr = (addr>>17)&7;
+	FLASH->CR1 = 0x0024 | (addr<<8);
+	FLASH->CR1 = 0x00a4 | (addr<<8);
+
+	while(FLASH->SR1&7);
+	retv = FLASH->SR1 & 0x07fe0000;
+
+	FLASH->CCR1 = FLASH->SR1;
+	FLASH->CR1 = 0x0000;
+
+	return retv;
+}
+
+
+int flash_write32(int addr, u8 *buf)
+{
+	int i, retv;
+
+	if(FLASH->CR1 & 1){
+		FLASH->KEYR1 = 0x45670123;
+		FLASH->KEYR1 = 0xcdef89ab;
+	}
+
+	FLASH->CR1 = 0x0022;
+	__DSB();
+
+	for(i=0; i<32; i+=4){
+		*(volatile u32*)(addr+i) = *(u32*)(buf+i);
+	}
+	__DSB();
+
+	while(FLASH->SR1&7);
+	retv = FLASH->SR1 & 0x07fe0000;
+
+	FLASH->CCR1 = FLASH->SR1;
+	FLASH->CR1 = 0x0000;
+
+	return retv;
+}
+
+
+int flash_update(int check)
+{
+	FIL fp;
+	int i, addr, retv, fsize;
+	u8 *fbuf = (u8*)0x24002000;
+
+	// 检查是否有升级文件.
+	retv = f_open(&fp, "/SAROO/update/ssmaster.bin", FA_READ);
+	if(retv){
+		printk("No firm file.\n");
+		return -1;
+	}
+	fsize = f_size(&fp);
+	printk("Found firm file.\n");
+	printk("    Size %08x\n", fsize);
+
+	if(check){
+		f_close(&fp);
+		return 0;
+	}
+
+
+	u32 rv;
+	f_read(&fp, fbuf, fsize, &rv);
+
+
+	disable_irq();
+
+	int firm_addr = 0x08000000;
+	_puts("erase ...\n");
+	retv = flash_erase(firm_addr);
+	if(retv){
+		_puts("    faile!\n");
+		f_close(&fp);
+		return -2;
+	}
+
+	_puts("write ...\n");
+	for(i=0; i<fsize; i+=32){
+		retv = flash_write32(firm_addr+i, fbuf+i);
+		if(retv){
+			_puts("    faile!\n");
+			f_close(&fp);
+			return -3;
+		}
+	}
+
+	f_close(&fp);
+	_puts("done.\n");
+	return 0;
+}
+
+
+/******************************************************************************/
+
+
 FATFS sdfs;
 
 void fs_mount(void *arg)
@@ -187,8 +294,8 @@ void main_task(void *arg)
 
 	device_init();
 
-	printk("\n\nSSMaster start!\n\n");
-	
+	printk("\n\nSSMaster start! %s %s\n\n", __DATE__, __TIME__);
+
 	mpu_config();
 
 	sdio_init();

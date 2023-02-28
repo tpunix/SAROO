@@ -213,7 +213,7 @@ set_global_assignment -name ENABLE_INIT_DONE_OUTPUT ON
 set_global_assignment -name ENABLE_CONFIGURATION_PINS OFF
 set_global_assignment -name ENABLE_NCE_PIN OFF
 set_global_assignment -name ENABLE_BOOT_SEL_PIN OFF
-set_global_assignment -name TRI_STATE_SPI_PINS ON
+set_global_assignment -name TRI_STATE_SPI_PINS OFF
 set_global_assignment -name ENABLE_SIGNALTAP OFF
 set_global_assignment -name USE_SIGNALTAP_FILE bus.stp
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
@@ -234,4 +234,13 @@ set_global_assignment -name SIGNALTAP_FILE fsmc.stp
 set_global_assignment -name SIGNALTAP_FILE ss_abus.stp
 set_global_assignment -name CDF_FILE ssmaster.cdf
 set_global_assignment -name QIP_FILE mainpll.qip
+set_location_assignment PIN_H1 -to EPCS_CLK
+set_location_assignment PIN_D2 -to EPCS_CS
+set_location_assignment PIN_C1 -to EPCS_DI
+set_location_assignment PIN_H2 -to EPCS_DO
+set_global_assignment -name ENABLE_OCT_DONE OFF
+set_global_assignment -name RESERVE_DATA0_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_DATA1_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_FLASH_NCE_AFTER_CONFIGURATION "USE AS REGULAR IO"
+set_global_assignment -name RESERVE_DCLK_AFTER_CONFIGURATION "USE AS REGULAR IO"
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

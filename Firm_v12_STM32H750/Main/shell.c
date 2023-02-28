@@ -232,6 +232,16 @@ void simple_shell(void)
 			void play_i2s(void);
 			play_i2s();
 		}
+		CMD(fpu){
+			fpga_update(0);
+		}
+		CMD(flu){
+			flash_update(0);
+		}
+		CMD(fet){
+			int flash_erase(int snb);
+			flash_erase(arg[0]);
+		}
 
 		CMD(memset){
 			if(argc>=3){

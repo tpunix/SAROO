@@ -59,6 +59,18 @@ Firm_V12使用MDK5编译。
 
 
 --------
+### SD卡文件放置
+
+<pre>
+/ramimage.bin      ;Saturn的固件程序.
+/SAROO/ISO/        ;存放游戏镜像. 每个目录放一个游戏. 目录名将显示在菜单中.
+/SAROO/update/     ;存放用于升级的固件.
+                   ;  FPGA: SSMaster.rbf
+                   ;  MCU : ssmaster.bin
+</pre>
+
+
+--------
 一些开发中的记录: [SAROO技术点滴](doc/SAROO技术点滴.txt)
 
 

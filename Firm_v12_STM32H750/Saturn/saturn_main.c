@@ -381,24 +381,45 @@ void ss_cmd_handle(void)
 
 	switch(cmd){
 	case 0x0001:
+		// 输出信息
 		printk("%s", (char*)0x61820010);
 		SS_CMD = 0;
 		break;
 	case 0x0002:
+		// 列出镜像信息
 		list_disc();
 		SS_CMD = 0;
 		break;
 	case 0x0003:
+		// 装载镜像
 		load_disc(SS_ARG);
 		SS_CMD = 0;
 		break;
-
+	case 0x0004:
+	{
+		// 检查是否有升级固件
+		int fpga = (fpga_update(1)==0)? 1: 0;
+		int firm = (flash_update(1)==0)? 1: 0;
+		SS_ARG = (fpga<<1) | firm;
+		SS_CMD = 0;
+		break;
+	}
+	case 0x0005:
+	{
+		// 固件升级
+		int fpga = (fpga_update(0)>=-1)? 0: 1;
+		int firm = (flash_update(0)>=-1)? 0: 1;
+		SS_ARG = (fpga<<1) | firm;
+		SS_CMD = 0;
+		break;
+	}
 	default:
 		printk("[SS] unkonw cmd: %04x\n", cmd);
 		break;
 	}
 
 }
+
 
 /******************************************************************************/
 

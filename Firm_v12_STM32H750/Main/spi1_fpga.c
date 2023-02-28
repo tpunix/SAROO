@@ -6,51 +6,273 @@
 /******************************************************************************/
 
 
-static void spi1_setcs(int cs)
-{
-	if(cs){
-		GPIOA->BSRR = 0x0008;
-	}else{
-		GPIOA->BSRR = 0x0008<<16;
-	}
-}
+#define FSPI_DELAY     100
 
-static u32 spi1_trans(u32 data)
-{
-	*(volatile u8*)&(SPI1->TXDR) = (u8)data;
-	while((SPI1->SR&SPI_SR_RXP)==0);
-	return *(volatile u8*)&(SPI1->RXDR);
-}
-
-static void spi1_delay(void)
+void fspi_delay(void)
 {
 	int i;
-	for(i=0; i<1000; i++){
+
+	for(i=0; i<FSPI_DELAY; i++){
+		NOTHING();
 	}
 }
 
-static void spi1_init(void)
+
+void fspi_setcs(int val)
 {
-	u32 cfg;
+	int ctrl = *(volatile u16*)(0x60000016);
+	if(val)
+		ctrl |= 0x08;
+	else
+		ctrl &= 0x07;
+	*(volatile u16*)(0x60000016) = ctrl;
+}
 
-	// PA3: FPGA_nCS     (out)
-	// PA4: FPGA_nCONFIG (out)
-	// PA5: FPGA_DCLK    | SPI1_SCLK
-	// PA6: FPGA_SO      | SPI1_MISO
-	// PA7: FPGA_SI      | SPI1_MOSI
-	cfg = GPIOA->MODER;
-	cfg &= 0xffff003f;
-	cfg |= 0x0000a940;
-	GPIOA->MODER = cfg;
+void fspi_setclk(int val)
+{
+	int ctrl = *(volatile u16*)(0x60000016);
+	if(val)
+		ctrl |= 0x04;
+	else
+		ctrl &= 0x0b;
+	*(volatile u16*)(0x60000016) = ctrl;
+}
+
+void fspi_setdi(int val)
+{
+	int ctrl = *(volatile u16*)(0x60000016);
+	if(val)
+		ctrl |= 0x02;
+	else
+		ctrl &= 0x0d;
+	*(volatile u16*)(0x60000016) = ctrl;
+}
+
+int fspi_getdo(void)
+{
+	return (*(volatile u16*)(0x60000016))&1;
+}
+
+int fspi_init(void)
+{
+	fspi_setcs(1);
+	fspi_setclk(1);
+
+	return 0;
+}
+
+int fspi_trans(int byte)
+{
+	int i, data;
+
+	data = 0;
+	for(i=0; i<8; i++){
+		fspi_setdi(byte&0x80);
+		fspi_setclk(0);
+		fspi_delay();
+
+		byte <<= 1;
+		data <<= 1;
+		data |= fspi_getdo();
+
+		fspi_setclk(1);
+		fspi_delay();
+
+	}
+
+	return data;
+}
+
+/******************************************************************************/
+/* SPI flash                                                                  */
+/******************************************************************************/ 
+
+int epcs_readid(void)
+{
+	int mid, pid;
+
+	fspi_init();
+
+	fspi_setcs(0);
+	fspi_delay();
+
+	fspi_trans(0x90);
+	fspi_trans(0);
+	fspi_trans(0);
+	fspi_trans(0);
+
+	mid = fspi_trans(0);
+	pid = fspi_trans(0);
+
+	fspi_setcs(1);
+	fspi_delay();
+
+	return (mid<<8)|pid;
+}
+
+int epcs_status(void)
+{
+	int status;
+
+	fspi_setcs(0);
+	fspi_delay();
+	fspi_trans(0x05);
+	status = fspi_trans(0);
+	fspi_setcs(1);
+	fspi_delay();
+
+	return status;
+}
+
+int epcs_wen(int en)
+{
+	fspi_setcs(0);
+	fspi_delay();
+	if(en)
+		fspi_trans(0x06);
+	else
+		fspi_trans(0x04);
+	fspi_setcs(1);
+	fspi_delay();
+
+	return 0;
+}
+
+int epcs_wait()
+{
+	int status;
+
+	while(1){
+		status = epcs_status();
+		if((status&1)==0)
+			break;
+		fspi_delay();
+	}
+	
+	return 0;
+}
 
 
-	SPI1->CR1  = 0x00001000;
-	SPI1->CR2  = 0;
-	SPI1->CFG1 = 0x20000007; // 1:50M 2:25M 3:12.5M 4:6.25M
-	SPI1->CFG2 = 0x04c00000;
-	SPI1->CR1  = 0x00001001;
-	SPI1->CR1  = 0x00001201;
+int epcs_sector_erase(int addr)
+{
+	epcs_wen(1);
 
+	fspi_setcs(0);
+	fspi_delay();
+
+	fspi_trans(0x20);
+	fspi_trans((addr>>16)&0xff);
+	fspi_trans((addr>> 8)&0xff);
+	fspi_trans((addr>> 0)&0xff);
+
+	fspi_setcs(1);
+	fspi_delay();
+
+	epcs_wait();
+	
+	return 0;
+}
+
+int epcs_page_write(int addr, u8 *buf)
+{
+	int i;
+
+	epcs_wen(1);
+
+	fspi_setcs(0);
+	fspi_delay();
+
+	fspi_trans(0x02);
+	fspi_trans((addr>>16)&0xff);
+	fspi_trans((addr>> 8)&0xff);
+	fspi_trans((addr>> 0)&0xff);
+
+	for(i=0; i<256; i++){
+		fspi_trans(buf[i]);
+	}
+
+	fspi_setcs(1);
+	fspi_delay();
+	
+	epcs_wait();
+
+	return 0;
+}
+
+
+int epcs_read(int addr, int len, u8 *buf)
+{
+	int i;
+
+	fspi_setcs(0);
+	fspi_delay();
+
+	fspi_trans(0x0b);
+	fspi_trans((addr>>16)&0xff);
+	fspi_trans((addr>> 8)&0xff);
+	fspi_trans((addr>> 0)&0xff);
+
+	fspi_trans(0);
+
+	for(i=0; i<len; i++){
+		buf[i] = fspi_trans(0);
+	}
+
+	fspi_setcs(1);
+	fspi_delay();
+
+	return len;
+}
+
+/******************************************************************************/
+
+static int rbit_u8(int val)
+{
+	return __RBIT(val)>>24;
+}
+
+
+int fpga_update(int check)
+{
+	FIL fp;
+	int i, addr, retv, fsize;
+	u8 fbuf[256];
+
+	// 检查是否有升级文件.
+	retv = f_open(&fp, "/SAROO/update/SSMaster.rbf", FA_READ);
+	if(retv){
+		printk("No FPGA config file.\n");
+		return -1;
+	}
+
+	fsize = f_size(&fp);
+	printk("Found FPGA config file.\n");
+	printk("    Size %08x\n", fsize);
+
+	if(check){
+		f_close(&fp);
+		return 0;
+	}
+
+
+	printk("EPCS ID: %08x\n", epcs_readid());
+
+	for(addr=0; addr<fsize; addr+=4096){
+		epcs_sector_erase(addr);
+	}
+
+	for(addr=0; addr<fsize; addr+=256){
+		u32 rv;
+		f_read(&fp, fbuf, 256, &rv);
+		for(i=0; i<256; i++){ // Altera need LSB first
+			fbuf[i] = rbit_u8(fbuf[i]);
+		}
+		epcs_page_write(addr, fbuf);
+	}
+	f_close(&fp);
+
+	printk("FPGA update OK!\n");
+	return 0;
 }
 
 
@@ -106,7 +328,7 @@ void fpga_config(void)
 			break;
 		osDelay(1);
 	}
-	if(i==100){
+	if(i==10){
 		printk("FPGA config timeout!\n");
 	}else{
 		fpga_reset(1);
@@ -118,75 +340,10 @@ void fpga_config(void)
 	printk("      init done: %d\n", fpga_init_done());
 	printk("         status: %d\n", fpga_status());
 	printk("\n");
+	
 	return;
-
-#if 0
-	// 检查是否有升级文件. 如果有,就升级. 如果没有,就继续.
-	retv = f_open(&fp, "/SSMaster.rbf", FA_READ);
-	if(retv){
-		printk("NO FPGA config file found!\n");
-		return;
-	}
-
-	printk("Found FPGA config file.\n");
-	printk("    Size %08x\n", f_size(&fp));
-
-	// 发现升级文件
-	spi1_init();
-
-	// 启动配置
-	fpga_set_config(0);
-	osDelay(1);
-	fpga_set_config(1);
-	while(fpga_status()==1);
-	osDelay(1);
-
-	// 写配置数据
-	for(addr=0; addr<f_size(&fp); addr+=256){
-		rv = 0;
-		f_read(&fp, fbuf, 256, &rv);
-		for(i=0; i<rv; i++){
-			spi1_trans(fbuf[i]);
-		}
-	}
-	spi1_trans(0xff);
-
-
-	// 等待FPGA配置完成
-	for(i=0; i<10; i++){
-		if(fpga_config_done())
-			break;
-		osDelay(10);
-	}
-	if(i==10){
-		printk("FPGA config timeout!\n");
-	}else{
-		printk("FPGA config done!\n");
-	}
-
-	for(i=0; i<10; i++){
-		if(fpga_init_done())
-			break;
-		osDelay(10);
-	}
-	if(i==10){
-		printk("FPGA init timeout!\n");
-	}else{
-		printk("FPGA init done!\n");
-	}
-
-	// 关闭升级文件
-	f_close(&fp);
-
-	fpga_reset(1);
-
-	printk("FPGA state:\n");
-	printk("    config done: %d\n", fpga_config_done());
-	printk("      init done: %d\n", fpga_init_done());
-	printk("         status: %d\n", fpga_status());
-	printk("\n");
-#endif
 }
+
 
 /******************************************************************************/
 

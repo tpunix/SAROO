@@ -21,7 +21,7 @@ typedef long long s64;
 #define disable_irq()   __disable_irq()
 #define restore_irq(pm) __set_PRIMASK(pm)
 
-
+#define NOTHING()    __asm volatile("")
 
 /******************************************************************************/
 
@@ -55,6 +55,10 @@ void spi2_trans(u32 data);
 int fill_audio_buffer(u8 *data);
 
 void saturn_config(void);
+
+
+int flash_update(int check);
+int fpga_update(int check);
 
 
 /******************************************************************************/

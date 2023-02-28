@@ -37,6 +37,8 @@ typedef unsigned long long u64;
 #define SSCMD_PRINTF   0x0001
 #define SSCMD_LISTDISC 0x0002
 #define SSCMD_LOADDISC 0x0003
+#define SSCMD_CHECK    0x0004
+#define SSCMD_UPDATE   0x0005
 
 
 /*****************************************************************************/

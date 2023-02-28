@@ -31,7 +31,9 @@ module SSMaster(
 	ST_MCLK, ST_BCK, ST_LRCK, ST_SDO,
 
 	// DEBUG LED
-	LED0, LED1
+	LED0, LED1,
+	// SPI Flash
+	EPCS_CS, EPCS_CLK, EPCS_DI, EPCS_DO
 );
 
 ///////////////////////////////////////////////////////
@@ -40,6 +42,12 @@ module SSMaster(
 
 	// System
 	input CLK_50M;
+	
+	// SPI Flash
+	output EPCS_CS;
+	output EPCS_CLK;
+	output EPCS_DI;
+	input  EPCS_DO;
 
 	// SDRAM
 	output SD_CKE;
@@ -127,6 +135,17 @@ module SSMaster(
 
 
 ///////////////////////////////////////////////////////
+// SPI Flash                                         //
+///////////////////////////////////////////////////////
+
+	reg[3:1] st_reg_spi;
+
+	assign EPCS_CS  = st_reg_spi[3];
+	assign EPCS_CLK = st_reg_spi[2];
+	assign EPCS_DI  = st_reg_spi[1];
+
+	
+///////////////////////////////////////////////////////
 // I2S                                               //
 ///////////////////////////////////////////////////////
 
@@ -205,8 +224,10 @@ module SSMaster(
 	begin
 		if(NRESET==0) begin
 			st_reg_ctrl <= 0;
+			st_reg_spi <= 3'b111;
 		end else if(st_wr_start==1) begin
 			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h04) st_reg_ctrl <= ST_AD;
+			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h16) st_reg_spi <= ST_AD[3:1];
 			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h20) ss_resp1 <= ST_AD;
 			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h22) ss_resp2 <= ST_AD;
 			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h24) ss_resp3 <= ST_AD;
@@ -340,13 +361,14 @@ module SSMaster(
 	begin
 		st_reg_data_out <= 
 						(fsmc_addr[7:0]==8'h00)? 16'h5253 : // ID: "SR"
-						(fsmc_addr[7:0]==8'h02)? 16'h1202 : // ver: HW1.2 && SW0.2
+						(fsmc_addr[7:0]==8'h02)? 16'h1203 : // ver: HW1.2 && SW0.3
 						(fsmc_addr[7:0]==8'h04)? st_reg_ctrl :
 						(fsmc_addr[7:0]==8'h06)? st_reg_stat :
 						(fsmc_addr[7:0]==8'h0c)? st_fifo_stat :
 						(fsmc_addr[7:0]==8'h10)? ss_reg_cmd :
 						(fsmc_addr[7:0]==8'h12)? ss_reg_data :
 						(fsmc_addr[7:0]==8'h14)? ss_reg_ctrl :
+						(fsmc_addr[7:0]==8'h16)? {12'b0, EPCS_CS, EPCS_CLK, EPCS_DI, EPCS_DO} :
 
 						(fsmc_addr[7:0]==8'h18)? ss_resp1 :
 						(fsmc_addr[7:0]==8'h1a)? ss_resp2 :
@@ -465,7 +487,7 @@ module SSMaster(
 	begin
 		ss_bcr_data_out <= 
 			(SS_ADDR[5:1]==5'b00_000)? 16'h5253 : // ID: "SR"
-			(SS_ADDR[5:1]==5'b00_001)? 16'h1202 : // ver: HW1.2 && SW0.2
+			(SS_ADDR[5:1]==5'b00_001)? 16'h1203 : // ver: HW1.2 && SW0.3
 			(SS_ADDR[5:2]==4'b00_01 )? ss_reg_ctrl :
 			(SS_ADDR[5:2]==4'b00_10 )? ss_reg_stat :
 			(SS_ADDR[5:1]==5'b00_110)? ss_reg_timer[31:16] :

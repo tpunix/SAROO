@@ -361,6 +361,8 @@ char *menu_str[4] = {
 	"串口调试工具",
 	"运行二进制文件",
 };
+char *update_str = "固件升级";
+int update_index;
 
 MENU_DESC main_menu;
 
@@ -386,9 +388,32 @@ int main_handle(int ctrl)
 		return MENU_EXIT;
 	}else if(index==3){
 		menu_status(&main_menu, NULL);
+	}else if(index==update_index){
+		menu_status(&main_menu, "升级中,请勿断电...");
+		SS_ARG = 0;
+		SS_CMD = SSCMD_UPDATE;
+		while(SS_CMD);
+		if(SS_ARG){
+			menu_status(&main_menu, "升级失败!");
+		}else{
+			menu_status(&main_menu, "升级完成,请重新开机!");
+		}
+		while(1);
 	}
 
 	return 0;
+}
+
+
+
+int check_update(void)
+{
+	SS_ARG = 0;
+	SS_CMD = SSCMD_CHECK;
+	while(SS_CMD);
+
+	printk("check_update: %02x\n", SS_ARG);
+	return SS_ARG;
 }
 
 
@@ -401,6 +426,10 @@ void menu_init(void)
 
 	for(i=0; i<4; i++){
 		add_menu_item(&main_menu, menu_str[i]);
+	}
+	if(check_update()){
+		add_menu_item(&main_menu, update_str);
+		update_index = i;
 	}
 
 	main_menu.handle = main_handle;
