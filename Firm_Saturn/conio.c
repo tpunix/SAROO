@@ -446,6 +446,7 @@ void menu_status(MENU_DESC *menu, char *string)
 void add_menu_item(MENU_DESC *menu, char *item)
 {
 	strcpy(menu->items[menu->num], item);
+	menu->items[menu->num][36] = 0;
 	menu->num += 1;
 }
 

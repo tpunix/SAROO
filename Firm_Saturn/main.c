@@ -279,6 +279,7 @@ static void page_update(void)
 	MENU_DESC *menu = &sel_menu;
 
 	menu->current = 0;
+	menu->num = 0;
 	fill_selmenu();
 	draw_menu_frame(menu);
 }
