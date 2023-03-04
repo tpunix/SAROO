@@ -56,17 +56,15 @@ void smrsp4_patch(void)
 
 /**********************************************************/
 // Samurai Spirits - Zankuro Musouken
-// 0x0605ad32:  mov.l #0x23301ff0, r1
-// need change to 0x34403440
+// 0x0600d1d0: 23301ff0
+// 0x0605ad90: 23301ff0
 
 static void smrsp5_handle(REGS *reg)
 {
-	if(reg->r2==0x23301ff0){
-		reg->r2 = 0x34403440;
-		break_in_game_next(0x0605ad32, smrsp5_handle);
-	}else{
-		reg->r1 = 0x34403440;
-	}
+	reg->r2 = 0x34403440;
+	*(u32*)0x0600d1d0 = 0x34403440;
+	*(u32*)0x0605ad90 = 0x34403440;
+	set_break_pc(0, 0);
 }
 
 
