@@ -4,7 +4,7 @@ JedecChain;
 	DefaultMfr(6E);
 
 	P ActionCode(Cfg)
-		Device PartName(EP4CE6) Path("D:/project/SAROO_work/FPGA_v12/output_files/") File("ssmaster.jic") MfrSpec(OpMask(1) SEC_Device(EPCS16) Child_OpMask(1 3));
+		Device PartName(EP4CE6) Path("D:/project/SAROO/FPGA_v12/output_files/") File("ssmaster.jic") MfrSpec(OpMask(1) SEC_Device(EPCS16) Child_OpMask(1 3));
 
 ChainEnd;
 

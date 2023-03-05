@@ -649,13 +649,27 @@ module SSMaster(
 	// 03000000 - 04000000 : 16MB Free Space
 	// Saturn is BigEndian system
 	wire ss_ram_cs = ~SS_CS0;
-	wire[25:0] ss_ram_addr = {2'b0, SS_ADDR};
+	//wire[25:0] ss_ram_addr = {2'b0, SS_ADDR};
 	wire[ 1:0] ss_mask = {SS_WR0,SS_WR1};
 	wire[15:0] ss_ram_din = {SS_DATA[7:0], SS_DATA[15:8]};
 	wire[15:0] ss_ram_dout;
 	wire[15:0] ss_ram_data_out = {ss_ram_dout[7:0], ss_ram_dout[15:8]};
 	wire ss_ram_wait;
 
+
+	reg[25:0] ss_ram_addr;
+	always @(posedge mclk)
+	begin
+		ss_ram_addr[25:24] <= 2'b0;
+		ss_ram_addr[23:21] <= SS_ADDR[23:21];
+
+		if(SS_ADDR[23:22]==2'b01 && ss_cs0_type==2'b10)
+			ss_ram_addr[20:19] <= 2'b00;
+		else
+			ss_ram_addr[20:19] <= SS_ADDR[20:19];
+
+		ss_ram_addr[18: 0] <= SS_ADDR[18:0];
+	end
 
 	memhub _mh(
 		NRESET, mclk,
