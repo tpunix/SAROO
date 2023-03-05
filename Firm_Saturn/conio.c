@@ -416,6 +416,8 @@ void menu_update(MENU_DESC *menu)
 		select = (i==menu->current)? 1: 0;
 		draw_menu_item(i, menu->items[i], select);
 	}
+
+	menu_status(menu, NULL);
 }
 
 

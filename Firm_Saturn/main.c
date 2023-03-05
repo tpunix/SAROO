@@ -274,11 +274,11 @@ static void fill_selmenu(void)
 }
 
 
-static void page_update(void)
+static void page_update(int up)
 {
 	MENU_DESC *menu = &sel_menu;
 
-	menu->current = 0;
+	menu->current = (up)? 10: 0;
 	menu->num = 0;
 	fill_selmenu();
 	draw_menu_frame(menu);
@@ -289,7 +289,8 @@ static int sel_handle(int ctrl)
 {
 	MENU_DESC *menu = &sel_menu;
 
-	menu_status(menu, NULL);
+	total_disc = LE32((u8*)0x22800000);
+	total_page = (total_disc+10)/11;
 
 	if(BUTTON_DOWN(ctrl, PAD_UP)){
 		if(menu->current>0){
@@ -297,7 +298,7 @@ static int sel_handle(int ctrl)
 			menu_update(menu);
 		}else if(page>0){
 			page -= 1;
-			page_update();
+			page_update(1);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_DOWN)){
 		if(menu->current<(menu->num-1)){
@@ -305,20 +306,22 @@ static int sel_handle(int ctrl)
 			menu_update(menu);
 		}else if((page+1)<total_page){
 			page += 1;
-			page_update();
+			page_update(0);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_LT)){
 		if(page>0){
 			page -= 1;
-			page_update();
+			page_update(0);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_RT)){
 		if((page+1)<total_page){
 			page += 1;
-			page_update();
+			page_update(0);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_A)){
 		int index = page*11 + menu->current;
+
+		menu_status(menu, "游戏启动中......");
 
 		SS_ARG = index;
 		SS_CMD = SSCMD_LOADDISC;
@@ -327,9 +330,17 @@ static int sel_handle(int ctrl)
 		int retv = bios_cd_cmd();
 		if(retv){
 			char buf[40];
-			sprintf(buf, "bios_cd_cmd: %d", retv);
+			sprintf(buf, "游戏启动失败! %d", retv);
 			menu_status(menu, buf);
 		}
+	}else if(BUTTON_DOWN(ctrl, PAD_Z)){
+		int index = page*11 + menu->current;
+
+		SS_ARG = index;
+		SS_CMD = SSCMD_LOADDISC;
+		while(SS_CMD);
+
+		bios_run_cd_player();
 	}else if(BUTTON_DOWN(ctrl, PAD_C)){
 		return MENU_EXIT;
 	}
