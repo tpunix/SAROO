@@ -70,8 +70,23 @@ static void smrsp5_handle(REGS *reg)
 
 void smrsp5_patch(void)
 {
-//	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	SS_CTRL = (SAROO_EN | CS0_RAM1M);
 	break_in_game(0x0600d190, smrsp5_handle);
+}
+
+
+/**********************************************************/
+// X-Men vs. Street Fighter (Japan) (3M)
+// 0x0601409a:  mov.l #0x23301330, r0
+
+static void xmvsf_handle(REGS *reg)
+{
+	reg->r0 = 0x34403440;
+}
+
+void xmvsf_patch(void)
+{
+	break_in_game(0x0601409a, xmvsf_handle);
 }
 
 
@@ -92,6 +107,7 @@ GAME_DB game_dbs[] = {
 	{"T-16510G",  "SRMP7SP",  srmp7_patch},
 	{"T-3116G",   "SamuraiSp4",  smrsp4_patch},
 	{"T-3104G",   "SamuraiSp5",  smrsp5_patch},
+//	{"T-1226G",   "XMENVSSF",  xmvsf_patch},
 	{NULL,},
 };
 

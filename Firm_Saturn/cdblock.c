@@ -832,6 +832,24 @@ int my_bios_loadcd_init(void)
 }
 
 
+char *get_region(void)
+{
+	int region = *(u8*)0x20100033;
+
+	switch(region){
+	case  1:  return "JAPAN";
+	case  2:  return "TAIWAN and PHILIPINES";
+	case  4:  return "USA and CANADA";
+	case  5:  return "BRAZIL";
+	case  6:  return "KOREA";
+	case 10:  return "ASIA PAL area";
+	case 12:  return "EUROPE";
+	case 13:  return "LATIN AMERICA";
+	default:  return NULL;
+	}
+}
+
+
 int my_bios_loadcd_read(void)
 {
 	int status, tm;
@@ -860,6 +878,21 @@ int my_bios_loadcd_read(void)
 	cdc_end_trans(&status);
 
 	*(u16*)(0x060003a0) = 1;
+
+#if 0 // Need PutSectorData!
+	// REGION Patch
+	char *str = get_region();
+	printk("Old Region: %s\n", sbuf+0xe04);
+	if(str){
+		memset(sbuf+0x40, 0x20, 0x10);
+		sbuf[0x40] = str[0];
+
+		memset(sbuf+0xe00, 0x20, 0x20);
+		*(u32*)(sbuf+0xe00) = 0xa00e0009;
+		sprintf(sbuf+0xe04, "For %s.", str);
+		printk("New Region: %s\n", sbuf+0xe04);
+	}
+#endif
 
 	patch_game((char*)0x06002020);
 
