@@ -234,11 +234,14 @@ static int scan_cue(char *dirname, char *fname, int level)
 		return 0;
 	}
 
+#if 0
+	// 解析大量的cue太耗时间了.
 	int retv = parse_cue(fname, 1);
 	if(retv){
 		printk("parse_cue: %d {%s}\n", retv, fname);
 		return 0;
 	}
+#endif
 
 	disc_path[total_disc] = pbptr;
 	strcpy(path_str+pbptr, fname);

@@ -391,10 +391,14 @@ void ss_cmd_handle(void)
 		SS_CMD = 0;
 		break;
 	case 0x0003:
+	{
+		int retv;
 		// 装载镜像
-		load_disc(SS_ARG);
+		retv = load_disc(SS_ARG);
+		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
+	}
 	case 0x0004:
 	{
 		// 检查是否有升级固件
