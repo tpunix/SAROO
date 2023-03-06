@@ -147,7 +147,7 @@ void trans_start(void)
 		}else{
 			dp = bt->data+24;
 		}
-		cdb.trans_size = cdb.sector_size;
+		cdb.trans_size = bt->size;
 
 		cdb.trans_block = bt;
 		cdb.trans_bk += 1;
@@ -201,7 +201,7 @@ void trans_handle(void)
 				dp = bt->data+24;
 			}
 
-			cdb.trans_size = cdb.sector_size;
+			cdb.trans_size = bt->size;
 
 			cdb.trans_block = bt;
 			cdb.trans_bk += 1;
@@ -266,6 +266,7 @@ int filter_sector(TRACK_INFO *track, BLOCK *wblk)
 		retv = 1;
 
 		if(track->mode!=3 && track->sector_size==2352 && wblk->data[0x0f]==2){
+			//printk("wblk: fn=%02x cn=%02x sm=%02x ci=%02x\n", wblk->fn, wblk->cn, wblk->sm, wblk->ci);
 			if(ft->mode&0x01){
 				if(wblk->fn!=ft->fid)
 					retv = 0;
@@ -296,7 +297,7 @@ int filter_sector(TRACK_INFO *track, BLOCK *wblk)
 			break;
 		}else{
 			if(ft->c_false==0xff){
-				if(track->mode!=3)
+				if(track->mode==1)
 					printk("  c_false is FF!\n");
 				return 1;
 			}
@@ -326,6 +327,9 @@ int filter_sector(TRACK_INFO *track, BLOCK *wblk)
 		if(track->mode==3 || wblk->data[15]==2){
 			// MODE2 or AUDIO
 			memcpy32(blk->data, wblk->data, 2352);
+			if(wblk->sm & 0x20){
+				blk->size = 2324;
+			}
 		}else{
 			// MODE1
 			memcpy32(blk->data, wblk->data, 16);
@@ -829,7 +833,6 @@ int set_filter_subheader(void)
 	int fid;
 
 	fid = cdb.cr3>>8;
-	printk("set_filter_subh: fid=%d\n", fid);
 
 	cdb.filter[fid].chan   = cdb.cr1&0xff;
 	cdb.filter[fid].smmask = cdb.cr2>>8;
@@ -837,6 +840,11 @@ int set_filter_subheader(void)
 	cdb.filter[fid].fid    = cdb.cr3&0xff;
 	cdb.filter[fid].smval  = cdb.cr4>>8;
 	cdb.filter[fid].cival  = cdb.cr4&0xff;
+	printk("set_filter_subh: fid=%d  FN=%02x CN=%02x SMM=%02x CIM=%02x SM=%02x CI=%02x\n", fid,
+		cdb.filter[fid].fid, cdb.filter[fid].chan,
+		cdb.filter[fid].smmask, cdb.filter[fid].cimask,
+		cdb.filter[fid].smval, cdb.filter[fid].cival
+	);
 
 	return HIRQ_ESEL;
 }
