@@ -114,7 +114,9 @@ int sci_getc(int timeout);
 
 extern void (*printk_putc)(int ch);
 int printk(char *fmt, ...);
-int sprintf(char *buf, char *fmt, ...);
+int snprintf(char *buf, int size, char *fmt, ...);
+#define sprintf(buf, fmt, ...) snprintf(buf, 1024, fmt, __VA_ARGS__)
+
 
 int strlen(char *s);
 int strcmp(char *s1, char *s2);

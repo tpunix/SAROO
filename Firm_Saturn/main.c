@@ -264,9 +264,11 @@ static void fill_selmenu(void)
 			break;
 		// /SAROO/ISO/xxxx/xxxx.cue
 		char *path = path_str + LE32(&disc_path[index]);
-		sprintf(tmp, "%2d: %s", index, path+11);
+		snprintf(tmp, 128, "%2d: %s", index, path+11);
+		tmp[127] = 0;
 		char *p = strchr(tmp, '/');
-		*p = 0;
+		if(p)
+			*p = 0;
 
 		add_menu_item(&sel_menu, tmp);
 	}

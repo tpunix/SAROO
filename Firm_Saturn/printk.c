@@ -289,13 +289,13 @@ int printk(char *fmt, ...)
 	return printed_len;
 }
 
-int sprintf(char *buf, char *fmt, ...)
+int snprintf(char *buf, int size, char *fmt, ...)
 {
 	va_list args;
 	int printed_len;
 
 	va_start(args, fmt);
-	printed_len = vsnprintf(buf, 1024, fmt, args);
+	printed_len = vsnprintf(buf, size, fmt, args);
 	va_end(args);
 
 	return printed_len;
