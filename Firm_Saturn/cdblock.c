@@ -832,24 +832,6 @@ int my_bios_loadcd_init(void)
 }
 
 
-char *get_region(void)
-{
-	int region = *(u8*)0x20100033;
-
-	switch(region){
-	case  1:  return "JAPAN";
-	case  2:  return "TAIWAN and PHILIPINES";
-	case  4:  return "USA and CANADA";
-	case  5:  return "BRAZIL";
-	case  6:  return "KOREA";
-	case 10:  return "ASIA PAL area";
-	case 12:  return "EUROPE";
-	case 13:  return "LATIN AMERICA";
-	default:  return NULL;
-	}
-}
-
-
 int my_bios_loadcd_read(void)
 {
 	int status, tm;
@@ -879,34 +861,24 @@ int my_bios_loadcd_read(void)
 
 	*(u16*)(0x060003a0) = 1;
 
-#if 0 // Need PutSectorData!
-	// REGION Patch
-	char *str = get_region();
-	printk("Old Region: %s\n", sbuf+0xe04);
-	if(str){
-		memset(sbuf+0x40, 0x20, 0x10);
-		sbuf[0x40] = str[0];
-
-		memset(sbuf+0xe00, 0x20, 0x20);
-		*(u32*)(sbuf+0xe00) = 0xa00e0009;
-		sprintf(sbuf+0xe04, "For %s.", str);
-		printk("New Region: %s\n", sbuf+0xe04);
-	}
-#endif
-
 	patch_game((char*)0x06002020);
 
 	return 0;
 }
 
-#if 1
+
+int my_bios_loadcd_boot(int r4, int r5)
+{
+	__asm volatile ( "sts.l  pr, @-r15" :: );
+	__asm volatile ( "jmp  @%0":: "r" (r5) );
+	__asm volatile ( "mov  r4, r0" :: );
+	__asm volatile ( "nop" :: );
+}
+
 
 int bios_cd_cmd(void)
 {
-	int retv;
-
-	//old_mplayer_addr = *(u32*)(0x0600026c);
-	//*(u32*)(0x0600026c) = my_mplayer;
+	int retv, ip_size;
 
 	my_bios_loadcd_init();
 
@@ -914,61 +886,21 @@ int bios_cd_cmd(void)
 	if(retv)
 		return retv;
 
-	retv = bios_loadcd_boot();
+
+	// emulate bios_loadcd_boot
+
+	*(u32*)(0x06000290) = 3;
+	ip_size = bios_loadcd_read();
+
+	retv = my_bios_loadcd_boot(ip_size, 0x18be);
+	if(retv==-8){
+		retv = my_bios_loadcd_boot(0, 0x18c6);
+	}
 	printk("bios_loadcd_boot  retv=%d\n", retv);
 
 	return retv;
 }
 
-#else
-
-u32 set_sp(u32 addr)
-{
-	__asm__("mov r15,  r0");
-	__asm__("mov  r4, r15");
-}
-
-int bios_cd_cmd(void)
-{
-	int retv, save_sp, times;
-
-	old_mplayer_addr = *(u32*)(0x0600026c);
-	*(u32*)(0x0600026c) = my_mplayer;
-
-	printk("bios_cd_cmd!\n");
-
-#if 0
-	cdc_cdb_init(0);
-	cdc_change_dir(23, 0xffffff);
-	cdc_abort_file();
-#endif
-
-	printk("bios_loadcd_init ...\n");
-	retv = bios_loadcd_init(0);
-	printk("bios_loadcd_init: %d\n", retv);
-	if(retv<0)
-		return retv;
-
-#if 1
-	times = 4000;
-	//save_sp = set_sp(0x06002000);
-	while(times){
-		retv = bios_loadcd_boot();
-		printk("bios_loadcd_boot: %d\n", retv);
-		if(retv<0)
-			break;
-		times -= 1;
-	}
-	//set_sp(save_sp);
-#else
-	bios_loadcd_boot(0);
-	my_mplayer(0x06040000);
-#endif
-
-	return retv;
-}
-
-#endif
 
 /**********************************************************/
 
