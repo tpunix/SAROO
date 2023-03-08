@@ -861,9 +861,18 @@ int my_bios_loadcd_read(void)
 
 	*(u16*)(0x060003a0) = 1;
 
+	return 0;
+}
+
+int read_1st(void)
+{
+
+	int retv;
+	retv = *(u32*)(0x06000284);
+	void (*go)(void) = (void(*)(void))retv;
+	go();	
 	patch_game((char*)0x06002020);
 
-	return 0;
 }
 
 
@@ -890,10 +899,13 @@ int bios_cd_cmd(void)
 	// emulate bios_loadcd_boot
 
 	*(u32*)(0x06000290) = 3;
-	ip_size = bios_loadcd_read();
+	ip_size = bios_loadcd_read();//1912读取ip文件
+	*(u32*)(0x06002270) = read_1st;	
+	*(u16*)(0x0600220c) = 9;
 
-	retv = my_bios_loadcd_boot(ip_size, 0x18be);
-	if(retv==-8){
+	retv = my_bios_loadcd_boot(ip_size, 0x18be);//跳到18be
+	if((retv==-8)||(retv==-4)){
+		*(u32*)(0x06000254) = 0x6002100;
 		retv = my_bios_loadcd_boot(0, 0x18c6);
 	}
 	printk("bios_loadcd_boot  retv=%d\n", retv);
@@ -1087,5 +1099,4 @@ void cd_speed_test(void)
 
 	printk("cd_speed_test: cmd_cnt=%d tm=%d\n", cmd_cnt, tm);
 }
-
 
