@@ -155,8 +155,7 @@ void disk_task(void *arg)
 
 	cdb.status = STAT_NODISC;
 	
-	list_disc();
-	load_disc(0);
+	list_disc(0);
 
 	play_track = NULL;
 	buf_fad_start = 0;
@@ -172,6 +171,10 @@ _restart_wait:
 		disk_run_count += 1;
 		if(retv==osErrorTimeout){
 			if(cdb.pause_request){
+				goto _restart_nowait;
+			}
+			if(cdb.play_wait && cdb.block_free){
+				cdb.play_wait = 0;
 				goto _restart_nowait;
 			}
 			HIRQ = HIRQ_SCDQ;
@@ -375,6 +378,7 @@ void cdc_delay(int ticks)
 
 void ss_cmd_handle(void)
 {
+	int retv;
 	u32 cmd = SS_CMD;
 
 	printk("scmd_task: %04x\n", SS_CMD);
@@ -387,18 +391,16 @@ void ss_cmd_handle(void)
 		break;
 	case 0x0002:
 		// 列出镜像信息
-		list_disc();
+		retv = list_disc(0);
+		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
 	case 0x0003:
-	{
-		int retv;
 		// 装载镜像
 		retv = load_disc(SS_ARG);
 		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
-	}
 	case 0x0004:
 	{
 		// 检查是否有升级固件

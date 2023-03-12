@@ -642,6 +642,7 @@ int seek_cd(void)
 	}else if(pos&0x800000){
 		// PTYPE_FAD
 		cdb.play_fad_start = pos&0x0fffff;
+		cdb.fad = cdb.play_fad_start;
 		cdb.track = fad_to_track(cdb.play_fad_start);
 		cdb.index = 1;
 		cdb.options = 0x00;

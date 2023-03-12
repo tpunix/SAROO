@@ -66,7 +66,7 @@ char *get_line(u8 *buf, int *pos, int size)
 /******************************************************************************/
 
 
-int parse_cue(char *fname, int check)
+int parse_cue(char *fname)
 {
 	FIL fp;
 	u8 *fbuf = (u8*)0x24002000;
@@ -111,27 +111,19 @@ int parse_cue(char *fname, int check)
 				return -5;
 
 			sprintk(full_path, "%s/%s", dir_name, tfile);
-			if(check){
-				FILINFO fi;
-				retv = f_stat(full_path, &fi);
-				if(retv){
-					return -6;
-				}
-			}else{
-				if(tno!=-1){
-					// close last track
-					tk = &cdb.tracks[tno];
-					int fad_size = (f_size(tk_fp)-tk->file_offset)/tk->sector_size;
-					tk->fad_end = tk->fad_start + fad_size - 1;
-					fad_offset = tk->fad_end+1;
-				}
-				last_tk = tno+1;
-				tk = &cdb.tracks[tno+1];
-				tk_fp = &track_fp[tno+1];
-				retv = f_open(tk_fp, full_path, FA_READ);
-				if(retv){
-					return -6;
-				}
+			if(tno!=-1){
+				// close last track
+				tk = &cdb.tracks[tno];
+				int fad_size = (f_size(tk_fp)-tk->file_offset)/tk->sector_size;
+				tk->fad_end = tk->fad_start + fad_size - 1;
+				fad_offset = tk->fad_end+1;
+			}
+			last_tk = tno+1;
+			tk = &cdb.tracks[tno+1];
+			tk_fp = &track_fp[tno+1];
+			retv = f_open(tk_fp, full_path, FA_READ);
+			if(retv){
+				return -6;
 			}
 		}else if(strcmp(token, "TRACK")==0){
 			char *tnum = get_token(&lbuf);
@@ -156,52 +148,45 @@ int parse_cue(char *fname, int check)
 				return -8;
 			}
 
-			if(check==0){
-				tk = &cdb.tracks[tno];
-				tk->fp = tk_fp;
-				tk->sector_size = size;
-				tk->mode = mode;
-			}
+			tk = &cdb.tracks[tno];
+			tk->fp = tk_fp;
+			tk->sector_size = size;
+			tk->mode = mode;
 		}else if(strcmp(token, "INDEX")==0){
 			char *inum = get_token(&lbuf);
 			char *tstr = get_token(&lbuf);
 			if(inum==NULL || tstr==NULL){
 				return -9;
 			}
-			if(check==0){
-				int idx = strtoul(inum, NULL, 10);
-				int m = strtoul(tstr+0, &tstr, 10);
-				int s = strtoul(tstr+1, &tstr, 10);
-				int f = strtoul(tstr+1, &tstr, 10);
-				int fad = MSF_TO_FAD(m, s, f);
+			int idx = strtoul(inum, NULL, 10);
+			int m = strtoul(tstr+0, &tstr, 10);
+			int s = strtoul(tstr+1, &tstr, 10);
+			int f = strtoul(tstr+1, &tstr, 10);
+			int fad = MSF_TO_FAD(m, s, f);
 
-				if(last_tk < tno){
-					// close last track
-					tk = &cdb.tracks[last_tk];
-					tk->fad_end = fad_offset+fad-1;
-					last_tk = tno;
-				}
+			if(last_tk < tno){
+				// close last track
+				tk = &cdb.tracks[last_tk];
+				tk->fad_end = fad_offset+fad-1;
+				last_tk = tno;
+			}
 
-				tk = &cdb.tracks[tno];
-				if(idx==0){
-					tk->fad_0 = fad_offset + fad;
-				}
-				if(idx==1){
-					tk->fad_start = fad_offset + fad;
-					if(tk->fad_0==0)
-						tk->fad_0 = tk->fad_start;
-					tk->file_offset = fad*tk->sector_size;
-					tk->ctrl_addr = (tk->mode==3)? 0x01 : 0x41;
-				}
+			tk = &cdb.tracks[tno];
+			if(idx==0){
+				tk->fad_0 = fad_offset + fad;
+			}
+			if(idx==1){
+				tk->fad_start = fad_offset + fad;
+				if(tk->fad_0==0)
+					tk->fad_0 = tk->fad_start;
+				tk->file_offset = fad*tk->sector_size;
+				tk->ctrl_addr = (tk->mode==3)? 0x01 : 0x41;
 			}
 		}else if(strcmp(token, "CATALOG")==0){
 		}else{
 			return -10;
 		}
 	}
-
-	if(check)
-		return 0;
 
 	// close last track
 	tk = &cdb.tracks[tno];
@@ -224,50 +209,56 @@ static int *disc_path = (int *)0x61800004;
 static char *path_str = (char*)0x61800000;
 static int pbptr;
 
-static int scan_cue(char *dirname, char *fname, int level)
+
+int list_disc(int show)
 {
-	if(level>1)
-		return 1;
-
-	char *p = strrchr(fname, '.');
-	if(p==NULL || strcmp(p, ".cue")){
-		return 0;
-	}
-
-#if 0
-	// 解析大量的cue太耗时间了.
-	int retv = parse_cue(fname, 1);
-	if(retv){
-		printk("parse_cue: %d {%s}\n", retv, fname);
-		return 0;
-	}
-#endif
-
-	disc_path[total_disc] = pbptr;
-	strcpy(path_str+pbptr, fname);
-	pbptr += strlen(fname)+1;
-
-	total_disc += 1;
-	*(int*)(0x61800000) = total_disc;
-	return 0;
-}
-
-
-void list_disc(void)
-{
-	int i;
+	FRESULT retv;
+	DIR dir;
+	FILINFO *info;
 
 	total_disc = 0;
 	pbptr = 0x1000;
 	memset(disc_path, 0x00, 0x20000);
 
-	scan_dir("/SAROO/ISO", 0, scan_cue);
+	memset(&dir, 0, sizeof(dir));
+
+	retv = f_opendir(&dir, "/SAROO/ISO");
+	if(retv)
+		return -1;
+
+	info = malloc(sizeof(FILINFO));
+	memset(info, 0, sizeof(*info));
+
+	while(1){
+		retv = f_readdir(&dir, info);
+		if(retv!=FR_OK || info->fname[0]==0)
+			break;
+		if(info->fname[0]=='.')
+			continue;
+
+		if(info->fattrib & AM_DIR){
+			disc_path[total_disc] = pbptr;
+			sprintk(path_str+pbptr, "/SAROO/ISO/%s", info->fname);
+			pbptr += strlen(info->fname)+1+11;
+
+			total_disc += 1;
+			*(int*)(0x61800000) = total_disc;
+		}
+	}
+
+	f_closedir(&dir);
+	free(info);
 
 	printk("Total discs: %d\n", total_disc);
-	for(i=0; i<total_disc; i++){
-		printk(" %2d:  %s\n", i, path_str+disc_path[i]);
+	if(show){
+		int i;
+		for(i=0; i<total_disc; i++){
+			printk(" %2d:  %s\n", i, path_str+disc_path[i]);
+		}
+		printk("\n");
 	}
-	printk("\n");
+
+	return 0;
 }
 
 
@@ -293,9 +284,55 @@ int unload_disc(void)
 }
 
 
+int find_cue_iso(char *dirname, char *outname)
+{
+	FRESULT retv;
+	DIR dir;
+	FILINFO *info;
+	int type = 0;
+
+	memset(&dir, 0, sizeof(dir));
+	retv = f_opendir(&dir, dirname);
+	if(retv)
+		return -1;
+
+	info = malloc(sizeof(FILINFO));
+	memset(info, 0, sizeof(*info));
+
+	while(1){
+		retv = f_readdir(&dir, info);
+		if(retv!=FR_OK || info->fname[0]==0)
+			break;
+		if(info->fname[0]=='.')
+			continue;
+
+		if(info->fattrib & AM_DIR){
+		}else{
+			char *p = strrchr(info->fname, '.');
+			if(strcmp(p, ".cue")==0){
+				// 读到cue, 直接返回.
+				sprintk(outname, "%s/%s", dirname, info->fname);
+				type = 1;
+				break;
+			}else if(strcmp(p, ".iso")==0){
+				// 读到iso, 还要继续看有没有cue.
+				sprintk(outname, "%s/%s", dirname, info->fname);
+				type = 2;
+			}
+		}
+	}
+
+	f_closedir(&dir);
+	free(info);
+
+	return type;
+}
+
+
 int load_disc(int index)
 {
 	int retv;
+	char *fname;
 
 	unload_disc();
 
@@ -304,10 +341,23 @@ int load_disc(int index)
 		return -1;
 	}
 
-	printk("Load disc: {%s}\n", path_str+disc_path[index]);
-	retv = parse_cue(path_str+disc_path[index], 0);
+	fname = malloc(256);
+	retv = find_cue_iso(path_str+disc_path[index], fname);
+	if(retv<0)
+		goto _exit;
+
+	printk("Load disc: {%s}\n", fname);
+	if(retv==1){
+		retv = parse_cue(fname);
+	}else{
+		//retv = parse_iso(fname); TODO
+	}
 	if(retv){
 		printk("  retv=%d\n", retv);
 	}
+
+_exit:
+	free(fname);
 	return retv;
 }
+

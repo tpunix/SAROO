@@ -287,7 +287,7 @@ int fad_to_track(u32 fad);
 u32 bswap32(u32 d);
 void init_toc(void);
 
-void list_disc(void);
+int list_disc(int show);
 int load_disc(int index);
 int unload_disc(void);
 
