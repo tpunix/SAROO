@@ -19,6 +19,28 @@
 .global start
 .align	4
 start:
+	bra		_next_start
+	nop
+
+_func_table:
+	.long	0x00000000
+	.long	0x00000004
+	.long	0x00000008
+	.long	0x0000000c
+	.long	0x00000010
+	.long	0x00000014
+	.long	0x00000018
+	.long	0x0000001c
+	.long	0x00000020
+	.long	0x00000024
+	.long	0x00000028
+	.long	0x0000002c
+	.long	0x00000030
+	.long	0x00000034
+	.long	0x00000038
+	.long	0x0000003c
+
+_next_start:
 	! Disable interrupts
 	mov     #0xf,r0
 	shll2   r0

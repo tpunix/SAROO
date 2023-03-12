@@ -2,6 +2,7 @@
 #include "main.h"
 #include "smpc.h"
 
+
 /**********************************************************/
 
 typedef struct {
@@ -897,7 +898,6 @@ int bios_cd_cmd(void)
 
 
 	// emulate bios_loadcd_boot
-
 	*(u32*)(0x06000290) = 3;
 	ip_size = bios_loadcd_read();//1912¶ÁÈ¡ipÎÄ¼þ
 	*(u32*)(0x06002270) = read_1st;	
