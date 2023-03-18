@@ -9,6 +9,7 @@ typedef unsigned short u16;
 typedef unsigned   int u32;
 typedef unsigned long long u64;
 
+
 #define REG(x)   (*(volatile unsigned   int*)(x))
 #define REG32(x) (*(volatile unsigned   int*)(x))
 #define REG16(x) (*(volatile unsigned short*)(x))
@@ -48,7 +49,10 @@ typedef unsigned long long u64;
 #define bios_run_cd_player  INDIRECT_CALL(0x0600026C, void, void)
 
 int bios_cd_cmd(void);
-
+int read_1st(void);
+void CHEAT_patch(void);
+void RUN_CHEAT(void);
+int cdc_read_sector(int fad, int size, u8 *buf);
 
 /*****************************************************************************/
 

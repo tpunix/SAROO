@@ -901,6 +901,7 @@ int bios_cd_cmd(void)
 	*(u32*)(0x06000290) = 3;
 	ip_size = bios_loadcd_read();//1912读取ip文件
 	*(u32*)(0x06002270) = read_1st;	
+	*(u32*)(0x02000f04) =  cdc_read_sector;
 	*(u16*)(0x0600220c) = 9;
 
 	retv = my_bios_loadcd_boot(ip_size, 0x18be);//跳到18be
@@ -960,31 +961,37 @@ void cdc_init(void)
 }
 
 
-int cdc_read_sector(u8 *buf, int fad, int num)
+int cdc_read_sector(int fad, int size, u8 *buf)
 {
-	int nsec, retv, status;
+	int nsec, retv, status, num;
+	num = (size+3)&0xfffffffc;
 
 	cdc_set_size(0);
 	cdc_reset_selector(0, 0);
 	cdc_cddev_connect(0);
 
-	cdc_play_fad(0, fad, num);
+	cdc_play_fad(0, fad, (size+0x7ff)>>11);
 	while(num>0){
 		retv = cdc_get_numsector(0, &nsec);
 		if(retv<0)
-			break;
+			return retv;
 		if(nsec==0)
 			continue;
-
-		cdc_get_del_data(0, 0, nsec);
-		cdc_trans_data(buf, 2048*nsec);
+		
+		if(num>=2048)
+			nsec=2048;
+		else
+			nsec=num;	
+		cdc_get_del_data(0, 0, 1);
+		cdc_trans_data(buf, nsec);
+		
 		cdc_end_trans(&status);
 
-		buf += 2048*nsec;
+		buf += nsec;
 		num -= nsec;
 	}
 
-	return retv;
+	return size;
 }
 
 void cdc_read_test(void)
@@ -1076,7 +1083,7 @@ void cd_cmd(void)
 
 	cdc_read_test();
 
-	//cdc_read_sector(0x06040000, 0xd5, 0x195);
+	//cdc_read_sector(0xd5, 0x195, 0x06040000);
 
 }
 
