@@ -134,7 +134,7 @@ void trans_start(void)
 	if(cdb.trans_type==TRANS_DATA || cdb.trans_type==TRANS_DATA_DEL){
 		PARTITION *pt = &cdb.part[cdb.trans_part_index];
 		BLOCK *bt = find_block(pt, cdb.trans_block_start);
-		//printk("  trans pt:%d blk:%d\n", cdb.trans_part_index, cdb.trans_block_start);
+		//printk("  trans pt_%d: blks=%d bt=%08x size=%04x\n", cdb.trans_part_index, pt->numblocks, bt, bt->size);
 
 		cdb.trans_bk = cdb.trans_block_start;
 
@@ -215,6 +215,7 @@ void trans_handle(void)
 			fill_fifo(dp, cdb.trans_size);
 			ST_STAT  = STIRQ_DAT;
 			ST_CTRL |= STIRQ_DAT;
+			HIRQ = HIRQ_DRDY | HIRQ_SCDQ;
 		}
 	}else{
 		ST_CTRL &= ~STIRQ_DAT;
@@ -260,7 +261,7 @@ int filter_sector(TRACK_INFO *track, BLOCK *wblk)
 	}
 	ft = &cdb.filter[cdb.cddev_filter];
 	
-	//printk("filter %08x ...\n", wblk->fad);
+	//printk("filter %08x to %d ...\n", wblk->fad, cdb.cddev_filter);
 
 	while(1){
 		retv = 1;
@@ -755,7 +756,7 @@ int get_subcode(void)
 // 0x30 [SR]
 int set_cdev_connect(void)
 {
-	printk("set_cdev_connect: %02x\n", cdb.cr3>>8);
+	printk("set_cdev_connect: %d\n", cdb.cr3>>8);
 	cdb.cddev_filter = cdb.cr3>>8;
 
 	return HIRQ_ESEL;
@@ -1118,10 +1119,17 @@ u32 sector_len_table[4] = {2048, 2336, 2340, 2352};
 // 0x60 [SR]
 int set_sector_length(void)
 {
-	int id;
+	int id_get, id_put;
 
-	id = SSCR1&0xff;
-	cdb.sector_size = sector_len_table[id];
+	id_get = SSCR1&0xff;
+	id_put = SSCR2>>8;
+
+	if(id_get<4){
+		cdb.sector_size = sector_len_table[id_get];
+	}
+	if(id_put<4){
+		// TODO
+	}
 
 	return HIRQ_ESEL;
 }
@@ -1151,13 +1159,14 @@ int get_sector_data(void)
 	}
 	//printk("get_sector_data: part=%d spos=%d snum=%d\n", pt, spos, snum);
 
-	cdb.trans_type = TRANS_DATA;
-	cdb.trans_part_index = pt;
-	cdb.trans_block_start = spos;
-	cdb.trans_block_end = spos+snum;
+	if(pp->numblocks){
+		cdb.trans_type = TRANS_DATA;
+		cdb.trans_part_index = pt;
+		cdb.trans_block_start = spos;
+		cdb.trans_block_end = spos+snum;
 
-	trans_start();
-
+		trans_start();
+	}
 	set_status(0x4000 | cdb.status);
 	return HIRQ_DRDY|HIRQ_EHST;
 }
@@ -1221,12 +1230,14 @@ int get_del_sector_data(void)
 	}
 	//printk("get_del_sector_data: part=%d spos=%d snum=%d\n", pt, spos, snum);
 
-	cdb.trans_type = TRANS_DATA_DEL;
-	cdb.trans_part_index = pt;
-	cdb.trans_block_start = spos;
-	cdb.trans_block_end = spos+snum;
+	if(pp->numblocks){
+		cdb.trans_type = TRANS_DATA_DEL;
+		cdb.trans_part_index = pt;
+		cdb.trans_block_start = spos;
+		cdb.trans_block_end = spos+snum;
 
-	trans_start();
+		trans_start();
+	}
 
 	set_status(0x4000 | cdb.status);
 	return HIRQ_DRDY|HIRQ_EHST;
@@ -1287,7 +1298,7 @@ void fill_fileinfo(void)
 			cdb.fi[pfn].unit = isonum_711(buf+p+26);
 			cdb.fi[pfn].gap  = isonum_711(buf+p+27);
 			cdb.fi[pfn].fid  = 0;
-			//printk("  fid %3d:  lba=%08x size=%08x attr=%02x  %s\n", fid, cdb.fi[pfn].lba, cdb.fi[pfn].size, cdb.fi[pfn].attr, buf+p+33);
+			printk("  fid %3d:  lba=%08x size=%08x attr=%02x  %s\n", fid, cdb.fi[pfn].lba, cdb.fi[pfn].size, cdb.fi[pfn].attr, buf+p+33);
 			if(fid>1 && cdb.fi[pfn].attr&0x02)
 				cdb.cdir_drend = 1;
 			pfn += 1;
@@ -1821,6 +1832,10 @@ void cdc_cmd_process(void)
 		break;
 	}
 
+	// 很多游戏依靠检测SCDQ来等待数据。这里当有数据时，始终发送SCDQ。
+	if(cdb.block_free!=MAX_BLOCKS){
+		hirq |= HIRQ_SCDQ;
+	}
 	HIRQ = hirq | HIRQ_CMOK;
 #if 0
 	if(cmd!=0)

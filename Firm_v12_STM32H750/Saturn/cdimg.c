@@ -65,6 +65,32 @@ char *get_line(u8 *buf, int *pos, int size)
 
 /******************************************************************************/
 
+int parse_iso(char *fname)
+{
+	FIL *fp = &track_fp[0];
+	TRACK_INFO *tk;
+	int retv;
+
+	retv = f_open(fp, fname, FA_READ);
+	if(retv){
+		return -2;
+	}
+
+	tk = &cdb.tracks[0];
+	tk->fp = fp;
+	tk->file_offset = 0;
+	tk->sector_size = 2048;
+	tk->fad_0 = 150;
+	tk->fad_start = 150;
+	tk->fad_end = 150 + (f_size(fp))/2048 - 1;
+	tk->mode = 1;
+	tk->ctrl_addr = 0x41;
+
+	cdb.track_num = 1;
+	init_toc();
+
+	return 0;
+}
 
 int parse_cue(char *fname)
 {
@@ -182,6 +208,7 @@ int parse_cue(char *fname)
 				tk->file_offset = fad*tk->sector_size;
 				tk->ctrl_addr = (tk->mode==3)? 0x01 : 0x41;
 			}
+		}else if(strcmp(token, "PREGAP")==0){
 		}else if(strcmp(token, "CATALOG")==0){
 		}else{
 			return -10;
@@ -314,7 +341,7 @@ int find_cue_iso(char *dirname, char *outname)
 				sprintk(outname, "%s/%s", dirname, info->fname);
 				type = 1;
 				break;
-			}else if(strcmp(p, ".iso")==0){
+			}else if(strcasecmp(p, ".iso")==0){
 				// 读到iso, 还要继续看有没有cue.
 				sprintk(outname, "%s/%s", dirname, info->fname);
 				type = 2;
@@ -350,7 +377,7 @@ int load_disc(int index)
 	if(retv==1){
 		retv = parse_cue(fname);
 	}else{
-		//retv = parse_iso(fname); TODO
+		retv = parse_iso(fname);
 	}
 	if(retv){
 		printk("  retv=%d\n", retv);

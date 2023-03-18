@@ -131,7 +131,6 @@ void set_peri_report(void)
 	restore_irq(irqs);
 }
 
-u32 disk_run_count;
 
 void disk_task(void *arg)
 {
@@ -163,29 +162,28 @@ void disk_task(void *arg)
 	buf_fad_offset = 0;
 	buf_fad_size = 0;
 
-	disk_run_count = 0;
-
+	int wait_ticks = 10;
+	int play_wait_count = 0;
 	while(1){
 _restart_wait:
-		retv = osSemaphoreAcquire(sem_wait_disc, 10);
-		disk_run_count += 1;
+		wait_ticks = (cdb.play_wait || cdb.block_free!=MAX_BLOCKS)? 1: 10;
+		retv = osSemaphoreAcquire(sem_wait_disc, wait_ticks);
 		if(retv==osErrorTimeout){
 			if(cdb.pause_request){
 				goto _restart_nowait;
 			}
-			if(cdb.play_wait && cdb.block_free){
-				cdb.play_wait = 0;
-				goto _restart_nowait;
+			if(cdb.play_wait){
+				play_wait_count += 1;
+				if(play_wait_count==10){
+					play_wait_count = 0;
+					if(cdb.block_free){
+						cdb.play_wait = 0;
+						goto _restart_nowait;
+					}
+				}
 			}
 			HIRQ = HIRQ_SCDQ;
 			set_peri_report();
-#if 0
-			if((disk_run_count&0x1f)==0){
-				printk("\nPERI Report: Status=%04x HIRQ=%04x count=%08x\n", RESP1, HIRQ, disk_run_count);
-				printk("           : play_wait=%d free_block=%d\n", cdb.play_wait, cdb.block_free);
-				show_pt();
-			}
-#endif
 			goto _restart_wait;
 		}
 
@@ -207,8 +205,8 @@ _restart_nowait:
 
 		if(cdb.play_type!=PLAYTYPE_FILE && play_track->mode==3){
 		}else{
-			printk("\nplay_task! fad_start=%08x fad_end=%08x fad=%08x type=%d\n",
-					cdb.play_fad_start, cdb.play_fad_end, cdb.fad, cdb.play_type);
+			printk("\nplay_task! fad_start=%08x fad_end=%08x fad=%08x type=%d free=%d\n",
+					cdb.play_fad_start, cdb.play_fad_end, cdb.fad, cdb.play_type, cdb.block_free);
 		}
 
 		if(cdb.fad==0){
@@ -372,7 +370,13 @@ void cdc_delay(int ticks)
 	osDelay(ticks);
 }
 
-
+void cdc_dump(void)
+{
+	printk("CDB:\n");
+	printk("  status     : %02x\n", cdb.status);
+	printk("  block_free : %d\n",   cdb.block_free);
+	printk("  fad        : %08x\n", cdb.fad);
+}
 /******************************************************************************/
 
 

@@ -263,8 +263,8 @@ void simple_shell(void)
 			scan_dir("/", 0, NULL);
 		}
 		CMD(lscue){
-			void list_disc(void);
-			list_disc();
+			void list_disc(int show);
+			list_disc(1);
 		}
 		CMD(load){
 			int load_disc(int index);
@@ -273,6 +273,10 @@ void simple_shell(void)
 		CMD(sdrst){
 			int sdio_reset(void);
 			sdio_reset();
+		}
+		CMD(cdc){
+			void cdc_dump();
+			cdc_dump();
 		}
 
 		CMD(q){
