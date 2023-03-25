@@ -12,31 +12,62 @@
 #include "smpc.h"
 #include "vdp2.h"
 
+/**********************************************************/
+
+
+u32 BE32(void *ptr)
+{
+	u8 *b = (u8*)ptr;
+	return (b[0]<<24) | (b[1]<<16) | (b[2]<<8) | b[3];
+}
+
+
+u32 LE32(void *ptr)
+{
+	u8 *b = (u8*)ptr;
+	return (b[3]<<24) | (b[2]<<16) | (b[1]<<8) | b[0];
+}
+
+void LE32W(void *ptr, u32 val)
+{
+	u8 *b = (u8*)ptr;
+	b[0] = (val>> 0)&0xff;
+	b[1] = (val>> 8)&0xff;
+	b[2] = (val>>16)&0xff;
+	b[3] = (val>>24)&0xff;
+}
+
 
 /**********************************************************/
 
-void pad_init(void)
-{
-    PDR1 = 0;
-    DDR1 = 0x60;
-    IOSEL = IOSEL1;
-}
 
 u32 pad_read(void)
 {
-    u32 bits;
+    u32 bits = 0;
 
-    PDR1 = 0x60;
-    bits = (PDR1 & 0x8) << 9;
-    PDR1 = 0x40;
-    bits |= (PDR1 & 0xf) << 8;
-    PDR1 = 0x20;
-    bits |= (PDR1 & 0xf) << 4;
-    PDR1 = 0x00;
-    bits |= (PDR1 & 0xf);
+	while(SF&0x01);
+	SF = 0x01;
+	COMREG = 0x10;
+	while(SF&0x01);
 
-    return bits ^ 0x1FFF;
+	bits = (OREG2<<8) | (OREG3);
+	IREG0 = 0x40;
+
+    return bits ^ 0xFFFF;
 }
+
+
+void pad_init(void)
+{
+	DDR1 = 0;
+	EXLE = 0;
+    IOSEL = 0;
+
+	IREG0 = 0x00;
+	IREG1 = 0x0a;
+	IREG2 = 0xf0;
+}
+
 
 /**********************************************************/
 
@@ -166,6 +197,52 @@ int sci_getc(int timeout)
 
 /**********************************************************/
 
+int read_file (char *name, int offset, int size, void *buf)
+{
+	int retv;
+
+	LE32W((void*)0x22820000, offset);
+	LE32W((void*)0x22820004, size);
+	strcpy((void*)0x22820010, name);
+
+	SS_ARG = 0;
+	SS_CMD = SSCMD_FILERD;
+	while(SS_CMD);
+
+	retv = (signed short)SS_ARG;
+	if(retv<0)
+		return retv;
+
+	size = LE32((void*)0x22820004);
+	memcpy(buf, (void*)0x22820100, size);
+	return size;
+}
+
+
+int write_file(char *name, int offset, int size, void *buf)
+{
+	int retv;
+
+	LE32W((void*)0x22820000, offset);
+	LE32W((void*)0x22820004, size);
+	strcpy((void*)0x22820010, name);
+	memcpy((void*)0x22820100, buf, size);
+
+	SS_ARG = 0;
+	SS_CMD = SSCMD_FILEWR;
+	while(SS_CMD);
+
+	retv = (signed short)SS_ARG;
+	if(retv<0)
+		return retv;
+
+	size = LE32((void*)0x22820004);
+	return size;
+}
+
+
+/**********************************************************/
+
 
 static u16 mksum(u32 addr)
 {
@@ -226,21 +303,6 @@ int mem_test(int size)
 	}
 
 	return 0;
-}
-
-
-/**********************************************************/
-
-u32 BE32(void *ptr)
-{
-	u8 *b = (u8*)ptr;
-	return (b[0]<<24) | (b[1]<<16) | (b[2]<<8) | b[3];
-}
-
-u32 LE32(void *ptr)
-{
-	u8 *b = (u8*)ptr;
-	return (b[3]<<24) | (b[2]<<16) | (b[1]<<8) | b[0];
 }
 
 
@@ -311,15 +373,17 @@ static int sel_handle(int ctrl)
 			page_update(0);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_LT)){
-		if(page>0){
-			page -= 1;
-			page_update(0);
+		page -= 1;
+		if(page<0){
+			page = total_page-1;
 		}
+		page_update(0);
 	}else if(BUTTON_DOWN(ctrl, PAD_RT)){
-		if((page+1)<total_page){
-			page += 1;
-			page_update(0);
+		page += 1;
+		if(page>=total_page){
+			page = 0;
 		}
+		page_update(0);
 	}else if(BUTTON_DOWN(ctrl, PAD_A)){
 		int index = page*11 + menu->current;
 
@@ -401,7 +465,7 @@ int main_handle(int ctrl)
 		menu_status(&main_menu, NULL);
 		return MENU_EXIT;
 	}else if(index==3){
-		menu_status(&main_menu, NULL);
+		menu_status(&main_menu, "TODO");
 	}else if(index==update_index){
 		menu_status(&main_menu, "升级中,请勿断电...");
 		SS_ARG = 0;
@@ -436,7 +500,7 @@ void menu_init(void)
 	int i;
 
 	memset(&main_menu, 0, sizeof(main_menu));
-	strcpy(main_menu.title, "SAROO Boot Menu");
+	sprintf(main_menu.title, "SAROO Boot Menu            V%02x0000", SS_VER&0xff);
 
 	for(i=0; i<4; i++){
 		add_menu_item(&main_menu, menu_str[i]);

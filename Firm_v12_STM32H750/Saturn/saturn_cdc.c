@@ -130,10 +130,13 @@ void trans_start(void)
 	tcnt = 0;
 	min_num = 40960;
 	cdb.cdwnum = 0;
+	cdb.trans_finish = 0;
 
 	if(cdb.trans_type==TRANS_DATA || cdb.trans_type==TRANS_DATA_DEL){
 		PARTITION *pt = &cdb.part[cdb.trans_part_index];
 		BLOCK *bt = find_block(pt, cdb.trans_block_start);
+		//printk("trans_start: pt=%d start=%d size=%d\n",
+		//	cdb.trans_part_index, cdb.trans_block_start, cdb.trans_block_end-cdb.trans_block_start);
 		//printk("  trans pt_%d: blks=%d bt=%08x size=%04x\n", cdb.trans_part_index, pt->numblocks, bt, bt->size);
 
 		cdb.trans_bk = cdb.trans_block_start;
@@ -179,12 +182,16 @@ void trans_start(void)
 void trans_handle(void)
 {
 	tcnt += 1;
-	cdb.cdwnum += cdb.trans_size;
+	if(cdb.trans_finish==0){
+		// 中断在传输结束时会重复进入一次。这里做个判断，以免误加。
+		cdb.cdwnum += cdb.trans_size;
+	}
 
 	if(cdb.trans_type==TRANS_DATA || cdb.trans_type==TRANS_DATA_DEL){
 
 		if(cdb.trans_bk==cdb.trans_block_end){
 			//printk("  trans end!\n");
+			cdb.trans_finish = 1;
 			ST_CTRL &= ~STIRQ_DAT;
 		}else{
 			BLOCK *bt = cdb.trans_block->next;
@@ -215,7 +222,7 @@ void trans_handle(void)
 			fill_fifo(dp, cdb.trans_size);
 			ST_STAT  = STIRQ_DAT;
 			ST_CTRL |= STIRQ_DAT;
-			HIRQ = HIRQ_DRDY | HIRQ_SCDQ;
+			HIRQ = HIRQ_SCDQ;
 		}
 	}else{
 		ST_CTRL &= ~STIRQ_DAT;
@@ -509,8 +516,12 @@ int end_trans(void)
 	ST_CTRL &= ~STIRQ_DAT;
 	ST_STAT = STIRQ_DAT;
 
-	//printk("    cdwnum=%08x FIFO_STAT=%08x min_num=%d\n", cdb.cdwnum, FIFO_STAT, min_num);
+	//printk("end_trans: cdwnum=%08x FIFO_STAT=%08x min_num=%d\n", cdb.cdwnum, FIFO_STAT, min_num);
 	fifo_remain = (FIFO_STAT&0x0fff)*2; // FIFO中还有多少字节未读
+	if(fifo_remain>=512){
+		//FIFO中的数据大于512字节，不会产生中断。cdwnum会少记一次。
+		cdb.cdwnum += 0x800;
+	}
 	cdb.cdwnum -= fifo_remain;
 
 	// reset fifo
@@ -528,7 +539,7 @@ int end_trans(void)
 		}
 	}
 
-	//printk("end_trans: cdwnum=%08x\n", cdb.cdwnum);
+	//printk("         : cdwnum=%08x\n", cdb.cdwnum);
 	if(cdb.cdwnum){
 		SSCR1 = (cdb.status<<8) | ((cdb.cdwnum>>17)&0xff);
 		SSCR2 = (cdb.cdwnum>>1)&0xffff;

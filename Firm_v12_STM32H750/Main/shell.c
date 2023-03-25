@@ -1,5 +1,6 @@
 
 #include "main.h"
+#include "ff.h"
 
 /******************************************************************************/
 
@@ -277,6 +278,18 @@ void simple_shell(void)
 		CMD(cdc){
 			void cdc_dump();
 			cdc_dump();
+		}
+		CMD(seram){
+			FIL fp;
+			int retv = f_open(&fp, "/exram.bin", FA_CREATE_ALWAYS|FA_WRITE);
+			if(retv==FR_OK){
+				u32 wsize = 0x00400000;
+				retv = f_write(&fp, (void*)0x61400000, 0x00400000, &wsize);
+				f_close(&fp);
+				printk("save to exram.bin: %d %d\n", retv, wsize);
+			}else{
+				printk("create exram.bin failed! %d\n", retv);
+			}
 		}
 
 		CMD(q){

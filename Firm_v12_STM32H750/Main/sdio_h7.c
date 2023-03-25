@@ -126,6 +126,7 @@ static int sd_card_insert(void)
 
 void SDIO_IRQHandler(void)
 {
+#if 1
 	u32 cmd, mask, stat;
 	
 	stat = SDIO->STA;
@@ -133,12 +134,16 @@ void SDIO_IRQHandler(void)
 	cmd  = SDIO->CMD;
 
 	if(stat&SDMMC_STA_BUSYD0){
-		printk("SD_IRQ: cmd=%08x stat=%08x mask=%08x Busy!\n", cmd, stat, mask);
+		//printk("SD_IRQ: cmd=%08x stat=%08x mask=%08x Busy!\n", cmd, stat, mask);
 		SDIO->MASK = SDMMC_STA_BUSYD0END;
 	}else{
 		SDIO->MASK = 0;
 		osSemaphoreRelease(cmd_sem);
 	}
+#else
+	SDIO->MASK = 0;
+	osSemaphoreRelease(cmd_sem);
+#endif
 }
 
 

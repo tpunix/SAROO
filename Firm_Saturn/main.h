@@ -18,8 +18,8 @@ typedef unsigned long long u64;
 #define NULL ((void*)0)
 
 
-#define SS_ID    REG16(0x25897000)
-#define SS_VER   REG16(0x25897002)
+#define SS_ID    REG16(0x25807000)
+#define SS_VER   REG16(0x25807002)
 #define SS_CTRL  REG16(0x25897004)
 #define SS_STAT  REG16(0x25897008)
 #define SS_TIMER REG32(0x2589700c)
@@ -40,6 +40,8 @@ typedef unsigned long long u64;
 #define SSCMD_LOADDISC 0x0003
 #define SSCMD_CHECK    0x0004
 #define SSCMD_UPDATE   0x0005
+#define SSCMD_FILERD   0x0006
+#define SSCMD_FILEWR   0x0007
 
 
 /*****************************************************************************/
@@ -67,19 +69,19 @@ void msleep(u32 ms);
 
 /*****************************************************************************/
 
-#define PAD_LT      (1<<12)
+#define PAD_RIGHT   (1<<15)
+#define PAD_LEFT    (1<<14)
+#define PAD_DOWN    (1<<13)
+#define PAD_UP      (1<<12)
 #define PAD_START   (1<<11)
 #define PAD_A       (1<<10)
 #define PAD_C       (1<<9)
 #define PAD_B       (1<<8)
-#define PAD_RIGHT   (1<<7)
-#define PAD_LEFT    (1<<6)
-#define PAD_DOWN    (1<<5)
-#define PAD_UP      (1<<4)
-#define PAD_RT      (1<<3)
-#define PAD_X       (1<<2)
-#define PAD_Y       (1<<1)
-#define PAD_Z       (1<<0)
+#define PAD_RT      (1<<7)
+#define PAD_X       (1<<6)
+#define PAD_Y       (1<<5)
+#define PAD_Z       (1<<4)
+#define PAD_LT      (1<<3)
 
 u32 pad_read(void);
 
@@ -143,6 +145,9 @@ int str2hex(char *str, int *hex);
 void dump(int argc, int *args, int width);
 void mem_dump(char *str, void *addr, int size);
 
+int read_file (char *name, int offset, int size, void *buf);
+int write_file(char *name, int offset, int size, void *buf);
+
 /*****************************************************************************/
 
 
@@ -175,6 +180,8 @@ typedef struct {
 
 u32 crc32(u8 *buf, int len, u32 crc);
 
+u32 get_sr(void);
+void set_sr(u32 sr);
 void break_in_game(int break_pc, void *handle);
 void break_in_game_next(int break_pc, void *handle);
 void install_ubr_isr(void);
@@ -192,7 +199,7 @@ void set_break_rw(u32 addr, u32 mask, int rw);
 typedef struct menu_desc_t {
 	int num;
 	int current;
-	char title[32];
+	char title[64];
 	char items[11][64];
 	int (*handle)(int index);
 }MENU_DESC;

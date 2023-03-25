@@ -93,6 +93,15 @@
 #define PLAYTYPE_DIR    3
 
 
+#define SSCMD_PRINTF   0x0001
+#define SSCMD_LISTDISC 0x0002
+#define SSCMD_LOADDISC 0x0003
+#define SSCMD_CHECK    0x0004
+#define SSCMD_UPDATE   0x0005
+#define SSCMD_FILERD   0x0006
+#define SSCMD_FILEWR   0x0007
+
+
 #define MSF_TO_FAD(m,s,f) ((m * 4500) + (s * 75) + f)
 
 
@@ -201,6 +210,7 @@ typedef struct
 	u8 trans_block_end;     // 分区中最后一个要传输的扇区+1
 	BLOCK *trans_block;
 	u16 trans_size;
+	u8 trans_finish;
 
 	u8 last_buffer;
 

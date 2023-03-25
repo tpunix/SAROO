@@ -358,35 +358,70 @@ void put_box(int x1, int y1, int x2, int y2, int c)
 /******************************************************************************/
 
 static u32 last_pdat = 0;
+static u32 last_value;
 static u32 curr_pdat = 0;
 static int pdat_state = 0;
+static int pdat_count = 0;
+static int pdat_wait;
 
 u32 conio_getc(void)
 {
-	u32 pdat;
+	u32 pdat = pad_read();
 
-	while(1){
-		if(pdat_state==0){
-			pdat = pad_read();
-			if(pdat != curr_pdat){
-				curr_pdat = pdat;
-				pdat_state = 1;
-			}
-		}else if(pdat_state<100){
-			pdat = pad_read();
-			if(pdat == curr_pdat){
-				pdat_state += 1;
-			}else{
-				pdat_state = 0;
+	switch(pdat_state){
+	case 0:
+		// ¿ÕÏÐ¼ì²â
+		if(pdat != curr_pdat){
+			curr_pdat = pdat;
+			pdat_state = 1;
+			pdat_count = 0;
+		}
+		break;
+	case 1:
+		// µÈ´ýÎÈ¶¨
+		if(pdat == curr_pdat){
+			pdat_count += 1;
+			if(pdat_count==2){
+				pdat_state = 2;
 			}
 		}else{
-			pdat = last_pdat ^ curr_pdat;
-			last_pdat = curr_pdat;
 			pdat_state = 0;
-			return (pdat<<16) | curr_pdat;
 		}
+		break;
+	case 2:
+		// ÎÈ¶¨×´Ì¬
+		pdat = last_pdat ^ curr_pdat;
+		last_pdat = curr_pdat;
+		if(curr_pdat){
+			// ×ªÈëÖØ¸´×´Ì¬
+			pdat_state = 3;
+			pdat_count = 0;
+			pdat_wait  = 500;
+		}else{
+			pdat_state = 0;
+		}
+		last_value = (pdat<<16) | curr_pdat;
+		//printk("key0: %08x\n", last_value);
+		return last_value;
+	case 3:
+		// ÖØ¸´×´Ì¬
+		if(pdat != curr_pdat){
+			pdat_state = 0;
+		}else{
+			pdat_count += 1;
+			if(pdat_count==pdat_wait){
+				pdat_wait  = 30;
+				pdat_count = 0;
+				//printk("keyr: %08x\n", last_value);
+				return last_value;
+			}
+		}
+		break;
+	default:
+		break;
 	}
 
+	return 0;
 }
 
 
@@ -484,6 +519,8 @@ _restart:
 #if 1
 	while(1){
 		ctrl = conio_getc();
+		if(ctrl==0)
+			continue;
 		retv = menu->handle(ctrl);
 		if(retv==MENU_EXIT)
 			break;

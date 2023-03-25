@@ -295,6 +295,13 @@ _restart_nowait:
 			{
 				//printk("filter sector %08x...\n", fad);
 				retv = filter_sector(play_track, &wblk);
+				{
+					// "Final Fight Revenge" need this!
+					int i;
+					for(i=0; i<500000; i++){
+						NOTHING();
+					}
+				}
 				HIRQ = HIRQ_CSCT;
 				if(retv==0){
 					// 送到某个过滤器成功
@@ -388,24 +395,24 @@ void ss_cmd_handle(void)
 	printk("scmd_task: %04x\n", SS_CMD);
 
 	switch(cmd){
-	case 0x0001:
+	case SSCMD_PRINTF:
 		// 输出信息
 		printk("%s", (char*)0x61820010);
 		SS_CMD = 0;
 		break;
-	case 0x0002:
+	case SSCMD_LISTDISC:
 		// 列出镜像信息
 		retv = list_disc(0);
 		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
-	case 0x0003:
+	case SSCMD_LOADDISC:
 		// 装载镜像
 		retv = load_disc(SS_ARG);
 		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
-	case 0x0004:
+	case SSCMD_CHECK:
 	{
 		// 检查是否有升级固件
 		int fpga = (fpga_update(1)==0)? 1: 0;
@@ -414,12 +421,53 @@ void ss_cmd_handle(void)
 		SS_CMD = 0;
 		break;
 	}
-	case 0x0005:
+	case SSCMD_UPDATE:
 	{
 		// 固件升级
 		int fpga = (fpga_update(0)>=-1)? 0: 1;
 		int firm = (flash_update(0)>=-1)? 0: 1;
 		SS_ARG = (fpga<<1) | firm;
+		SS_CMD = 0;
+		break;
+	}
+	case SSCMD_FILERD:
+	{
+		FIL fp;
+		int offset = *(u32*)(0x61820000);
+		int size = *(u32*)(0x61820004);
+		char *name = (char*)(0x61820010);
+		int retv = f_open(&fp, name, FA_READ);
+		if(retv==FR_OK){
+			u32 rsize = 0;
+			f_lseek(&fp, offset);
+			if(size==0)
+				size = f_size(&fp);
+			retv = f_read(&fp, (void*)0x61820100, size, &rsize);
+			*(u32*)(0x61820004) = rsize;
+			f_close(&fp);
+			printk("\nSSCMD_FILERD: retv=%d rsize=%08x  %s\n", retv, rsize, name);
+		}
+		SS_ARG = -retv;
+		SS_CMD = 0;
+		break;
+	}
+	case SSCMD_FILEWR:
+	{
+		FIL fp;
+		int offset = *(u32*)(0x61820000);
+		int size = *(u32*)(0x61820004);
+		char *name = (char*)(0x61820010);
+		int flags = (offset==0)? FA_CREATE_ALWAYS : FA_OPEN_ALWAYS;
+		int retv = f_open(&fp, name, flags|FA_WRITE);
+		if(retv==FR_OK){
+			u32 wsize = 0;
+			f_lseek(&fp, offset);
+			retv = f_write(&fp, (void*)0x61820100, size, &wsize);
+			*(u32*)(0x61820004) = wsize;
+			f_close(&fp);
+			printk("\nSSCMD_FILEWR: retv=%d wsize=%08x  %s\n", retv, wsize, name);
+		}
+		SS_ARG = -retv;
 		SS_CMD = 0;
 		break;
 	}

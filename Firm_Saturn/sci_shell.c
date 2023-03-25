@@ -331,6 +331,14 @@ void sci_shell(void)
 			printk("CDOFF ...\n");
 			REG16(0x25897004) = 0x8000;
 		}
+		CMD(frt){
+			int retv = read_file("/ramimage.bin", 0, 0, (void*)0x00280000);
+			printk("read /ramimage.bin to 0x00280000: %d\n", retv);
+		}
+		CMD(fwt){
+			int retv = write_file("/saturn_save.bin", 0, 0x10000, (void*)0x00180000);
+			printk("write 0x00180000 to /saturn_save.bin: %d\n", retv);
+		}
 
 		CMD(z) {
 			/* 下载到ram并运行. 如果指定了地址, 则只下载. */
