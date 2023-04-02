@@ -86,6 +86,7 @@
 #define TRANS_FINFO_ONE 5
 #define TRANS_SUBQ      6
 #define TRANS_SUBRW     7
+#define TRANS_PUT       8
 
 
 #define PLAYTYPE_SECTOR 1
@@ -215,6 +216,7 @@ typedef struct
 	u8 last_buffer;
 
 	int sector_size;
+	int put_sector_size;
 	int actsize;
 
 ////// 文件操作 ///////////////////////////////////////////////

@@ -28,9 +28,11 @@ BLOCK *alloc_block(void)
 			break;
 		}
 	}
-			if(cdb.block_free==0){
-				HIRQ = HIRQ_BFUL;
-			}
+
+	if(cdb.block_free==0){
+		HIRQ = HIRQ_BFUL;
+	}
+
 	restore_irq(irqs);
 	return blk;
 }
@@ -121,13 +123,12 @@ void fill_fifo(u8 *addr, int size)
 	}
 }
 
-static int tcnt, min_num;
+static int min_num;
 
 void trans_start(void)
 {
 	u8 *dp = NULL;
 
-	tcnt = 0;
 	min_num = 40960;
 	cdb.cdwnum = 0;
 	cdb.trans_finish = 0;
@@ -137,7 +138,6 @@ void trans_start(void)
 		BLOCK *bt = find_block(pt, cdb.trans_block_start);
 		//printk("trans_start: pt=%d start=%d size=%d\n",
 		//	cdb.trans_part_index, cdb.trans_block_start, cdb.trans_block_end-cdb.trans_block_start);
-		//printk("  trans pt_%d: blks=%d bt=%08x size=%04x\n", cdb.trans_part_index, pt->numblocks, bt, bt->size);
 
 		cdb.trans_bk = cdb.trans_block_start;
 
@@ -171,6 +171,7 @@ void trans_start(void)
 		cdb.trans_size = 24;
 	}
 
+	ST_CTRL &= ~0x0200;
 	fill_fifo(dp, cdb.trans_size);
 	ST_STAT  = STIRQ_DAT;
 	ST_CTRL |= STIRQ_DAT;
@@ -181,7 +182,64 @@ void trans_start(void)
 // 准备写入下一个block的数据，或者删除已经写完的block
 void trans_handle(void)
 {
-	tcnt += 1;
+	if(cdb.trans_type==TRANS_PUT){
+		if(cdb.trans_bk==0)
+			return;
+
+		PARTITION *pt = &cdb.part[cdb.trans_part_index];
+		BLOCK *bt = pt->tail;
+
+		if(bt==NULL){
+			// PARTITION为空
+			bt = alloc_block();
+			bt->size = 0;
+			bt->next = NULL;
+			pt->head = bt;
+			pt->tail = bt;
+			pt->numblocks += 1;
+		}else if(bt->size >= cdb.put_sector_size){
+			// PARTITION的最后的block已经有数据了
+			BLOCK *nbt = alloc_block();
+			nbt->size = 0;
+			nbt->next = NULL;
+			bt->next = nbt;
+			pt->tail = nbt;
+			pt->numblocks += 1;
+			bt = nbt;
+		}
+
+		ST_CTRL &= ~STIRQ_DAT;
+		//printk("trans_put: FIFO_STAT=%04x\n", FIFO_STAT);
+		int cnt = 2048;
+		while(cnt){
+			*(u16*)(bt->data + bt->size) = FIFO_DATA;
+			bt->size += 2;
+			cnt -= 2;
+			if(bt->size == cdb.put_sector_size){
+				//printk("    trans_bk=%d\n", cdb.trans_bk);
+				pt->size += cdb.put_sector_size;
+				cdb.trans_bk -= 1;
+				if(cdb.trans_bk==0){
+					ST_CTRL &= ~(STIRQ_DAT|0x0200);
+					ST_STAT  = STIRQ_DAT;
+					return;
+				}else{
+					BLOCK *nbt = alloc_block();
+					nbt->size = 0;
+					nbt->next = 0;
+					bt->next = nbt;
+					pt->tail = nbt;
+					pt->numblocks += 1;
+					bt = nbt;
+				}
+			}
+		}
+
+		ST_STAT  = STIRQ_DAT;
+		ST_CTRL |= STIRQ_DAT;
+		return;
+	}
+
 	if(cdb.trans_finish==0){
 		// 中断在传输结束时会重复进入一次。这里做个判断，以免误加。
 		cdb.cdwnum += cdb.trans_size;
@@ -516,13 +574,23 @@ int end_trans(void)
 	ST_CTRL &= ~STIRQ_DAT;
 	ST_STAT = STIRQ_DAT;
 
-	//printk("end_trans: cdwnum=%08x FIFO_STAT=%08x min_num=%d\n", cdb.cdwnum, FIFO_STAT, min_num);
-	fifo_remain = (FIFO_STAT&0x0fff)*2; // FIFO中还有多少字节未读
-	if(fifo_remain>=512){
-		//FIFO中的数据大于512字节，不会产生中断。cdwnum会少记一次。
-		cdb.cdwnum += 0x800;
+	if(cdb.trans_type==TRANS_PUT){
+		if(cdb.trans_bk){
+			//printk("end_trans: wait trans_put ...\n");
+			while(cdb.trans_bk){
+				trans_handle();
+				cdc_delay(1);
+			}
+		}
+	}else{
+		//printk("end_trans: cdwnum=%08x FIFO_STAT=%08x min_num=%d\n", cdb.cdwnum, FIFO_STAT, min_num);
+		fifo_remain = (FIFO_STAT&0x0fff)*2; // FIFO中还有多少字节未读
+		if(fifo_remain>=512){
+			//FIFO中的数据大于512字节，不会产生中断。cdwnum会少记一次。
+			cdb.cdwnum += 0x800;
+		}
+		cdb.cdwnum -= fifo_remain;
 	}
-	cdb.cdwnum -= fifo_remain;
 
 	// reset fifo
 	ST_CTRL |= 0x0100;
@@ -964,6 +1032,9 @@ void free_partition(PARTITION *pt)
 
 }
 
+// 有些游戏(InTheHunt)利用reset_filter来删除扇区。这里需要hack一下。
+static int gs_spos, gs_snum=0;
+
 // 0x48 [SR]
 int reset_filter(void)
 {
@@ -975,7 +1046,13 @@ int reset_filter(void)
 	printk("reset_filter: mode=%02x fid=%d\n", mode, fid);
 
 	if(mode==0){
-		if(fid<MAX_SELECTORS){
+		if(gs_snum){
+			// 只删除get_sector_data用到的block。
+			while(gs_snum){
+				remove_block(&cdb.part[fid], gs_spos);
+				gs_snum -= 1;
+			}
+		}else if(fid<MAX_SELECTORS){
 			free_partition(&cdb.part[fid]);
 		}
 	}else{
@@ -1008,6 +1085,7 @@ int reset_filter(void)
 			}
 		}
 	}
+	gs_snum = 0;
 
 	return HIRQ_ESEL;
 }
@@ -1027,7 +1105,7 @@ int get_buffer_size(void)
 	SSCR4 = MAX_BLOCKS;
 
 	if(old_block_free!=cdb.block_free){
-		//printk("SS_CDC: CR1=%04x CR2=%04x CR3=%04x CR4=%04x  get_buffer_size\n", RESP1, RESP2, RESP3, RESP4);
+		//printk("get_buffer_size: free=%d\n", cdb.block_free);
 	}
 	old_block_free = cdb.block_free;
 
@@ -1049,7 +1127,7 @@ int get_sector_num(void)
 	SSCR4 = cdb.part[pt].numblocks;
 
 	if(old_numblocks != cdb.part[pt].numblocks){
-		//printk("SS_CDC: CR1=%04x CR2=%04x CR3=%04x CR4=%04x  get_sector_num\n", RESP1, RESP2, RESP3, RESP4);
+		//printk("get_sector_num: part=%d(%d)\n", pt, cdb.part[pt].numblocks);
 	}
 	old_numblocks = cdb.part[pt].numblocks;
 
@@ -1065,6 +1143,7 @@ int cal_actual_size(void)
 	spos = cdb.cr2;
 	pt   = cdb.cr3>>8;
 	snum = cdb.cr4;
+	//printk("cacl_act_size: pt=%d spos=%d snum=%d\n", pt, spos, snum);
 
 	size = 0;
 	bp = find_block(&cdb.part[pt], spos);
@@ -1078,8 +1157,6 @@ int cal_actual_size(void)
 	return HIRQ_ESEL;
 }
 
-int old_actsize;
-
 // 0x53 [S-]
 int get_actual_size(void)
 {
@@ -1088,11 +1165,7 @@ int get_actual_size(void)
 	SSCR3 = 0;
 	SSCR4 = 0;
 
-	if(old_actsize!=cdb.actsize){
-		//printk("SS_CDC: CR1=%04x CR2=%04x CR3=%04x CR4=%04x  get_actual_size\n", RESP1, RESP2, RESP3, RESP4);
-	}
-	old_actsize = cdb.actsize;
-
+	//printk("get_actual_size: %08x\n", cdb.actsize);
 
 	return 0;
 }
@@ -1125,6 +1198,7 @@ int get_sector_info(void)
 /******************************************************************************/
 // buffer I/O相关命令
 
+
 u32 sector_len_table[4] = {2048, 2336, 2340, 2352};
 
 // 0x60 [SR]
@@ -1139,7 +1213,7 @@ int set_sector_length(void)
 		cdb.sector_size = sector_len_table[id_get];
 	}
 	if(id_put<4){
-		// TODO
+		cdb.put_sector_size = sector_len_table[id_put];
 	}
 
 	return HIRQ_ESEL;
@@ -1168,7 +1242,9 @@ int get_sector_data(void)
 	if(snum==0xffff){
 		snum = pp->numblocks-spos;
 	}
-	//printk("get_sector_data: part=%d spos=%d snum=%d\n", pt, spos, snum);
+	//printk("get_sector_data: part=%d(%d) spos=%d snum=%d\n", pt, pp->numblocks, spos, snum);
+	gs_spos = spos;
+	gs_snum = snum;
 
 	if(pp->numblocks){
 		cdb.trans_type = TRANS_DATA;
@@ -1188,6 +1264,8 @@ int del_sector_data(void)
 {
 	int pt, spos, snum;
 	PARTITION *pp;
+
+	gs_snum = 0;
 
 	pt   = cdb.cr3>>8;
 	spos = cdb.cr2;
@@ -1217,6 +1295,8 @@ int get_del_sector_data(void)
 	int pt, spos, snum;
 	PARTITION *pp;
 
+	gs_snum = 0;
+
 	if(cdb.trans_type){
 		set_status(STAT_WAIT);
 		return 0;
@@ -1225,21 +1305,38 @@ int get_del_sector_data(void)
 	pt   = cdb.cr3>>8;
 	spos = cdb.cr2;
 	snum = cdb.cr4;
-
 	pp = &cdb.part[pt];
-	if(pp->numblocks==0){
-		while(pp->numblocks==0){
-			cdc_delay(10);
+
+	if(pp->numblocks){
+		if(spos==0xffff){
+			spos = pp->numblocks-1;
+		}
+		if(snum==0xffff){
+			snum = pp->numblocks-spos;
+		}
+	}else{
+		if(spos==0xffff){
+			spos = 0;
+		}
+		if(snum==0xffff){
+			snum = 0;
 		}
 	}
 
-	if(spos==0xffff){
-		spos = pp->numblocks-1;
+	//printk("get_del_sector_data: part=%d(%d) spos=%d snum=%d\n", pt, pp->numblocks, spos, snum);
+	if(snum==0){
+		// 针对<重装机兵2雷诺斯>的临时处理
+		while(cdb.play_type){
+			cdc_delay(10);
+		}
+		snum = pp->numblocks;
+	}else{
+		while(pp->numblocks<snum){
+			// 在这里等待并不是个好办法.
+			cdc_delay(10);
+		}
 	}
-	if(snum==0xffff){
-		snum = pp->numblocks-spos;
-	}
-	//printk("get_del_sector_data: part=%d spos=%d snum=%d\n", pt, spos, snum);
+	//printk("                   : part=%d(%d) spos=%d snum=%d\n", pt, pp->numblocks, spos, snum);
 
 	if(pp->numblocks){
 		cdb.trans_type = TRANS_DATA_DEL;
@@ -1253,6 +1350,38 @@ int get_del_sector_data(void)
 	set_status(0x4000 | cdb.status);
 	return HIRQ_DRDY|HIRQ_EHST;
 }
+
+
+// 0x64 [SR]
+int put_sector_data(void)
+{
+	int pt, snum;
+	PARTITION *pp;
+
+	if(cdb.trans_type){
+		set_status(STAT_WAIT);
+		return 0;
+	}
+
+	pt   = cdb.cr3>>8;
+	snum = cdb.cr4;
+	printk("put_sector_data: part=%d snum=%d put_sector_size=%d\n", pt, snum, cdb.put_sector_size);
+
+	cdb.trans_type = TRANS_PUT;
+	cdb.trans_part_index = pt;
+	cdb.trans_bk = snum;
+
+	// reset fifo
+	ST_CTRL |= 0x0100;
+	ST_CTRL &=~0x0100;
+
+	ST_STAT  = STIRQ_DAT;
+	ST_CTRL |= 0x0200 | STIRQ_DAT;
+
+	set_status(cdb.status);
+	return HIRQ_DRDY;
+}
+
 
 // 0x67 [S-]
 int get_copy_error(void)
@@ -1309,7 +1438,16 @@ void fill_fileinfo(void)
 			cdb.fi[pfn].unit = isonum_711(buf+p+26);
 			cdb.fi[pfn].gap  = isonum_711(buf+p+27);
 			cdb.fi[pfn].fid  = 0;
-			printk("  fid %3d:  lba=%08x size=%08x attr=%02x  %s\n", fid, cdb.fi[pfn].lba, cdb.fi[pfn].size, cdb.fi[pfn].attr, buf+p+33);
+#if 1
+			int nlen = *(u8*)(buf+p+32);
+			char *fname = (char*)(buf+p+33);
+			if(nlen>2)
+				nlen -= 2;
+			u8 save_byte = fname[nlen];
+			fname[nlen] = 0;
+			printk("  fid %3d:  lba=%08x size=%08x attr=%02x  %d %s\n", fid, cdb.fi[pfn].lba, cdb.fi[pfn].size, cdb.fi[pfn].attr, nlen, buf+p+33);
+			fname[nlen] = save_byte;
+#endif
 			if(fid>1 && cdb.fi[pfn].attr&0x02)
 				cdb.cdir_drend = 1;
 			pfn += 1;
@@ -1708,6 +1846,7 @@ char *cmd_str(int cmd)
 	case 0x61: return "get_sector_data";
 	case 0x62: return "del_sector_data";
 	case 0x63: return "get_del_sector_data";
+	case 0x64: return "put_sector_data";
 	case 0x67: return "get_copy_error";
 
 	// file io
@@ -1815,6 +1954,8 @@ void cdc_cmd_process(void)
 		break;
 	case 0x63: hirq = get_del_sector_data();
 		break;
+	case 0x64: hirq = put_sector_data();
+		break;
 	case 0x67: hirq = get_copy_error();
 		break;
 
@@ -1838,7 +1979,8 @@ void cdc_cmd_process(void)
 		break;
 
 	default:
-		printk("SS CDC: unknow cmd! %08x\n", cmd);
+		printk("SS CDC: unknow cmd!  CR1=%04x CR2=%04x CR3=%04x CR4=%04x\n",
+			cdb.cr1, cdb.cr2, cdb.cr3, cdb.cr4);
 		hirq = 0;
 		break;
 	}

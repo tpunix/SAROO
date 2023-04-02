@@ -837,6 +837,7 @@ int my_bios_loadcd_read(void)
 {
 	int status, tm;
 	u8 *sbuf = (u8*)0x06002000;
+	char ipstr[64];
 
 	printk("\nmy_bios_loadcd_read!\n");
 
@@ -862,18 +863,25 @@ int my_bios_loadcd_read(void)
 
 	*(u16*)(0x060003a0) = 1;
 
+	memcpy(ipstr, (u8*)0x06002020, 16);
+	ipstr[16] = 0;
+	printk("\nLoad game: %s\n", ipstr);
+	memcpy(ipstr, (u8*)0x06002060, 32);
+	ipstr[32] = 0;
+	printk("  %s\n\n", ipstr);
+
 	return 0;
 }
 
 int read_1st(void)
 {
-
+	printk("Read main ...\n");
 	int retv;
 	retv = *(u32*)(0x06000284);
 	void (*go)(void) = (void(*)(void))retv;
-	go();	
-	patch_game((char*)0x06002020);
+	go();
 
+	patch_game((char*)0x06002020);
 }
 
 

@@ -8,7 +8,42 @@
 osSemaphoreId_t sem_wait_irq;
 osSemaphoreId_t sem_wait_disc;
 
+
+void hw_delay(int us);
+
 /******************************************************************************/
+
+int need_delay;
+
+void game_patch(u8 *ip, int blksize)
+{
+	char tmp[64];
+
+	if(blksize==2352){
+		ip += 16;
+	}
+
+	need_delay = 0;
+
+	memcpy(tmp, ip+0x20, 16);
+	tmp[16] = 0;
+	printk("Game ID: %s\n", tmp);
+
+	if(strncmp(tmp, "T-1248G   V1.004", 16)==0){
+		// "Final Fight Revenge"
+		printk("Need delay!\n");
+		need_delay = 1;
+	}
+
+	memcpy(tmp, ip+0x60, 32);
+	tmp[32] = 0;
+	printk("  %s\n", tmp);
+	
+}
+
+
+/******************************************************************************/
+
 
 u32 bswap32(u32 d)
 {
@@ -43,6 +78,8 @@ void init_toc(void)
 	
 	cdb.status = STAT_PAUSE;
 	set_status(cdb.status);
+
+	need_delay = 0;
 }
 
 
@@ -61,7 +98,8 @@ u32 track_to_fad(u16 track_index)
 
 	if(index==0x01){
 		return cdb.tracks[t].fad_start;
-	} else if(index==0x63){
+	//} else if(index==0x63){
+	} else if(index>1){
 		return cdb.tracks[t].fad_end;
 	}
 
@@ -285,6 +323,9 @@ _restart_nowait:
 				wblk.sm = wblk.data[0x12];
 				wblk.ci = wblk.data[0x13];
 			}
+			if(fad==0x96){
+				game_patch(wblk.data, wblk.size);
+			}
 
 			if(cdb.play_type!=PLAYTYPE_FILE && play_track->mode==3){
 				if(fill_audio_buffer(wblk.data)<0){
@@ -295,14 +336,11 @@ _restart_nowait:
 			{
 				//printk("filter sector %08x...\n", fad);
 				retv = filter_sector(play_track, &wblk);
-				{
-					// "Final Fight Revenge" need this!
-					int i;
-					for(i=0; i<500000; i++){
-						NOTHING();
-					}
-				}
 				HIRQ = HIRQ_CSCT;
+				if(need_delay){
+					hw_delay(2000);
+				}
+
 				if(retv==0){
 					// 送到某个过滤器成功
 				}else if(retv==2){
@@ -457,7 +495,7 @@ void ss_cmd_handle(void)
 		int offset = *(u32*)(0x61820000);
 		int size = *(u32*)(0x61820004);
 		char *name = (char*)(0x61820010);
-		int flags = (offset==0)? FA_CREATE_ALWAYS : FA_OPEN_ALWAYS;
+		int flags = (offset==-1)? FA_CREATE_ALWAYS : FA_OPEN_ALWAYS;
 		int retv = f_open(&fp, name, flags|FA_WRITE);
 		if(retv==FR_OK){
 			u32 wsize = 0;
@@ -529,6 +567,35 @@ void EXTI1_IRQHandler(void)
 
 /******************************************************************************/
 
+osSemaphoreId_t sem_tim6;
+
+void TIM6_DAC_IRQHandler(void)
+{
+	TIM6->SR = 0;
+	osSemaphoreRelease(sem_tim6);
+}
+
+void hw_delay(int us)
+{
+	TIM6->CR1 = 0;
+	TIM6->ARR = us;
+	TIM6->CNT = 0;
+	TIM6->CR1 = 0x000d;
+
+	osSemaphoreAcquire(sem_tim6, osWaitForever);
+}
+
+void tim6_init(void)
+{
+	sem_tim6 = osSemaphoreNew(1, 0, NULL);
+
+	TIM6->CR1 = 0;
+	TIM6->PSC = (200-1); // 200M/100 = 1M
+	TIM6->SR = 0;
+	TIM6->DIER = 1;
+
+	NVIC_EnableIRQ(TIM6_DAC_IRQn);
+}
 
 void ss_hw_init(void)
 {
@@ -554,6 +621,8 @@ void ss_hw_init(void)
 	NVIC_EnableIRQ(EXTI1_IRQn);
 
 	ST_CTRL = 0x0203;
+
+	tim6_init();
 }
 
 
