@@ -65,6 +65,123 @@ char *get_line(u8 *buf, int *pos, int size)
 
 /******************************************************************************/
 
+int get_gameid(char *gameid)
+{
+	FIL *fp = cdb.tracks[0].fp;
+	u8 *fbuf = (u8*)0x24002000;
+	int retv, i;
+	u32 nread;
+
+	retv = f_read(fp, fbuf, 256, &nread);
+	if(retv)
+		return -1;
+
+	if(cdb.tracks[0].sector_size==2048){
+		i = 0x20;
+	}else{
+		i = 0x30;
+	}
+	memcpy(gameid, fbuf+i, 16);
+	gameid[16] = 0;
+
+	for(i=15; i>=0; i--){
+		if(gameid[i]==0x20){
+			gameid[i] = 0;
+		}else{
+			break;
+		}
+	}
+
+	return 0;
+}
+
+
+int parse_config(char *fname)
+{
+	FIL fp;
+	u8 *fbuf = (u8*)0x24002000;
+	char gameid[20];
+	int retv;
+
+	retv = get_gameid(gameid);
+	if(retv){
+		return -1;
+	}
+
+	retv = f_open(&fp, fname, FA_READ);
+	if(retv){
+		return -2;
+	}
+
+
+	u32 nread;
+	retv = f_read(&fp, fbuf, f_size(&fp), &nread);
+	f_close(&fp);
+	if(retv){
+		return -3;
+	}
+
+
+	printk("\nLoad config [%s] for [%s]\n", fname, gameid);
+
+	int cpos = 0;
+	int g_sec = 0;
+	int in_sec = 0;
+	char *lbuf;
+	while((lbuf=get_line(fbuf, &cpos, nread))!=NULL){
+_next_section:
+		//查找section: [xxxxxx]
+		if(in_sec==0){
+			if(lbuf[0]=='['){
+				char *p = strrchr(lbuf, ']');
+				if(p==NULL){
+					return -4;
+				}
+				*p = 0;
+				if(g_sec==0){
+					// 第一个section一定是global
+					if(strcmp(lbuf+1, "global")){
+						return -5;
+					}
+					g_sec = 1;
+					in_sec = 1;
+					printk("Global config:\n");
+				}else if(strcmp(lbuf+1, gameid)==0){
+					// 找到了与game_id匹配的section
+					in_sec = 1;
+					printk("Game config:\n");
+				}
+			}
+			continue;
+		}else{
+			if(lbuf[0]=='['){
+				if(g_sec==1){
+					g_sec = 2;
+					in_sec = 0;
+					goto _next_section;
+				}else{
+					break;
+				}
+			}
+			if(strncmp(lbuf, "sector_delay=", 13)==0){
+				sector_delay = strtoul(lbuf+13, NULL, 10);
+				printk("    sector_delay = %d\n", sector_delay);
+			}
+			// TODO: more config here.
+		}
+	}
+	
+	printk("\n\n");
+
+	if(sector_delay_force>=0){
+		sector_delay = sector_delay_force;
+		printk("    sector_delay = %d\n", sector_delay);
+	}
+	return 0;
+}
+
+/******************************************************************************/
+
 int parse_iso(char *fname)
 {
 	FIL *fp = &track_fp[0];
@@ -92,6 +209,7 @@ int parse_iso(char *fname)
 	return 0;
 }
 
+
 int parse_cue(char *fname)
 {
 	FIL fp;
@@ -113,6 +231,7 @@ int parse_cue(char *fname)
 
 	u32 nread;
 	retv = f_read(&fp, fbuf, f_size(&fp), &nread);
+	f_close(&fp);
 	if(retv){
 		return -3;
 	}
@@ -381,6 +500,8 @@ int load_disc(int index)
 	}
 	if(retv){
 		printk("  retv=%d\n", retv);
+	}else{
+		parse_config("/saroocfg.txt");
 	}
 
 _exit:

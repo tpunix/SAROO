@@ -8,38 +8,13 @@
 osSemaphoreId_t sem_wait_irq;
 osSemaphoreId_t sem_wait_disc;
 
+int sector_delay = 0;
+int sector_delay_force = -1;
+
+
+int log_mask = LOG_MASK_DEFAULT;
 
 void hw_delay(int us);
-
-/******************************************************************************/
-
-int need_delay;
-
-void game_patch(u8 *ip, int blksize)
-{
-	char tmp[64];
-
-	if(blksize==2352){
-		ip += 16;
-	}
-
-	need_delay = 0;
-
-	memcpy(tmp, ip+0x20, 16);
-	tmp[16] = 0;
-	printk("Game ID: %s\n", tmp);
-
-	if(strncmp(tmp, "T-1248G   V1.004", 16)==0){
-		// "Final Fight Revenge"
-		printk("Need delay!\n");
-		need_delay = 1;
-	}
-
-	memcpy(tmp, ip+0x60, 32);
-	tmp[32] = 0;
-	printk("  %s\n", tmp);
-	
-}
 
 
 /******************************************************************************/
@@ -66,7 +41,7 @@ void init_toc(void)
 
 	for(i=0; i<cdb.track_num; i++){
 		cdb.TOC[i] = bswap32((cdb.tracks[i].ctrl_addr<<24) | cdb.tracks[i].fad_start);
-		printk("track %2d: fad_0=%08x fad_start=%08x fad_end=%08x offset=%08x %d\n",
+		SSLOG(_INFO, "track %2d: fad_0=%08x fad_start=%08x fad_end=%08x offset=%08x %d\n",
 					i, cdb.tracks[i].fad_0, cdb.tracks[i].fad_start, cdb.tracks[i].fad_end,
 					cdb.tracks[i].file_offset, cdb.tracks[i].sector_size);
 	}
@@ -79,7 +54,7 @@ void init_toc(void)
 	cdb.status = STAT_PAUSE;
 	set_status(cdb.status);
 
-	need_delay = 0;
+	sector_delay = 0;
 }
 
 
@@ -150,7 +125,7 @@ void show_pt(void)
 	ft = &cdb.filter[cdb.cddev_filter];
 	pt = &cdb.part[ft->c_true];
 
-	printk("           : Part_%d: nblks=%d\n", ft->c_true, pt->numblocks);
+	SSLOG(_INFO, "           : Part_%d: nblks=%d\n", ft->c_true, pt->numblocks);
 
 
 }
@@ -227,7 +202,7 @@ _restart_wait:
 
 _restart_nowait:
 		if(cdb.pause_request){
-			printk("play_task: Recv PAUSE request!\n");
+			SSLOG(_DTASK, "play_task: Recv PAUSE request!\n");
 			cdb.status = STAT_PAUSE;
 			cdb.play_type = 0;
 			buf_fad_start = 0;
@@ -236,14 +211,14 @@ _restart_nowait:
 			goto _restart_wait;
 		}
 		if(cdb.play_fad_start==0 || cdb.play_type==0){
-			printk("play_task: play_type=%d! play_fad_start=%08x!\n", cdb.play_type, cdb.play_fad_start);
+			SSLOG(_DTASK, "play_task: play_type=%d! play_fad_start=%08x!\n", cdb.play_type, cdb.play_fad_start);
 			cdb.status = STAT_PAUSE;
 			goto _restart_wait;
 		}
 
 		if(cdb.play_type!=PLAYTYPE_FILE && play_track->mode==3){
 		}else{
-			printk("\nplay_task! fad_start=%08x fad_end=%08x fad=%08x type=%d free=%d\n",
+			SSLOG(_DTASK, "\nplay_task! fad_start=%08x fad_end=%08x fad=%08x type=%d free=%d\n",
 					cdb.play_fad_start, cdb.play_fad_end, cdb.fad, cdb.play_type, cdb.block_free);
 		}
 
@@ -254,7 +229,7 @@ _restart_nowait:
 
 		while(cdb.fad<cdb.play_fad_end){
 			if(cdb.pause_request){
-				printk("play_task: Recv PAUSE request!\n");
+				SSLOG(_DTASK, "play_task: Recv PAUSE request!\n");
 				cdb.status = STAT_PAUSE;
 				cdb.play_type = 0;
 				cdb.pause_request = 0;
@@ -269,7 +244,7 @@ _restart_nowait:
 					play_track = &cdb.tracks[cdb.track-1];
 				}else{
 					// play的FAD参数错误
-					printk("play_track not found!\n");
+					SSLOG(_DTASK, "play_track not found!\n");
 					cdb.status = STAT_ERROR;
 					cdb.play_type = 0;
 					break;
@@ -302,7 +277,7 @@ _restart_nowait:
 					int num_fad = (nread-buf_fad_offset)/buf_fad_size;
 					buf_fad_end = buf_fad_start+num_fad;
 				}else{
-					printk("f_read error!\n");
+					SSLOG(_DTASK, "f_read error!\n");
 					cdb.status = STAT_ERROR;
 					cdb.play_type = 0;
 					buf_fad_end = 0;
@@ -323,9 +298,6 @@ _restart_nowait:
 				wblk.sm = wblk.data[0x12];
 				wblk.ci = wblk.data[0x13];
 			}
-			if(fad==0x96){
-				game_patch(wblk.data, wblk.size);
-			}
 
 			if(cdb.play_type!=PLAYTYPE_FILE && play_track->mode==3){
 				if(fill_audio_buffer(wblk.data)<0){
@@ -337,14 +309,14 @@ _restart_nowait:
 				//printk("filter sector %08x...\n", fad);
 				retv = filter_sector(play_track, &wblk);
 				HIRQ = HIRQ_CSCT;
-				if(need_delay){
-					hw_delay(2000);
+				if(sector_delay){
+					hw_delay(sector_delay);
 				}
 
 				if(retv==0){
 					// 送到某个过滤器成功
 				}else if(retv==2){
-					printk("buffer full! wait ...\n");
+					SSLOG(_DTASK, "buffer full! wait ...\n");
 					// block缓存已满, 需要等待某个事件再继续
 					cdb.status = STAT_PAUSE;
 					cdb.play_wait = 1;
@@ -358,7 +330,7 @@ _restart_nowait:
 			cdb.fad++;
 		}
 
-		printk("\nplay end! fad=%08x end=%08x repcnt=%d maxrep=%d play_type=%d\n",
+		SSLOG(_DTASK, "\nplay end! fad=%08x end=%08x repcnt=%d maxrep=%d play_type=%d\n",
 				cdb.fad, cdb.play_fad_end, cdb.repcnt, cdb.max_repeat, cdb.play_type);
 
 		if(cdb.fad>=cdb.play_fad_end){
@@ -430,7 +402,7 @@ void ss_cmd_handle(void)
 	int retv;
 	u32 cmd = SS_CMD;
 
-	printk("scmd_task: %04x\n", SS_CMD);
+	SSLOG(_INFO, "scmd_task: %04x\n", SS_CMD);
 
 	switch(cmd){
 	case SSCMD_PRINTF:
@@ -483,7 +455,7 @@ void ss_cmd_handle(void)
 			retv = f_read(&fp, (void*)0x61820100, size, &rsize);
 			*(u32*)(0x61820004) = rsize;
 			f_close(&fp);
-			printk("\nSSCMD_FILERD: retv=%d rsize=%08x  %s\n", retv, rsize, name);
+			SSLOG(_INFO, "\nSSCMD_FILERD: retv=%d rsize=%08x  %s\n", retv, rsize, name);
 		}
 		SS_ARG = -retv;
 		SS_CMD = 0;
@@ -503,14 +475,14 @@ void ss_cmd_handle(void)
 			retv = f_write(&fp, (void*)0x61820100, size, &wsize);
 			*(u32*)(0x61820004) = wsize;
 			f_close(&fp);
-			printk("\nSSCMD_FILEWR: retv=%d wsize=%08x  %s\n", retv, wsize, name);
+			SSLOG(_INFO, "\nSSCMD_FILEWR: retv=%d wsize=%08x  %s\n", retv, wsize, name);
 		}
 		SS_ARG = -retv;
 		SS_CMD = 0;
 		break;
 	}
 	default:
-		printk("[SS] unkonw cmd: %04x\n", cmd);
+		SSLOG(_INFO, "[SS] unkonw cmd: %04x\n", cmd);
 		break;
 	}
 
