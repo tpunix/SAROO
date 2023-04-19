@@ -402,7 +402,7 @@ void ss_cmd_handle(void)
 	int retv;
 	u32 cmd = SS_CMD;
 
-	SSLOG(_INFO, "scmd_task: %04x\n", SS_CMD);
+	//SSLOG(_INFO, "scmd_task: %04x\n", SS_CMD);
 
 	switch(cmd){
 	case SSCMD_PRINTF:

@@ -188,6 +188,8 @@ void install_ubr_isr(void);
 void set_break_pc(u32 addr, u32 mask);
 void set_break_rw(u32 addr, u32 mask, int rw);
 
+extern int game_break_pc;
+
 #define BRK_READ  0x04
 #define BRK_WRITE 0x08
 #define BRK_RW    0x0c

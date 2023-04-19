@@ -205,6 +205,13 @@ void simple_shell(void)
 
 	while(1){
 		gets(cmd, 128);
+		if(strncmp(cmd, "ss ", 3)==0){
+			int len = strlen(cmd+3);
+			strcpy((u8*)0x61820010, cmd+3);
+			*(u8*)0x61820000 = len;
+			continue;
+		}
+
 		char *sp = strchr(cmd, ' ');
 		if(sp){
 			*sp = 0;

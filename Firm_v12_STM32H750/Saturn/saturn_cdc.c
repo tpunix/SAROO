@@ -804,7 +804,7 @@ int get_subcode(void)
 	}
 
 	type = cdb.cr1&0xff;
-	SSLOG(_INFO, "get_subcode: type=%d\n", type);
+	//SSLOG(_INFO, "get_subcode: type=%d\n", type);
 
 	if(type==0){
 		// Get Q Channel

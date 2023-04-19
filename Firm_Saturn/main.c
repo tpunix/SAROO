@@ -87,23 +87,20 @@ int smpc_cmd(int cmd)
 
 /**********************************************************/
 
+
 void stm32_puts(char *str)
 {
 	u32 stm32_base = 0x22820000;
 	int i, len;
 
-	//len = strlen(str);
-	//len += 1;
-	len = 32;
-	*(u16*)(stm32_base+0x00) = len;
+	len = strlen(str);
+	LE32W((void*)(stm32_base+0), len);
 
-	for(i=0; i<len; i+=2)
-		*(u16*)(stm32_base+0x10+i) = *(u16*)(str+i);
+	memcpy((void*)stm32_base+0x10, str, len+1);
 
 	SS_CMD = 0x0001;
-	//while(SS_CMD);
+	while(SS_CMD);
 }
-
 
 
 /**********************************************************/

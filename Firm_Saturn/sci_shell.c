@@ -4,6 +4,8 @@
 
 /**********************************************************/
 
+int gets_from_stm32 = 0;
+
 static char hbuf[128];
 static int hblen = 0;
 #define PROMPT "SS"
@@ -11,6 +13,18 @@ static int hblen = 0;
 int gets(char *buf, int len)
 {
 	int n, ch, esc;
+
+	if(gets_from_stm32){
+		while(1){
+			n = *(volatile u8*)0x22820000;
+			if(n)
+				break;
+		}
+
+		strcpy(buf, (u8*)0x22820010);
+		buf[n] = 0;
+		return n;
+	}
 
 	printk(PROMPT "> ");
 	n = 0;
@@ -309,8 +323,7 @@ void sci_shell(void)
 			u32 addr = 0;
 			if(argc>0) addr = arg[0];
 			if(addr){
-				skip_patch = 1;
-				break_in_game(addr, NULL);
+				game_break_pc = addr;
 			}
 		}
 
