@@ -1200,7 +1200,7 @@ int get_sector_info(void)
 	bp = find_block(pp, st);
 
 	SSCR1 = (cdb.status<<8) | (bp->fad>>16)&0xff;
-	SSCR2 = bp->fad&0xff;
+	SSCR2 = (bp->fad)&0xffff;
 	SSCR3 = (bp->fn<<8) | (bp->cn);
 	SSCR4 = (bp->sm<<8) | (bp->ci);
 

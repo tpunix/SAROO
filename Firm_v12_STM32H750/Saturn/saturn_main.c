@@ -218,8 +218,8 @@ _restart_nowait:
 
 		if(cdb.play_type!=PLAYTYPE_FILE && play_track->mode==3){
 		}else{
-			SSLOG(_DTASK, "\nplay_task! fad_start=%08x fad_end=%08x fad=%08x type=%d free=%d\n",
-					cdb.play_fad_start, cdb.play_fad_end, cdb.fad, cdb.play_type, cdb.block_free);
+			SSLOG(_DTASK, "\nplay_task! fad_start=%08x(lba_%08x) fad_end=%08x fad=%08x type=%d free=%d\n",
+					cdb.play_fad_start, cdb.play_fad_start-150, cdb.play_fad_end, cdb.fad, cdb.play_type, cdb.block_free);
 		}
 
 		if(cdb.fad==0){
