@@ -86,6 +86,7 @@
 #define TRANS_FINFO_ONE 5
 #define TRANS_SUBQ      6
 #define TRANS_SUBRW     7
+#define TRANS_PUT       8
 
 
 #define PLAYTYPE_SECTOR 1
@@ -215,6 +216,7 @@ typedef struct
 	u8 last_buffer;
 
 	int sector_size;
+	int put_sector_size;
 	int actsize;
 
 ////// 文件操作 ///////////////////////////////////////////////
@@ -269,6 +271,30 @@ extern osSemaphoreId_t sem_wait_disc;
 
 extern int in_isr;
 
+extern int sector_delay;
+extern int sector_delay_force;
+
+
+/******************************************************************************/
+
+#define _BUFIO     0x0001
+#define _BUFINFO   0x0002
+#define _FILEIO    0x0004
+#define _CDRV      0x0008
+#define _INFO      0x0010
+#define _TRANS     0x0020
+#define _DEBUG     0x0040
+#define _FILTER    0x0080
+#define _DTASK     0x0100
+
+#define LOG_MASK_DEFAULT  (_FILEIO | _CDRV | _INFO | _FILTER | _DTASK)
+
+extern int log_mask;
+
+#define SSLOG(mask, fmt, ...)  {if(log_mask&mask) { printk(fmt, ##__VA_ARGS__);}}
+
+
+/******************************************************************************/
 
 void cdc_cmd_process(void);
 
@@ -300,10 +326,6 @@ void init_toc(void);
 int list_disc(int show);
 int load_disc(int index);
 int unload_disc(void);
-
-
-extern CDBLOCK cdb;
-
 
 
 /******************************************************************************/

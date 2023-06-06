@@ -216,8 +216,8 @@ void uart4_init(void)
 	UART4->CR2  = 0;
 	UART4->CR3  = 0x64000000;
 	UART4->BRR  = 0x0;          // Reset
-	UART4->BRR  = 0x0364;       // 设置波特比率寄存器为115200(100M/115200)
-//	UART4->BRR  = 0x0064;       // 设置波特比率寄存器为1M(100M/1M)
+//	UART4->BRR  = 0x0364;       // 设置波特比率寄存器为115200(100M/115200)
+	UART4->BRR  = 0x0064;       // 设置波特比率寄存器为1M(100M/1M)
 	UART4->RQR  = 0x0018;
 	UART4->CR1 |= 0x0001;       // Enable UART4
 

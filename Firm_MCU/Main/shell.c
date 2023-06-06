@@ -205,6 +205,13 @@ void simple_shell(void)
 
 	while(1){
 		gets(cmd, 128);
+		if(strncmp(cmd, "ss ", 3)==0){
+			int len = strlen(cmd+3);
+			strcpy((u8*)0x61820010, cmd+3);
+			*(u8*)0x61820000 = len;
+			continue;
+		}
+
 		char *sp = strchr(cmd, ' ');
 		if(sp){
 			*sp = 0;
@@ -271,13 +278,30 @@ void simple_shell(void)
 			int load_disc(int index);
 			load_disc(arg[0]);
 		}
-		CMD(sdrst){
-			int sdio_reset(void);
-			sdio_reset();
-		}
 		CMD(cdc){
 			void cdc_dump();
 			cdc_dump();
+		}
+		CMD(log){
+			extern int log_mask;
+			if(argc){
+				log_mask = arg[0];
+			}
+			printk("log_mask: %04x\n", log_mask);
+		}
+		CMD(fsdly){
+			extern int sector_delay_force;
+			if(argc){
+				sector_delay_force = arg[0];
+			}
+			printk("sector_delay_force: %d\n", sector_delay_force);
+		}
+		CMD(sdly){
+			extern int sector_delay;
+			if(argc){
+				sector_delay = arg[0];
+			}
+			printk("sector_delay: %d\n", sector_delay);
 		}
 		CMD(seram){
 			FIL fp;

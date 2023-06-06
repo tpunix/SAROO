@@ -12,8 +12,8 @@ void debug_shell(void *arg);
 
 
 static int auto_break;
-static int game_break_pc;
-static void (*game_break_handle)(REGS *reg);
+int game_break_pc;
+void (*game_break_handle)(REGS *reg);
 
 
 /**********************************************************/

@@ -217,8 +217,10 @@ module SSMaster(
 	reg[15:0] ss_resp3;
 	reg[15:0] ss_resp4;
 
+	wire st_fifo_dir   = st_reg_ctrl[9];
 	wire st_fifo_reset = st_reg_ctrl[8];
 	wire st_fifo_write = (st_wr_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h08);
+	wire st_fifo_read  = (st_rd_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h08);
 
 	always @(negedge NRESET or posedge mclk)
 	begin
@@ -322,8 +324,14 @@ module SSMaster(
 		if(NRESET==0) begin
 			st_irq_fifo <= 1'b0;
 		end else begin
-			if((fifo_usedw_d==3'b001 && fifo_usedw[10:8]==3'b000) || (fifo_empty_d==0 && fifo_empty==1))
-				// 256->255 or empty
+			if(fifo_empty_d==0 && fifo_empty==1)
+				// empty
+				st_irq_fifo <= 1'b1;
+			else if(fifo_usedw_d==3'b001 && fifo_usedw[10:8]==3'b000)
+				// 256->255
+				st_irq_fifo <= 1'b1;
+			else if(fifo_usedw_d==3'b011 && fifo_usedw[10:8]==3'b100)
+				// 1023->1024
 				st_irq_fifo <= 1'b1;
 			else if(st_wr_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h06)
 				st_irq_fifo <= st_irq_fifo&(~ST_AD[2]);
@@ -361,9 +369,11 @@ module SSMaster(
 	begin
 		st_reg_data_out <= 
 						(fsmc_addr[7:0]==8'h00)? 16'h5253 : // ID: "SR"
-						(fsmc_addr[7:0]==8'h02)? 16'h1203 : // ver: HW1.2 && SW0.3
+						(fsmc_addr[7:0]==8'h02)? 16'h1204 : // ver: HW1.2 && SW0.4
 						(fsmc_addr[7:0]==8'h04)? st_reg_ctrl :
 						(fsmc_addr[7:0]==8'h06)? st_reg_stat :
+						(fsmc_addr[7:0]==8'h08)? st_fifo_data_out :
+						(fsmc_addr[7:0]==8'h0a)? st_fifo_data_out :
 						(fsmc_addr[7:0]==8'h0c)? st_fifo_stat :
 						(fsmc_addr[7:0]==8'h10)? ss_reg_cmd :
 						(fsmc_addr[7:0]==8'h12)? ss_reg_data :
@@ -487,7 +497,7 @@ module SSMaster(
 	begin
 		ss_bcr_data_out <= 
 			(SS_ADDR[5:1]==5'b00_000)? 16'h5253 : // ID: "SR"
-			(SS_ADDR[5:1]==5'b00_001)? 16'h1203 : // ver: HW1.2 && SW0.3
+			(SS_ADDR[5:1]==5'b00_001)? 16'h1204 : // ver: HW1.2 && SW0.4
 			(SS_ADDR[5:2]==4'b00_01 )? ss_reg_ctrl :
 			(SS_ADDR[5:2]==4'b00_10 )? ss_reg_stat :
 			(SS_ADDR[5:1]==5'b00_110)? ss_reg_timer[31:16] :
@@ -557,23 +567,27 @@ module SSMaster(
 // SATURN CDC FIFO                                   //
 ///////////////////////////////////////////////////////
 
+	wire ss_fifo_read  = ss_rd_start==1 && (ss_cdc_cs==1 && SS_ADDR[5:2]==0);
+	wire ss_fifo_write = ss_wr_start==1 && (ss_cdc_cs==1 && SS_ADDR[5:2]==0);
 
 	wire fifo_reset = (NRESET==0 || st_fifo_reset==1);
 	wire fifo_empty;
 	wire fifo_full;
-	wire fifo_rd = (ss_rd_start==1 && ((ss_cdc_cs==1 && SS_ADDR[5:2]==0) || (ss_reg_cs==1 && SS_ADDR[5:2]==4'b01_10)) );
+	wire fifo_rd = (st_fifo_dir)? st_fifo_read  : ss_fifo_read;
+	wire fifo_wr = (st_fifo_dir)? ss_fifo_write : st_fifo_write;
 	wire[15:0] fifo_q;
-	wire[15:0] fifo_wdata = ST_AD;
+	wire[15:0] fifo_wdata = (st_fifo_dir)? {SS_DATA[7:0], SS_DATA[15:8]} : ST_AD;
 	wire[10:0] fifo_usedw;
 
 	wire[15:0] ss_fifo_data_out = {fifo_q[7:0], fifo_q[15:8]};
+	wire[15:0] st_fifo_data_out = fifo_q;
 
 	cdcfifo _cdcfifo(
 				.sclr(fifo_reset),
 				.clock(mclk),
 				.rdreq(fifo_rd),
 				.q(fifo_q),
-				.wrreq(st_fifo_write),
+				.wrreq(fifo_wr),
 				.data(fifo_wdata),
 				.empty(fifo_empty),
 				.usedw(fifo_usedw),

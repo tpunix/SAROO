@@ -1,0 +1,19 @@
+# SAROO config file
+
+[global]
+
+
+
+# Final Fight Revenge
+[T-1248G   V1.004]
+sector_delay=2000
+
+
+# PUZZLE BOBBLE 3
+[T-1109G   V1.002]
+sector_delay=4000
+
+
+# D-XHIRD
+[T-10307G  V1.002]
+sector_delay=1000

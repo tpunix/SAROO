@@ -257,6 +257,7 @@ int vsnprintf(char *buf, int size, char *fmt, va_list args)
 
 void (*printk_putc)(int ch) = NULL;
 void stm32_puts(char *str);
+int to_stm32 = 0;
 
 
 int printk(char *fmt, ...)
@@ -275,19 +276,19 @@ int printk(char *fmt, ...)
 	printed_len = vsnprintf(printk_buf, sizeof(printk_buf), fmt, args);
 	va_end(args);
 
-
+	if(to_stm32){
+		stm32_puts(printk_buf);
+	}else{
 #if 1
-	for (p = printk_buf; *p; p++) {
-		printk_putc(*p);
+		for (p = printk_buf; *p; p++) {
+			printk_putc(*p);
+		}
+#endif
 	}
-#endif
-
-#if 0
-	stm32_puts(printk_buf);
-#endif
 
 	return printed_len;
 }
+
 
 int snprintf(char *buf, int size, char *fmt, ...)
 {
