@@ -26,11 +26,15 @@ OBJ	=	obj/crt0.o  \
 		obj/crc32.o  \
 		obj/string.o \
 		obj/printk.o \
-		obj/tiny_xm.o
+		obj/tiny_xm.o \
+		obj/version.o
 
-all	:	$(EXE)
+all	: BUILD_VER $(EXE)
 
-$(EXE)	:	$(OBJ)
+BUILD_VER:
+	touch version.c
+
+$(EXE)	: $(OBJ)
 		$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $(EXE)
 		$(OBJDUMP) -xd $(EXE) > dump.txt
 		$(OBJCOPY) -O binary $(EXE) tmp.bin

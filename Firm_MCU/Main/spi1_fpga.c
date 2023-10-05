@@ -323,8 +323,8 @@ void fpga_config(void)
 	fpga_reset(0);
 
 	// µÈ´ıFPGAÅäÖÃÍê³É
-	for(i=0; i<10; i++){
-		if(fpga_config_done())
+	for(i=0; i<100; i++){
+		if(fpga_config_done() && fpga_init_done())
 			break;
 		osDelay(1);
 	}

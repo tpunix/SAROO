@@ -14,6 +14,10 @@
 
 /**********************************************************/
 
+u32 mcu_ver;
+
+/**********************************************************/
+
 
 u32 BE32(void *ptr)
 {
@@ -90,8 +94,8 @@ int smpc_cmd(int cmd)
 
 void stm32_puts(char *str)
 {
-	u32 stm32_base = 0x22820000;
-	int i, len;
+	u32 stm32_base = TMPBUFF_ADDR;
+	int len;
 
 	len = strlen(str);
 	LE32W((void*)(stm32_base+0), len);
@@ -198,9 +202,9 @@ int read_file (char *name, int offset, int size, void *buf)
 {
 	int retv;
 
-	LE32W((void*)0x22820000, offset);
-	LE32W((void*)0x22820004, size);
-	strcpy((void*)0x22820010, name);
+	LE32W((void*)(TMPBUFF_ADDR), offset);
+	LE32W((void*)(TMPBUFF_ADDR+0x04), size);
+	strcpy((void*)(TMPBUFF_ADDR+0x10), name);
 
 	SS_ARG = 0;
 	SS_CMD = SSCMD_FILERD;
@@ -210,8 +214,8 @@ int read_file (char *name, int offset, int size, void *buf)
 	if(retv<0)
 		return retv;
 
-	size = LE32((void*)0x22820004);
-	memcpy(buf, (void*)0x22820100, size);
+	size = LE32((void*)(TMPBUFF_ADDR+0x04));
+	memcpy(buf, (void*)(TMPBUFF_ADDR+0x0100), size);
 	return size;
 }
 
@@ -220,10 +224,10 @@ int write_file(char *name, int offset, int size, void *buf)
 {
 	int retv;
 
-	LE32W((void*)0x22820000, offset);
-	LE32W((void*)0x22820004, size);
-	strcpy((void*)0x22820010, name);
-	memcpy((void*)0x22820100, buf, size);
+	LE32W((void*)(TMPBUFF_ADDR), offset);
+	LE32W((void*)(TMPBUFF_ADDR+0x04), size);
+	strcpy((void*)(TMPBUFF_ADDR+0x10), name);
+	memcpy((void*)(TMPBUFF_ADDR+0x0100), buf, size);
 
 	SS_ARG = 0;
 	SS_CMD = SSCMD_FILEWR;
@@ -233,7 +237,7 @@ int write_file(char *name, int offset, int size, void *buf)
 	if(retv<0)
 		return retv;
 
-	size = LE32((void*)0x22820004);
+	size = LE32((void*)(TMPBUFF_ADDR+0x04));
 	return size;
 }
 
@@ -306,14 +310,16 @@ int mem_test(int size)
 /**********************************************************/
 
 static int total_disc, total_page, page;
+static int sel_mode; // 0:game  1:binary
 
 MENU_DESC sel_menu;
 
 
+
 static void fill_selmenu(void)
 {
-	int *disc_path = (int *)0x22800004;
-	char *path_str = (char*)0x22800000;
+	int *disc_path = (int *)(IMGINFO_ADDR+0x04);
+	char *path_str = (char*)(IMGINFO_ADDR);
 	char tmp[128];
 	int i;
 
@@ -321,17 +327,29 @@ static void fill_selmenu(void)
 		int index = page*11+i;
 		if(index>=total_disc)
 			break;
-		// /SAROO/ISO/xxxx/xxxx.cue
+
 		char *path = path_str + LE32(&disc_path[index]);
 		snprintf(tmp, 128, "%2d: %s", index, path+11);
 		tmp[127] = 0;
-		char *p = strchr(tmp, '/');
-		if(p)
-			*p = 0;
+		if(sel_mode==0){
+			// /SAROO/ISO/xxxx/xxxx.cue
+			char *p = strchr(tmp, '/');
+			if(p) *p = 0;
+		}else{
+			// /SAROO/ISO/xxxx
+			// /SAROO/ISO/xxxx@xxxx
+			char *p = strchr(tmp, '@');
+			if(p) *p = 0;
+		}
 
 		add_menu_item(&sel_menu, tmp);
 	}
-	sprintf(sel_menu.title, "选择游戏(%d/%d)", page+1, total_page);
+
+	if(sel_mode==0){
+		sprintf(sel_menu.title, "选择游戏(%d/%d)", page+1, total_page);
+	}else{
+		sprintf(sel_menu.title, "选择文件(%d/%d)", page+1, total_page);
+	}
 }
 
 
@@ -346,11 +364,42 @@ static void page_update(int up)
 }
 
 
+int run_binary(int index, int run)
+{
+	int *disc_path = (int *)(IMGINFO_ADDR+0x04);
+	char *path_str = (char*)(IMGINFO_ADDR);
+	char *bin_name = path_str + LE32(&disc_path[index]);
+	int load_addr = 0x06004000;
+
+	char *p = strchr(bin_name, '@');
+	if(p){
+		load_addr = strtoul(p+1, NULL, 16, NULL);
+	}
+
+	int retv = read_file(bin_name, 0, 0, (void*)load_addr);
+	if(retv<0)
+		return retv;
+
+	int offset = 0;
+	u32 *xbuf = (u32*)load_addr;
+	if(xbuf[0]==0x53454741 && xbuf[1]==0x20534547)
+		offset = 0x0f00;
+
+	if(run){
+		printk("Jump to %08x ...\n", load_addr);
+		void (*go)(void) = (void(*)(void))(load_addr+offset);
+		go();
+	}else{
+		printk("Load to %08x ...\n", load_addr);
+	}
+}
+
+
 static int sel_handle(int ctrl)
 {
 	MENU_DESC *menu = &sel_menu;
 
-	total_disc = LE32((u8*)0x22800000);
+	total_disc = LE32((u8*)(IMGINFO_ADDR));
 	total_page = (total_disc+10)/11;
 
 	if(BUTTON_DOWN(ctrl, PAD_UP)){
@@ -383,18 +432,29 @@ static int sel_handle(int ctrl)
 		page_update(0);
 	}else if(BUTTON_DOWN(ctrl, PAD_A)){
 		int index = page*11 + menu->current;
+		int retv;
 
-		menu_status(menu, "游戏启动中......");
+		if(sel_mode==0){
+			menu_status(menu, "游戏启动中......");
 
-		SS_ARG = index;
-		SS_CMD = SSCMD_LOADDISC;
-		while(SS_CMD);
+			SS_ARG = index;
+			SS_CMD = SSCMD_LOADDISC;
+			while(SS_CMD);
 
-		int retv = bios_cd_cmd();
-		if(retv){
-			char buf[40];
-			sprintf(buf, "游戏启动失败! %d", retv);
-			menu_status(menu, buf);
+			retv = bios_cd_cmd();
+			if(retv){
+				char buf[40];
+				sprintf(buf, "游戏启动失败! %d", retv);
+				menu_status(menu, buf);
+			}
+		}else{
+			menu_status(menu, "加载文件中......");
+			retv = run_binary(index, 1);
+			if(retv){
+				char buf[40];
+				sprintf(buf, "文件加载失败! %d", retv);
+				menu_status(menu, buf);
+			}
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_Z)){
 		int index = page*11 + menu->current;
@@ -414,7 +474,7 @@ static int sel_handle(int ctrl)
 
 void select_game(void)
 {
-	total_disc = LE32((u8*)0x22800000);
+	total_disc = LE32((u8*)(IMGINFO_ADDR));
 	total_page = (total_disc+10)/11;
 	page = 0;
 
@@ -424,6 +484,21 @@ void select_game(void)
 	fill_selmenu();
 
 	menu_run(&sel_menu);
+}
+
+
+/**********************************************************/
+
+
+void select_bins(void)
+{
+	SS_CMD = SSCMD_LISTBINS;
+	while(SS_CMD);
+
+	select_game();
+
+	SS_CMD = SSCMD_LISTDISC;
+	while(SS_CMD);
 }
 
 
@@ -453,6 +528,7 @@ int main_handle(int ctrl)
 		return 0;
 
 	if(index==0){
+		sel_mode = 0;
 		select_game();
 		return MENU_RESTART;
 	}else if(index==1){
@@ -462,7 +538,9 @@ int main_handle(int ctrl)
 		menu_status(&main_menu, NULL);
 		return MENU_EXIT;
 	}else if(index==3){
-		menu_status(&main_menu, "TODO");
+		sel_mode = 1;
+		select_bins();
+		return MENU_RESTART;
 	}else if(index==update_index){
 		menu_status(&main_menu, "升级中,请勿断电...");
 		SS_ARG = 0;
@@ -492,12 +570,14 @@ int check_update(void)
 }
 
 
+static char ver_buf[64];
+
 void menu_init(void)
 {
 	int i;
 
 	memset(&main_menu, 0, sizeof(main_menu));
-	sprintf(main_menu.title, "SAROO Boot Menu            V%02x0000", SS_VER&0xff);
+	strcpy(main_menu.title, "SAROO Boot Menu");
 
 	for(i=0; i<4; i++){
 		add_menu_item(&main_menu, menu_str[i]);
@@ -509,6 +589,9 @@ void menu_init(void)
 
 	main_menu.handle = main_handle;
 
+	sprintf(ver_buf, "MCU:%06x  SS:%06x  FPGA:%02x", mcu_ver&0xffffff, get_build_date()&0xffffff, SS_VER&0xff);
+	main_menu.version = ver_buf;
+
 	menu_run(&main_menu);
 }
 
@@ -519,21 +602,27 @@ int _main(void)
 	pad_init();
 
 	printk("    SRAOOO start!\n");
+	mcu_ver = LE32((void*)TMPBUFF_ADDR);
+
+	// restore bios_loadcd_init1
+	*(u32*)(0x060002dc) = 0x2650;
 
 	//ASR0 = 0x31101f00;
 	//AREF = 0x00000013;
 
-#if 1
 	sci_init();
 	printk("\n\nSAROOO Serial Monitor Start!\n");
-#endif
-
+	printk("   MCU ver: %08x\n", mcu_ver);
+	printk("    SS ver: %08x\n", get_build_date());
+	printk("  FPGA ver: %08x\n", SS_VER);
 
 	// CDBlock Off
 	smpc_cmd(CDOFF);
 
 	// SAROOO On
 	SS_CTRL = (SAROO_EN | CS0_RAM4M);
+
+	//sci_shell();
 
 	while(1){
 		menu_init();

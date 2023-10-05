@@ -889,6 +889,9 @@ int read_1st(void)
 	if(game_break_pc){
 		set_break_pc(game_break_pc, 0);
 		install_ubr_isr();
+//		install_isr(ISR_NMI);
+//		void reloc_vbr(void);
+//		reloc_vbr();
 		to_stm32 = 1;
 		gets_from_stm32 = 1;
 		*(u32*)(0x22820000) = 0;

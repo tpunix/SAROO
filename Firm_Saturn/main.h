@@ -42,6 +42,11 @@ typedef unsigned long long u64;
 #define SSCMD_UPDATE   0x0005
 #define SSCMD_FILERD   0x0006
 #define SSCMD_FILEWR   0x0007
+#define SSCMD_LISTBINS 0x0008
+
+
+#define IMGINFO_ADDR   0x22080000
+#define TMPBUFF_ADDR   0x220a0000
 
 
 /*****************************************************************************/
@@ -148,7 +153,24 @@ void mem_dump(char *str, void *addr, int size);
 int read_file (char *name, int offset, int size, void *buf);
 int write_file(char *name, int offset, int size, void *buf);
 
+u32 BE32(void *ptr);
+u32 LE32(void *ptr);
+
+u32 get_build_date(void);
+
 /*****************************************************************************/
+
+
+#define ISR_GEN_INST    4
+#define ISR_SLOT_INST   6
+#define ISR_CPU_ADDR    9
+#define ISR_DMA_ADDR    10
+#define ISR_NMI         11
+#define ISR_UBR         12
+
+#define MASTER_CPU      0x00
+#define SLAVE_CPU       0x80
+
 
 
 typedef struct {
@@ -182,6 +204,7 @@ u32 crc32(u8 *buf, int len, u32 crc);
 
 u32 get_sr(void);
 void set_sr(u32 sr);
+void install_isr(int type);
 void break_in_game(int break_pc, void *handle);
 void break_in_game_next(int break_pc, void *handle);
 void install_ubr_isr(void);
@@ -203,6 +226,7 @@ typedef struct menu_desc_t {
 	int current;
 	char title[64];
 	char items[11][64];
+	char *version;
 	int (*handle)(int index);
 }MENU_DESC;
 

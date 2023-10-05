@@ -436,5 +436,37 @@ void patch_game(char *id)
 		gdb += 1;
 	}
 
+	u32 *cfgword = (u32*)TMPBUFF_ADDR;
+	while(1){
+		u32 key, val0, val1;
+
+		key = LE32(cfgword);
+		cfgword += 1;
+		printk("Cfg key: %08x\n", key);
+		if(key==0)
+			break;
+
+		val0 = key&0x0fffffff;
+		key >>= 28;
+
+		if(key==3){
+			if(val0==1)
+				SS_CTRL = (SAROO_EN | CS0_RAM1M);
+			else if(val0==4)
+				SS_CTRL = (SAROO_EN | CS0_RAM4M);
+		}else if(key<5){
+			val1 = LE32(cfgword);
+			cfgword += 1;
+			printk("Cfg val: %08x\n", val1);
+			if(key==1)
+				*(u8 *)(val0) = val1;
+			else if(key==2)
+				*(u16*)(val0) = val1;
+			else
+				*(u32*)(val0) = val1;
+		}else{
+		}
+	}
+
 }
 

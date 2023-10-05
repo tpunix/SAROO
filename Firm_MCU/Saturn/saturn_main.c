@@ -7,6 +7,7 @@
 
 osSemaphoreId_t sem_wait_irq;
 osSemaphoreId_t sem_wait_disc;
+osSemaphoreId_t sem_wait_pause;
 
 int sector_delay = 0;
 int sector_delay_force = -1;
@@ -166,7 +167,7 @@ void disk_task(void *arg)
 	TRACK_INFO *play_track;
 
 	cdb.status = STAT_NODISC;
-	
+
 	list_disc(0);
 
 	play_track = NULL;
@@ -208,6 +209,7 @@ _restart_nowait:
 			buf_fad_start = 0;
 			buf_fad_end = 0;
 			cdb.pause_request = 0;
+			set_pause_ok();
 			goto _restart_wait;
 		}
 		if(cdb.play_fad_start==0 || cdb.play_type==0){
@@ -233,6 +235,7 @@ _restart_nowait:
 				cdb.status = STAT_PAUSE;
 				cdb.play_type = 0;
 				cdb.pause_request = 0;
+				set_pause_ok();
 				goto _restart_wait;
 			}
 
@@ -382,6 +385,16 @@ void disk_task_wakeup(void)
 }
 
 
+void set_pause_ok(void)
+{
+	osSemaphoreRelease(sem_wait_pause);
+}
+
+void wait_pause_ok(void)
+{
+	osSemaphoreAcquire(sem_wait_pause, 2);
+}
+
 void cdc_delay(int ticks)
 {
 	osDelay(ticks);
@@ -407,7 +420,13 @@ void ss_cmd_handle(void)
 	switch(cmd){
 	case SSCMD_PRINTF:
 		// 输出信息
-		printk("%s", (char*)0x61820010);
+		printk("%s", (char*)(TMPBUFF_ADDR+0x10));
+		SS_CMD = 0;
+		break;
+	case SSCMD_LISTBIN:
+		// 列出bin信息
+		retv = list_bins(1);
+		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
 	case SSCMD_LISTDISC:
@@ -443,17 +462,17 @@ void ss_cmd_handle(void)
 	case SSCMD_FILERD:
 	{
 		FIL fp;
-		int offset = *(u32*)(0x61820000);
-		int size = *(u32*)(0x61820004);
-		char *name = (char*)(0x61820010);
+		int offset = *(u32*)(TMPBUFF_ADDR+0x00);
+		int size = *(u32*)(TMPBUFF_ADDR+0x04);
+		char *name = (char*)(TMPBUFF_ADDR+0x10);
 		int retv = f_open(&fp, name, FA_READ);
 		if(retv==FR_OK){
 			u32 rsize = 0;
 			f_lseek(&fp, offset);
 			if(size==0)
 				size = f_size(&fp);
-			retv = f_read(&fp, (void*)0x61820100, size, &rsize);
-			*(u32*)(0x61820004) = rsize;
+			retv = f_read(&fp, (void*)(TMPBUFF_ADDR+0x0100), size, &rsize);
+			*(u32*)(TMPBUFF_ADDR+0x04) = rsize;
 			f_close(&fp);
 			SSLOG(_INFO, "\nSSCMD_FILERD: retv=%d rsize=%08x  %s\n", retv, rsize, name);
 		}
@@ -464,16 +483,16 @@ void ss_cmd_handle(void)
 	case SSCMD_FILEWR:
 	{
 		FIL fp;
-		int offset = *(u32*)(0x61820000);
-		int size = *(u32*)(0x61820004);
-		char *name = (char*)(0x61820010);
+		int offset = *(u32*)(TMPBUFF_ADDR);
+		int size = *(u32*)(TMPBUFF_ADDR+0x04);
+		char *name = (char*)(TMPBUFF_ADDR+0x10);
 		int flags = (offset==-1)? FA_CREATE_ALWAYS : FA_OPEN_ALWAYS;
 		int retv = f_open(&fp, name, flags|FA_WRITE);
 		if(retv==FR_OK){
 			u32 wsize = 0;
 			f_lseek(&fp, offset);
-			retv = f_write(&fp, (void*)0x61820100, size, &wsize);
-			*(u32*)(0x61820004) = wsize;
+			retv = f_write(&fp, (void*)(TMPBUFF_ADDR+0x0100), size, &wsize);
+			*(u32*)(TMPBUFF_ADDR+0x04) = wsize;
 			f_close(&fp);
 			SSLOG(_INFO, "\nSSCMD_FILEWR: retv=%d wsize=%08x  %s\n", retv, wsize, name);
 		}
@@ -656,9 +675,12 @@ void saturn_config(void)
 	printk("    Size %08x\n", f_size(&fp));
 
 	rv = 0;
-	retv = f_read(&fp, (void*)0x61000000, f_size(&fp), &rv);
+	retv = f_read(&fp, (void*)FIRM_ADDR, f_size(&fp), &rv);
 	printk("    f_read: retv=%d rv=%08x\n", retv, rv);
 	f_close(&fp);
+	
+	// 放置编译日期
+	*(u32*)(TMPBUFF_ADDR+0x00) = get_build_date();
 
 	// I2S
 	spi2_init();
@@ -667,8 +689,9 @@ void saturn_config(void)
 	ss_hw_init();
 	ss_sw_init();
 
-	sem_wait_irq  = osSemaphoreNew(1, 0, NULL);
-	sem_wait_disc = osSemaphoreNew(1, 0, NULL);
+	sem_wait_irq   = osSemaphoreNew(1, 0, NULL);
+	sem_wait_disc  = osSemaphoreNew(1, 0, NULL);
+	sem_wait_pause = osSemaphoreNew(1, 0, NULL);
 
 	osThreadAttr_t attr;
 	memset(&attr, 0, sizeof(attr));

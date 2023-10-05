@@ -1,6 +1,7 @@
 
 #include "main.h"
 #include "ff.h"
+#include "../Saturn/cdc.h"
 
 /******************************************************************************/
 
@@ -207,8 +208,8 @@ void simple_shell(void)
 		gets(cmd, 128);
 		if(strncmp(cmd, "ss ", 3)==0){
 			int len = strlen(cmd+3);
-			strcpy((u8*)0x61820010, cmd+3);
-			*(u8*)0x61820000 = len;
+			strcpy((char*)(TMPBUFF_ADDR+0x10), cmd+3);
+			*(u8*)TMPBUFF_ADDR = len;
 			continue;
 		}
 
@@ -271,7 +272,7 @@ void simple_shell(void)
 			scan_dir("/", 0, NULL);
 		}
 		CMD(lscue){
-			void list_disc(int show);
+			int list_disc(int show);
 			list_disc(1);
 		}
 		CMD(load){

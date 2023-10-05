@@ -5,6 +5,7 @@
 /**********************************************************/
 
 int gets_from_stm32 = 0;
+extern int to_stm32;
 
 static char hbuf[128];
 static int hblen = 0;
@@ -16,12 +17,12 @@ int gets(char *buf, int len)
 
 	if(gets_from_stm32){
 		while(1){
-			n = *(volatile u8*)0x22820000;
+			n = *(volatile u8*)TMPBUFF_ADDR;
 			if(n)
 				break;
 		}
 
-		strcpy(buf, (u8*)0x22820010);
+		strcpy(buf, (u8*)(TMPBUFF_ADDR+0x10));
 		buf[n] = 0;
 		return n;
 	}
@@ -277,6 +278,21 @@ void sci_shell(void)
 		CMD(n) { bios_cd_cmd(); }        /* 启动游戏 */
 		CMD(menu) { menu_init(); }
 
+		CMD(nmi) {
+			install_isr(ISR_NMI);
+			void reloc_vbr(void);
+			reloc_vbr();
+		}
+		CMD(stm32) {
+			to_stm32 = 1;
+			gets_from_stm32 = 1;
+			*(u32*)(TMPBUFF_ADDR) = 0;
+		}
+		CMD(saturn) {
+			to_stm32 = 0;
+			gets_from_stm32 = 0;
+		}
+
 		CMD(wtt) {
 			// 测试延时计数. 大概9000000是1秒.
 			int cnt = arg[0];
@@ -344,9 +360,14 @@ void sci_shell(void)
 			printk("CDOFF ...\n");
 			REG16(0x25897004) = 0x8000;
 		}
-		CMD(frt){
-			int retv = read_file("/ramimage.bin", 0, 0, (void*)0x00280000);
-			printk("read /ramimage.bin to 0x00280000: %d\n", retv);
+
+		CMD(listb){
+			SS_CMD = SSCMD_LISTBINS;
+			while(SS_CMD);
+		}
+		CMD(loadb){
+			int run_binary(int index, int run);
+			run_binary(arg[0], 0);
 		}
 		CMD(fwt){
 			int retv = write_file("/saturn_save.bin", 0, 0x10000, (void*)0x00180000);
@@ -373,6 +394,9 @@ void sci_shell(void)
 			}
 		}
 
+		CMD(q) {
+			break;
+		}
 	}
 }
 

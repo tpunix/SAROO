@@ -1,4 +1,18 @@
 # SAROO config file
+# 可用配置:
+#   sector_delay=xxxx
+#     每读一个扇区后的延时。十进制us单位。
+#   exmem_1M
+#     使用1M扩展卡
+#   exmem_4M
+#     使用4M扩展卡
+#   M_xxxxxxxx=xxxxxxxx
+#     写32位内存
+#   M_xxxxxxxx=xxxx
+#     写16位内存
+#   M_xxxxxxxx=xx
+#     写8位内存
+#
 
 [global]
 
@@ -17,3 +31,24 @@ sector_delay=4000
 # D-XHIRD
 [T-10307G  V1.002]
 sector_delay=1000
+
+
+# TAROMARU         太郎丸
+[T-4804G   V1.004]
+sector_delay=1000
+
+
+# SALAMANDER-DP    沙罗曼蛇合集
+[T-9520G   V1.010]
+sector_delay=2000
+
+
+# Princess Crown   公主的皇冠
+[T-14418G  V1.004]
+sector_delay=6000
+
+
+# ROUKA NI ITIDANTOA-RU  世嘉经典-游戏大挑战-廊下
+[GS-9043   V1.002]
+sector_delay=4000
+

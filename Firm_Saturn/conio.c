@@ -465,6 +465,9 @@ void draw_menu_frame(MENU_DESC *menu)
 	put_rect(13, 22, 306, 202, 0x0f);
 
 	menu_update(menu);
+	if(menu->version){
+		menu_status(menu, menu->version);
+	}
 }
 
 

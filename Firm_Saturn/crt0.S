@@ -113,10 +113,31 @@ asr0_val:   .long 0x34403440
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-.global _ubr_isr_entry
-.align 4
-_ubr_isr_entry:
-	mov.l   r0,  @-r15
+.macro define_isr_entry  isr_name isr_code
+.global \isr_name
+.align 2
+\isr_name :
+	mov.l	r0, @-r15
+	bra		common_exc_handle
+	mov		# \isr_code, r0
+.endm
+
+
+define_isr_entry  _m_ginst_isr_entry, 0x04
+define_isr_entry  _s_ginst_isr_entry, 0x84
+define_isr_entry  _m_sinst_isr_entry, 0x06
+define_isr_entry  _s_sinst_isr_entry, 0x86
+define_isr_entry  _m_caddr_isr_entry, 0x09
+define_isr_entry  _s_caddr_isr_entry, 0x89
+define_isr_entry  _m_daddr_isr_entry, 0x0a
+define_isr_entry  _s_daddr_isr_entry, 0x8a
+define_isr_entry  _m_nmi_isr_entry,   0x0b
+define_isr_entry  _s_nmi_isr_entry,   0x8b
+define_isr_entry  _m_ubr_isr_entry,   0x0c
+define_isr_entry  _s_ubr_isr_entry,   0x8c
+
+
+common_exc_handle:
 	mov.l   r1,  @-r15
 	mov.l   r2,  @-r15
 	mov.l   r3,  @-r15
@@ -141,9 +162,9 @@ _ubr_isr_entry:
 	sts.l	pr,  @-r15
 
 	mov		r15, r4
-	mov.l   ubr_handle_ptr, r0
-	jsr		@r0
-	nop
+	mov.l   exc_handle_ptr, r1
+	jsr		@r1
+	mov		r0, r5
 
 	lds.l	@r15+, pr
 	ldc.l	@r15+, gbr
@@ -170,70 +191,8 @@ _ubr_isr_entry:
 	nop
 .align	4
 
-
-.global _vbi_isr_entry
-.align	4
-_vbi_isr_entry:
-	mov.l   r0,  @-r15
-	mov.l   r1,  @-r15
-	mov.l   r2,  @-r15
-	mov.l   r3,  @-r15
-	mov.l   r4,  @-r15
-	mov.l   r5,  @-r15
-	mov.l   r6,  @-r15
-	mov.l   r7,  @-r15
-	mov.l   r8,  @-r15
-	mov.l   r9,  @-r15
-	mov.l   r10, @-r15
-	mov.l   r11, @-r15
-	mov.l   r12, @-r15
-	mov.l   r13, @-r15
-	mov.l   r14, @-r15
-	mov		r15, r1
-	add		#0x48, r1
-	mov.l   r1,  @-r15
-	sts.l	macl,@-r15
-	sts.l	mach,@-r15
-	stc.l	vbr, @-r15
-	stc.l	gbr, @-r15
-	sts.l	pr,  @-r15
-
-	mov		r15, r4
-    mov.l   vbi_handle_ptr, r0
-    jsr		@r0
-    nop
-
-	lds.l	@r15+, pr
-	ldc.l	@r15+, gbr
-	ldc.l	@r15+, vbr
-	lds.l	@r15+, mach
-	lds.l	@r15+, macl
-	mov.l	@r15+, r1
-	mov.l	@r15+, r14
-	mov.l	@r15+, r13
-	mov.l	@r15+, r12
-	mov.l	@r15+, r11
-	mov.l	@r15+, r10
-	mov.l	@r15+, r9
-	mov.l	@r15+, r8
-	mov.l	@r15+, r7
-	mov.l	@r15+, r6
-	mov.l	@r15+, r5
-	mov.l	@r15+, r4
-	mov.l	@r15+, r3
-	mov.l	@r15+, r2
-	mov.l	@r15+, r1
-	mov.l	@r15+, r0
-	rte
-	nop
-.align	4
-
-old_vbi_addr:
-			.long 0x06000840
-vbi_handle_ptr:
-			.long _vbi_handle
-ubr_handle_ptr:
-			.long _ubr_handle
+exc_handle_ptr:
+			.long _exc_handle
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

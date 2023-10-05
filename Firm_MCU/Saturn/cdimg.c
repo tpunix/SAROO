@@ -65,6 +65,21 @@ char *get_line(u8 *buf, int *pos, int size)
 
 /******************************************************************************/
 
+static int sscfg_p = 0;
+
+void ss_config_init(void)
+{
+	sscfg_p = 0;
+	*(u32*)TMPBUFF_ADDR = 0;
+}
+
+void ss_config_put(u32 val)
+{
+	*(u32*)(TMPBUFF_ADDR+sscfg_p) = val;
+	sscfg_p += 4;
+	*(u32*)(TMPBUFF_ADDR+sscfg_p) = 0;
+}
+
 int get_gameid(char *gameid)
 {
 	FIL *fp = cdb.tracks[0].fp;
@@ -102,6 +117,8 @@ int parse_config(char *fname)
 	u8 *fbuf = (u8*)0x24002000;
 	char gameid[20];
 	int retv;
+
+	ss_config_init();
 
 	retv = get_gameid(gameid);
 	if(retv){
@@ -167,10 +184,33 @@ _next_section:
 				sector_delay = strtoul(lbuf+13, NULL, 10);
 				printk("    sector_delay = %d\n", sector_delay);
 			}
+			if(strncmp(lbuf, "exmem_1M", 8)==0){
+				printk("    exmem_1M\n");
+				ss_config_put(0x30000001);
+			}
+			if(strncmp(lbuf, "exmem_4M", 8)==0){
+				printk("    exmem_4M\n");
+				ss_config_put(0x30000004);
+			}
+			if(strncmp(lbuf, "M_", 2)==0){
+				char *p;
+				int addr = strtoul(lbuf+2, &p, 16);
+				if(*p=='='){
+					int width = strlen(p+1);
+					int val = strtoul(p+1, NULL, 16);
+
+					addr = ((width/2)<<28) | (addr&0x0fffffff);
+					ss_config_put(addr);
+					ss_config_put(val);
+					printk("    M_%08x=%x\n", addr, val);
+				}else{
+					printk("Invalid config line: {%s}\n", lbuf);
+				}
+			}
 			// TODO: more config here.
 		}
 	}
-	
+
 	printk("\n\n");
 
 	if(sector_delay_force>=0){
@@ -351,9 +391,62 @@ int parse_cue(char *fname)
 /******************************************************************************/
 
 int total_disc;
-static int *disc_path = (int *)0x61800004;
-static char *path_str = (char*)0x61800000;
+static int *disc_path = (int *)(IMGINFO_ADDR+4);
+static char *path_str = (char*)(IMGINFO_ADDR);
 static int pbptr;
+
+
+int list_bins(int show)
+{
+	FRESULT retv;
+	DIR dir;
+	FILINFO *info;
+
+	total_disc = 0;
+	pbptr = 0x1000;
+	memset(disc_path, 0x00, 0x20000-4);
+	*(int*)(IMGINFO_ADDR) = 0;
+
+	memset(&dir, 0, sizeof(dir));
+
+	retv = f_opendir(&dir, "/SAROO/BIN");
+	if(retv)
+		return -1;
+
+	info = malloc(sizeof(FILINFO));
+	memset(info, 0, sizeof(*info));
+
+	while(1){
+		retv = f_readdir(&dir, info);
+		if(retv!=FR_OK || info->fname[0]==0)
+			break;
+		if(info->fname[0]=='.')
+			continue;
+
+		if(!(info->fattrib & AM_DIR)){
+			disc_path[total_disc] = pbptr;
+			sprintk(path_str+pbptr, "/SAROO/BIN/%s", info->fname);
+			pbptr += strlen(info->fname)+1+11;
+
+			total_disc += 1;
+			*(int*)(IMGINFO_ADDR) = total_disc;
+		}
+	}
+
+	f_closedir(&dir);
+	free(info);
+
+	printk("Total discs: %d\n", total_disc);
+	if(show){
+		int i;
+		for(i=0; i<total_disc; i++){
+			printk(" %2d:  %s\n", i, path_str+disc_path[i]);
+		}
+		printk("\n");
+	}
+
+	return 0;
+}
 
 
 int list_disc(int show)
@@ -364,7 +457,8 @@ int list_disc(int show)
 
 	total_disc = 0;
 	pbptr = 0x1000;
-	memset(disc_path, 0x00, 0x20000);
+	memset(disc_path, 0x00, 0x20000-4);
+	*(int*)(IMGINFO_ADDR) = 0;
 
 	memset(&dir, 0, sizeof(dir));
 
@@ -388,7 +482,7 @@ int list_disc(int show)
 			pbptr += strlen(info->fname)+1+11;
 
 			total_disc += 1;
-			*(int*)(0x61800000) = total_disc;
+			*(int*)(IMGINFO_ADDR) = total_disc;
 		}
 	}
 

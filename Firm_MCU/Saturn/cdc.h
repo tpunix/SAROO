@@ -9,6 +9,10 @@
 
 #define FPGA_BASE 0x60000000
 
+#define FIRM_ADDR 0x61000000
+#define IMGINFO_ADDR 0x61080000
+#define TMPBUFF_ADDR 0x610a0000
+
 
 #define STIRQ_CDC  0x0001
 #define STIRQ_CMD  0x0002
@@ -101,6 +105,7 @@
 #define SSCMD_UPDATE   0x0005
 #define SSCMD_FILERD   0x0006
 #define SSCMD_FILEWR   0x0007
+#define SSCMD_LISTBIN  0x0008
 
 
 #define MSF_TO_FAD(m,s,f) ((m * 4500) + (s * 75) + f)
@@ -266,7 +271,7 @@ typedef struct
 extern CDBLOCK cdb;
 extern TRACK_INFO tracks[MAX_TRACKS];
 
-extern osSemaphoreId_t sem_wait_cmd;
+extern osSemaphoreId_t sem_wait_pause;
 extern osSemaphoreId_t sem_wait_disc;
 
 extern int in_isr;
@@ -302,6 +307,8 @@ void cdc_cmd_process(void);
 void set_report(u8 status);
 void set_status(u8 status);
 
+void set_pause_ok(void);
+void wait_pause_ok(void);
 void disk_task_wakeup(void);
 void cdc_delay(int ticks);
 
@@ -323,6 +330,7 @@ int fad_to_track(u32 fad);
 u32 bswap32(u32 d);
 void init_toc(void);
 
+int list_bins(int show);
 int list_disc(int show);
 int load_disc(int index);
 int unload_disc(void);

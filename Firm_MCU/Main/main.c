@@ -294,7 +294,7 @@ void main_task(void *arg)
 
 	device_init();
 
-	printk("\n\nSSMaster start! %s %s\n\n", __DATE__, __TIME__);
+	printk("\n\nSSMaster start! %08x\n\n", get_build_date());
 
 	mpu_config();
 

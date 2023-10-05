@@ -25,6 +25,7 @@ typedef long long s64;
 
 /******************************************************************************/
 
+u32 get_build_date(void);
 
 void *malloc(uint32_t size);
 void free(void *p);

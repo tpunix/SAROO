@@ -454,6 +454,7 @@ int filter_sector(TRACK_INFO *track, BLOCK *wblk)
 int get_cd_status(void)
 {
 	set_report(cdb.status);
+	SSLOG(_DEBUG, " %02x\n", cdb.status);
 
 	return 0;
 }
@@ -529,10 +530,9 @@ int init_cdblock(void)
 		cdb.pause_request = 1;
 		cdb.play_wait = 0;
 		disk_task_wakeup();
-		while(cdb.pause_request){
-			cdc_delay(10);
-		}
-
+		do{
+			wait_pause_ok();
+		}while(cdb.pause_request);
 	}
 
 	// disable fifo irq
@@ -658,9 +658,9 @@ int play_cd(void)
 		cdb.pause_request = 1;
 		cdb.play_wait = 0;
 		SSLOG(_CDRV, "play_cd: Send PAUSE request!\n");
-		while(cdb.pause_request){
-			cdc_delay(10);
-		}
+		do{
+			wait_pause_ok();
+		}while(cdb.pause_request);
 	}
 
 	SSLOG(_CDRV, "play_cd: start=%08x end=%08x mode=%02x\n", start_pos, end_pos, mode);
@@ -726,9 +726,9 @@ int seek_cd(void)
 		cdb.pause_request = 1;
 		cdb.play_wait = 0;
 		SSLOG(_CDRV, "       : Send PAUSE request!\n");
-		while(cdb.pause_request){
-			cdc_delay(10);
-		}
+		do{
+			wait_pause_ok();
+		}while(cdb.pause_request);
 	}
 	cdb.status = STAT_PAUSE;
 
@@ -1292,6 +1292,10 @@ int del_sector_data(void)
 	if(spos==0xffff){
 		spos = pp->numblocks-1;
 	}
+	if(spos>=pp->numblocks){
+		// 梦幻之星1会传入spos=180导致后续错误
+		spos = 0;
+	}
 	if(snum==0xffff){
 		snum = pp->numblocks-spos;
 	}
@@ -1767,6 +1771,9 @@ int abort_file(void)
 		cdb.pause_request = 1;
 		cdb.play_wait = 0;
 		disk_task_wakeup();
+		do{
+			wait_pause_ok();
+		}while(cdb.pause_request);
 	}
 
 	return HIRQ_EFLS;
