@@ -63,6 +63,7 @@ char *get_line(u8 *buf, int *pos, int size)
 	return line;
 }
 
+
 /******************************************************************************/
 
 static int sscfg_p = 0;
@@ -70,14 +71,14 @@ static int sscfg_p = 0;
 void ss_config_init(void)
 {
 	sscfg_p = 0;
-	*(u32*)TMPBUFF_ADDR = 0;
+	*(u32*)(SYSINFO_ADDR+0x0100) = 0;
 }
 
 void ss_config_put(u32 val)
 {
-	*(u32*)(TMPBUFF_ADDR+sscfg_p) = val;
+	*(u32*)(SYSINFO_ADDR+0x0100+sscfg_p) = val;
 	sscfg_p += 4;
-	*(u32*)(TMPBUFF_ADDR+sscfg_p) = 0;
+	*(u32*)(SYSINFO_ADDR+0x0100+sscfg_p) = 0;
 }
 
 int get_gameid(char *gameid)
@@ -111,25 +112,19 @@ int get_gameid(char *gameid)
 }
 
 
-int parse_config(char *fname)
+int parse_config(char *fname, char *gameid)
 {
 	FIL fp;
 	u8 *fbuf = (u8*)0x24002000;
-	char gameid[20];
+	char *p = NULL;
 	int retv;
 
 	ss_config_init();
-
-	retv = get_gameid(gameid);
-	if(retv){
-		return -1;
-	}
 
 	retv = f_open(&fp, fname, FA_READ);
 	if(retv){
 		return -2;
 	}
-
 
 	u32 nread;
 	retv = f_read(&fp, fbuf, f_size(&fp), &nread);
@@ -138,8 +133,7 @@ int parse_config(char *fname)
 		return -3;
 	}
 
-
-	printk("\nLoad config [%s] for [%s]\n", fname, gameid);
+	printk("\nLoad config [%s] for [%s]\n", fname, (gameid==NULL)?"Global":gameid);
 
 	int cpos = 0;
 	int g_sec = 0;
@@ -150,7 +144,7 @@ _next_section:
 		//查找section: [xxxxxx]
 		if(in_sec==0){
 			if(lbuf[0]=='['){
-				char *p = strrchr(lbuf, ']');
+				p = strrchr(lbuf, ']');
 				if(p==NULL){
 					return -4;
 				}
@@ -163,7 +157,7 @@ _next_section:
 					g_sec = 1;
 					in_sec = 1;
 					printk("Global config:\n");
-				}else if(strcmp(lbuf+1, gameid)==0){
+				}else if(gameid && strcmp(lbuf+1, gameid)==0){
 					// 找到了与game_id匹配的section
 					in_sec = 1;
 					printk("Game config:\n");
@@ -175,13 +169,17 @@ _next_section:
 				if(g_sec==1){
 					g_sec = 2;
 					in_sec = 0;
+					if(gameid==NULL)
+						break;
 					goto _next_section;
 				}else{
 					break;
 				}
 			}
-			if(strncmp(lbuf, "sector_delay=", 13)==0){
-				sector_delay = strtoul(lbuf+13, NULL, 10);
+			if(strncmp(lbuf, "sector_delay", 12)==0){
+				p = strchr(lbuf+12, '=');
+				if(p==NULL) goto _invalid_config;
+				sector_delay = strtoul(p+1, NULL, 10);
 				printk("    sector_delay = %d\n", sector_delay);
 			}
 			if(strncmp(lbuf, "exmem_1M", 8)==0){
@@ -193,31 +191,35 @@ _next_section:
 				ss_config_put(0x30000004);
 			}
 			if(strncmp(lbuf, "M_", 2)==0){
-				char *p;
 				int addr = strtoul(lbuf+2, &p, 16);
-				if(*p=='='){
-					int width = strlen(p+1);
-					int val = strtoul(p+1, NULL, 16);
+				p = strchr(lbuf+2, '=');
+				if(p==NULL) goto _invalid_config;
 
-					addr = ((width/2)<<28) | (addr&0x0fffffff);
-					ss_config_put(addr);
-					ss_config_put(val);
-					printk("    M_%08x=%x\n", addr, val);
-				}else{
-					printk("Invalid config line: {%s}\n", lbuf);
-				}
+				p += 1;
+				while(*p==' ') p += 1;
+				int width = strlen(p);
+				int val = strtoul(p, NULL, 16);
+				addr = ((width/2)<<28) | (addr&0x0fffffff);
+				ss_config_put(addr);
+				ss_config_put(val);
+				printk("    M_%08x=%x\n", addr, val);
+			}
+			if(strncmp(lbuf, "lang_id", 7)==0){
+				p = strchr(lbuf+7, '=');
+				if(p==NULL) goto _invalid_config;
+				lang_id = strtoul(p+1, NULL, 10);
+				printk("    lang_id=%d\n", lang_id);
 			}
 			// TODO: more config here.
 		}
 	}
+	printk("\n");
 
-	printk("\n\n");
-
-	if(sector_delay_force>=0){
-		sector_delay = sector_delay_force;
-		printk("    sector_delay = %d\n", sector_delay);
-	}
 	return 0;
+
+_invalid_config:
+	printk("Invalid config line: {%s}\n", lbuf);
+	return -1;
 }
 
 /******************************************************************************/
@@ -595,7 +597,17 @@ int load_disc(int index)
 	if(retv){
 		printk("  retv=%d\n", retv);
 	}else{
-		parse_config("/saroocfg.txt");
+		char gameid[20];
+		retv = get_gameid(gameid);
+		if(retv){
+			goto _exit;
+		}
+		parse_config("/saroocfg.txt", gameid);
+
+		if(sector_delay_force>=0){
+			sector_delay = sector_delay_force;
+			printk("    force sector_delay = %d\n", sector_delay);
+		}
 	}
 
 _exit:

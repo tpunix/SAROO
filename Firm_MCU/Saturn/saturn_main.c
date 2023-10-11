@@ -9,6 +9,7 @@ osSemaphoreId_t sem_wait_irq;
 osSemaphoreId_t sem_wait_disc;
 osSemaphoreId_t sem_wait_pause;
 
+int lang_id = 0;
 int sector_delay = 0;
 int sector_delay_force = -1;
 
@@ -112,6 +113,93 @@ TRACK_INFO *get_track_info(int track_index)
 	return &cdb.tracks[t];
 }
 
+
+/******************************************************************************/
+
+
+// 内部扇区缓存, 32K大小, 大概16个2k的扇区. 位于SDRAM中
+// FATFS层以512字节为单位读取, 每次读64个单位.
+static u8 *sector_buffer = (u8*)0x24002000;
+
+// 内部缓存中保存的FAD扇区范围
+static u32 buf_fad_start = 0;
+static u32 buf_fad_end = 0;
+// 由于存在2352这样的扇区格式, FAD扇区不是2048字节对齐的.
+// FATFS层以512为单位读取数据. FAD扇区相对于sector_buffer有一个偏移.
+static u32 buf_fad_offset = 0;
+// 内部缓存中的扇区大小
+static u32 buf_fad_size = 0;
+
+static TRACK_INFO *play_track = NULL;
+
+
+int get_sector(int fad, BLOCK *wblk)
+{
+	int retv, dp, nread;
+
+	// 先查找track信息
+	if(play_track==NULL || fad<play_track->fad_start || fad>play_track->fad_end){
+		cdb.track = fad_to_track(fad);
+		if(cdb.track!=0xff){
+			play_track = &cdb.tracks[cdb.track-1];
+		}else{
+			// play的FAD参数错误
+			SSLOG(_DTASK, "play_track not found!\n");
+			cdb.status = STAT_ERROR;
+			cdb.play_type = 0;
+			return -1;
+		}
+	}
+
+	if(fad>=buf_fad_start && fad<buf_fad_end){
+		// 在内部缓存中找到了要play的扇区
+		//printk(" fad_%08x found at buffer!\n", fad);
+		dp = buf_fad_offset+(fad-buf_fad_start)*buf_fad_size;
+		wblk->data = sector_buffer+dp;
+	}else{
+		// 内部缓存中没有要play的扇区. 从文件重新读取.
+		//printk(" fad_%08x not found. need read from file.\n", fad);
+
+		cdb.ctrladdr = play_track->ctrl_addr;
+		cdb.index = 1;
+
+		buf_fad_start = fad;
+		buf_fad_size = play_track->sector_size;
+
+		dp = play_track->file_offset+(fad-play_track->fad_start)*play_track->sector_size;
+		buf_fad_offset = dp&0x1ff;
+		dp &= ~0x1ff;
+
+		//printk("  seek at %08x\n", dp);
+		retv = f_lseek(play_track->fp, dp);
+		retv = f_read(play_track->fp, sector_buffer, 0x8000, (u32*)&nread);
+		if(retv==0){
+			int num_fad = (nread-buf_fad_offset)/buf_fad_size;
+			buf_fad_end = buf_fad_start+num_fad;
+		}else{
+			SSLOG(_DTASK, "f_read error!\n");
+			cdb.status = STAT_ERROR;
+			cdb.play_type = 0;
+			buf_fad_end = 0;
+			return -2;
+		}
+
+		wblk->data = sector_buffer+buf_fad_offset;
+	}
+
+	wblk->size = buf_fad_size;
+	wblk->fad = fad;
+	if(buf_fad_size==2352 && wblk->data[0x0f]==0x02){
+		wblk->fn = wblk->data[0x10];
+		wblk->cn = wblk->data[0x11];
+		wblk->sm = wblk->data[0x12];
+		wblk->ci = wblk->data[0x13];
+	}
+
+	return 0;
+}
+
+
 /******************************************************************************/
 
 
@@ -148,33 +236,11 @@ void set_peri_report(void)
 
 void disk_task(void *arg)
 {
-	// 内部扇区缓存, 32K大小, 大概16个2k的扇区. 位于SDRAM中
-	// FATFS层以512字节为单位读取, 每次读64个单位.
-	u8 *sector_buffer = (u8*)0x24002000;
-
-	// 内部缓存中保存的FAD扇区范围
-	u32 buf_fad_start;
-	u32 buf_fad_end;
-	// 由于存在2352这样的扇区格式, FAD扇区不是2048字节对齐的.
-	// FATFS层以512为单位读取数据. FAD扇区相对于sector_buffer有一个偏移.
-	u32 buf_fad_offset;
-	// 内部缓存中的扇区大小
-	u32 buf_fad_size;
-
-
-	int retv, dp, nread;
+	int retv;
 	BLOCK wblk;
-	TRACK_INFO *play_track;
 
 	cdb.status = STAT_NODISC;
-
 	list_disc(0);
-
-	play_track = NULL;
-	buf_fad_start = 0;
-	buf_fad_end = 0;
-	buf_fad_offset = 0;
-	buf_fad_size = 0;
 
 	int wait_ticks = 10;
 	int play_wait_count = 0;
@@ -239,68 +305,12 @@ _restart_nowait:
 				goto _restart_wait;
 			}
 
-			int fad = cdb.fad;
-			// 先查找track信息
-			if(play_track==NULL || fad<play_track->fad_start || fad>play_track->fad_end){
-				cdb.track = fad_to_track(fad);
-				if(cdb.track!=0xff){
-					play_track = &cdb.tracks[cdb.track-1];
-				}else{
-					// play的FAD参数错误
-					SSLOG(_DTASK, "play_track not found!\n");
-					cdb.status = STAT_ERROR;
-					cdb.play_type = 0;
-					break;
-				}
-			}
+			retv = get_sector(cdb.fad, &wblk);
+			if(retv)
+				break;
 
-			if(fad>=buf_fad_start && fad<buf_fad_end){
-				// 在内部缓存中找到了要play的扇区
-				//printk(" fad_%08x found at buffer!\n", fad);
-				dp = buf_fad_offset+(fad-buf_fad_start)*buf_fad_size;
-				wblk.data = sector_buffer+dp;
-			}else{
-				// 内部缓存中没有要play的扇区. 从文件重新读取.
-				//printk(" fad_%08x not found. need read from file.\n", fad);
-
-				cdb.ctrladdr = play_track->ctrl_addr;
-				cdb.index = 1;
-
-				buf_fad_start = fad;
-				buf_fad_size = play_track->sector_size;
-
-				dp = play_track->file_offset+(fad-play_track->fad_start)*play_track->sector_size;
-				buf_fad_offset = dp&0x1ff;
-				dp &= ~0x1ff;
-
-				//printk("  seek at %08x\n", dp);
-				retv = f_lseek(play_track->fp, dp);
-				retv = f_read(play_track->fp, sector_buffer, 0x8000, (u32*)&nread);
-				if(retv==0){
-					int num_fad = (nread-buf_fad_offset)/buf_fad_size;
-					buf_fad_end = buf_fad_start+num_fad;
-				}else{
-					SSLOG(_DTASK, "f_read error!\n");
-					cdb.status = STAT_ERROR;
-					cdb.play_type = 0;
-					buf_fad_end = 0;
-					break;
-				}
-
-				wblk.data = sector_buffer+buf_fad_offset;
-			}
 			HIRQ = HIRQ_SCDQ;
 			set_peri_report();
-
-
-			wblk.size = buf_fad_size;
-			wblk.fad = fad;
-			if(buf_fad_size==2352 && wblk.data[0x0f]==0x02){
-				wblk.fn = wblk.data[0x10];
-				wblk.cn = wblk.data[0x11];
-				wblk.sm = wblk.data[0x12];
-				wblk.ci = wblk.data[0x13];
-			}
 
 			if(cdb.play_type!=PLAYTYPE_FILE && play_track->mode==3){
 				if(fill_audio_buffer(wblk.data)<0){
@@ -309,7 +319,7 @@ _restart_nowait:
 				}
 			}else
 			{
-				//printk("filter sector %08x...\n", fad);
+				//printk("filter sector %08x...\n", cdb.fad);
 				retv = filter_sector(play_track, &wblk);
 				HIRQ = HIRQ_CSCT;
 				if(sector_delay){
@@ -665,6 +675,8 @@ void saturn_config(void)
 	int retv;
 	u32 rv;
 
+	parse_config("/saroocfg.txt", NULL);
+
 	// 检查是否有bootrom. 如果有,就加载到FPGA中
 	retv = f_open(&fp, "/ramimage.bin", FA_READ);
 	if(retv){
@@ -678,9 +690,10 @@ void saturn_config(void)
 	retv = f_read(&fp, (void*)FIRM_ADDR, f_size(&fp), &rv);
 	printk("    f_read: retv=%d rv=%08x\n", retv, rv);
 	f_close(&fp);
-	
-	// 放置编译日期
-	*(u32*)(TMPBUFF_ADDR+0x00) = get_build_date();
+
+	// 放置系统信息
+	*(u32*)(SYSINFO_ADDR+0x00) = get_build_date(); // 编译日期
+	*(u32*)(SYSINFO_ADDR+0x04) = lang_id;          // 菜单语言
 
 	// I2S
 	spi2_init();

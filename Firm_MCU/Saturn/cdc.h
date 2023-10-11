@@ -11,7 +11,8 @@
 
 #define FIRM_ADDR 0x61000000
 #define IMGINFO_ADDR 0x61080000
-#define TMPBUFF_ADDR 0x610a0000
+#define SYSINFO_ADDR 0x610a0000
+#define TMPBUFF_ADDR 0x610c0000
 
 
 #define STIRQ_CDC  0x0001
@@ -276,6 +277,7 @@ extern osSemaphoreId_t sem_wait_disc;
 
 extern int in_isr;
 
+extern int lang_id;
 extern int sector_delay;
 extern int sector_delay_force;
 
@@ -335,6 +337,7 @@ int list_disc(int show);
 int load_disc(int index);
 int unload_disc(void);
 
+int parse_config(char *fname, char *gameid);
 
 /******************************************************************************/
 

@@ -436,7 +436,7 @@ void patch_game(char *id)
 		gdb += 1;
 	}
 
-	u32 *cfgword = (u32*)TMPBUFF_ADDR;
+	u32 *cfgword = (u32*)(SYSINFO_ADDR+0x0100);
 	while(1){
 		u32 key, val0, val1;
 

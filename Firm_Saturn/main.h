@@ -46,7 +46,8 @@ typedef unsigned long long u64;
 
 
 #define IMGINFO_ADDR   0x22080000
-#define TMPBUFF_ADDR   0x220a0000
+#define SYSINFO_ADDR   0x220a0000
+#define TMPBUFF_ADDR   0x220c0000
 
 
 /*****************************************************************************/
@@ -242,6 +243,10 @@ void draw_menu_frame(MENU_DESC *menu);
 void menu_update(MENU_DESC *menu);
 int menu_default(MENU_DESC *menu, int ctrl);
 
+
+extern int lang_id;
+void lang_init(void);
+char *TT(char *str);
 
 /*****************************************************************************/
 // game patch

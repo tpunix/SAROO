@@ -23,6 +23,7 @@ OBJ	=	obj/crt0.o  \
 		obj/ubr_debug.o  \
 		obj/cdblock.o  \
 		obj/game_patch.o  \
+		obj/language.o  \
 		obj/crc32.o  \
 		obj/string.o \
 		obj/printk.o \

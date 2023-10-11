@@ -346,9 +346,9 @@ static void fill_selmenu(void)
 	}
 
 	if(sel_mode==0){
-		sprintf(sel_menu.title, "选择游戏(%d/%d)", page+1, total_page);
+		sprintf(sel_menu.title, TT("选择游戏(%d/%d)"), page+1, total_page);
 	}else{
-		sprintf(sel_menu.title, "选择文件(%d/%d)", page+1, total_page);
+		sprintf(sel_menu.title, TT("选择文件(%d/%d)"), page+1, total_page);
 	}
 }
 
@@ -392,6 +392,8 @@ int run_binary(int index, int run)
 	}else{
 		printk("Load to %08x ...\n", load_addr);
 	}
+
+	return 0;
 }
 
 
@@ -435,7 +437,7 @@ static int sel_handle(int ctrl)
 		int retv;
 
 		if(sel_mode==0){
-			menu_status(menu, "游戏启动中......");
+			menu_status(menu, TT("游戏启动中......"));
 
 			SS_ARG = index;
 			SS_CMD = SSCMD_LOADDISC;
@@ -444,15 +446,15 @@ static int sel_handle(int ctrl)
 			retv = bios_cd_cmd();
 			if(retv){
 				char buf[40];
-				sprintf(buf, "游戏启动失败! %d", retv);
+				sprintf(buf, TT("游戏启动失败! %d"), retv);
 				menu_status(menu, buf);
 			}
 		}else{
-			menu_status(menu, "加载文件中......");
+			menu_status(menu, TT("加载文件中......"));
 			retv = run_binary(index, 1);
 			if(retv){
 				char buf[40];
-				sprintf(buf, "文件加载失败! %d", retv);
+				sprintf(buf, TT("文件加载失败! %d"), retv);
 				menu_status(menu, buf);
 			}
 		}
@@ -505,12 +507,14 @@ void select_bins(void)
 /**********************************************************/
 
 
-char *menu_str[4] = {
+char *menu_str[] = {
 	"选择游戏",
 	"系统CD播放器",
-	"串口调试工具",
+	"运行光盘游戏",
 	"运行二进制文件",
+	"串口调试工具",
 };
+int menu_str_nr = sizeof(menu_str)/sizeof(char*);
 char *update_str = "固件升级";
 int update_index;
 
@@ -535,21 +539,24 @@ int main_handle(int ctrl)
 		bios_run_cd_player();
 		return MENU_RESTART;
 	}else if(index==2){
-		menu_status(&main_menu, NULL);
-		return MENU_EXIT;
+		menu_status(&main_menu, "TODO");
+		return 0;
 	}else if(index==3){
 		sel_mode = 1;
 		select_bins();
 		return MENU_RESTART;
+	}else if(index==4){
+		menu_status(&main_menu, NULL);
+		return MENU_EXIT;
 	}else if(index==update_index){
-		menu_status(&main_menu, "升级中,请勿断电...");
+		menu_status(&main_menu, TT("升级中,请勿断电..."));
 		SS_ARG = 0;
 		SS_CMD = SSCMD_UPDATE;
 		while(SS_CMD);
 		if(SS_ARG){
-			menu_status(&main_menu, "升级失败!");
+			menu_status(&main_menu, TT("升级失败!"));
 		}else{
-			menu_status(&main_menu, "升级完成,请重新开机!");
+			menu_status(&main_menu, TT("升级完成,请重新开机!"));
 		}
 		while(1);
 	}
@@ -577,13 +584,13 @@ void menu_init(void)
 	int i;
 
 	memset(&main_menu, 0, sizeof(main_menu));
-	strcpy(main_menu.title, "SAROO Boot Menu");
+	strcpy(main_menu.title, TT("SAROO Boot Menu"));
 
-	for(i=0; i<4; i++){
-		add_menu_item(&main_menu, menu_str[i]);
+	for(i=0; i<menu_str_nr; i++){
+		add_menu_item(&main_menu, TT(menu_str[i]));
 	}
 	if(check_update()){
-		add_menu_item(&main_menu, update_str);
+		add_menu_item(&main_menu, TT(update_str));
 		update_index = i;
 	}
 
@@ -602,7 +609,10 @@ int _main(void)
 	pad_init();
 
 	printk("    SRAOOO start!\n");
-	mcu_ver = LE32((void*)TMPBUFF_ADDR);
+
+	mcu_ver = LE32((void*)(SYSINFO_ADDR+0x00));
+	lang_id = LE32((void*)(SYSINFO_ADDR+0x04));
+
 
 	// restore bios_loadcd_init1
 	*(u32*)(0x060002dc) = 0x2650;
@@ -615,6 +625,7 @@ int _main(void)
 	printk("   MCU ver: %08x\n", mcu_ver);
 	printk("    SS ver: %08x\n", get_build_date());
 	printk("  FPGA ver: %08x\n", SS_VER);
+	printk("   lang_id: %d\n", lang_id);
 
 	// CDBlock Off
 	smpc_cmd(CDOFF);
@@ -624,6 +635,7 @@ int _main(void)
 
 	//sci_shell();
 
+	lang_init();
 	while(1){
 		menu_init();
 		sci_shell();
