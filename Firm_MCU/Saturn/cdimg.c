@@ -219,6 +219,7 @@ _next_section:
 
 _invalid_config:
 	printk("Invalid config line: {%s}\n", lbuf);
+	led_event(LEDEV_SCFG_ERROR);
 	return -1;
 }
 

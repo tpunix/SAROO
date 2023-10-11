@@ -308,6 +308,7 @@ _restart_nowait:
 			retv = get_sector(cdb.fad, &wblk);
 			if(retv)
 				break;
+			led_event(LEDEV_CSCT);
 
 			HIRQ = HIRQ_SCDQ;
 			set_peri_report();
@@ -681,6 +682,7 @@ void saturn_config(void)
 	retv = f_open(&fp, "/ramimage.bin", FA_READ);
 	if(retv){
 		printk("NO bootrom file found!\n");
+		led_event(LEDEV_NOFIRM);
 		return;
 	}
 	printk("Found Saturn bootrom file.\n");

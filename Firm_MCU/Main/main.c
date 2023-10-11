@@ -278,6 +278,8 @@ void fs_mount(void *arg)
 	printk("Mount SDFS: %08x\n\n", retv);
 	if(retv==0){
 		//scan_dir("/", 0, NULL);
+	}else{
+		led_event(LEDEV_SD_ERROR);
 	}
 
 }
@@ -290,8 +292,6 @@ void fpga_config(void);
 
 void main_task(void *arg)
 {
-	int cnt = 0;
-
 	device_init();
 
 	printk("\n\nSSMaster start! %08x\n\n", get_build_date());
@@ -308,17 +308,58 @@ void main_task(void *arg)
 
 	simple_shell();
 
-	while(1){
-		GPIOC->BSRR = 0x2000<<16;
-		osDelay(50);
-
-		GPIOC->BSRR = 0x2000;
-		osDelay(50);
-
-		cnt += 1;
-	}
 
 }
+
+
+/******************************************************************************/
+
+
+static osSemaphoreId_t sem_led;
+static int led_ev = 0;
+
+void led_event(int ev)
+{
+	led_ev = ev;
+	osSemaphoreRelease(sem_led);
+}
+
+
+void led_task(void *arg)
+{
+	int i;
+	int freq;
+	int times;
+	int lock;
+	int loop = 0;
+
+	sem_led = osSemaphoreNew(1, 0, NULL);
+
+	while(1){
+		if(led_ev && loop!=2){
+			freq  = led_ev&0xff;
+			times = (led_ev>>8)&0xff;
+			loop  = (led_ev>>16)&0xff;
+			led_ev = 0;
+		}else if(loop==0){
+			osSemaphoreAcquire(sem_led, 200);
+			continue;
+		}
+
+		for(i=0; i<times; i++){
+			GPIOC->BSRR = 0x2000;
+			osDelay(freq);
+			GPIOC->BSRR = 0x2000<<16;
+			osDelay(freq);
+		}
+		if(times>1){
+			osDelay(100);
+		}
+	}
+}
+
+
+/******************************************************************************/
 
 
 int main(void)
@@ -326,10 +367,14 @@ int main(void)
 	osKernelInitialize();
 
 	osThreadAttr_t attr;
+
 	memset(&attr, 0, sizeof(attr));
 	attr.priority = osPriorityLow;
-
 	osThreadNew(main_task, NULL, &attr);
+
+	memset(&attr, 0, sizeof(attr));
+	attr.priority = osPriorityLow;
+	osThreadNew(led_task, NULL, &attr);
 
 	osKernelStart();
 

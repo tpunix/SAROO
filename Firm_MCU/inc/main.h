@@ -64,5 +64,20 @@ int fpga_update(int check);
 
 /******************************************************************************/
 
+#define MAKE_LEDEVENT(freq, times, flag)  (((flag)<<16) | ((times)<<8) | (freq))
+
+#define LEDEV_SD_ERROR          MAKE_LEDEVENT(10, 10, 2)
+#define LEDEV_FPGA_ERROR        MAKE_LEDEVENT(10, 20, 2)
+#define LEDEV_SDRAM_ERROR       MAKE_LEDEVENT(15, 8,  2)
+#define LEDEV_NOFIRM            MAKE_LEDEVENT(15, 3,  1)
+#define LEDEV_FILE_ERROR        MAKE_LEDEVENT(15, 5,  1)
+#define LEDEV_SCFG_ERROR        MAKE_LEDEVENT(15, 4,  1)
+#define LEDEV_CSCT              MAKE_LEDEVENT(7,  1,  0)
+
+
+void led_event(int ev);
+
+/******************************************************************************/
+
 #endif
 

@@ -330,6 +330,7 @@ void fpga_config(void)
 	}
 	if(i==10){
 		printk("FPGA config timeout!\n");
+		led_event(LEDEV_FPGA_ERROR);
 	}else{
 		fpga_reset(1);
 		printk("FPGA config done!\n");
