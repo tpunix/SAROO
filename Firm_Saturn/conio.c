@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Sega Saturn cartridge flash tool
  * by Anders Montonen, 2012
  *
@@ -128,6 +128,19 @@ void fbtest(void)
 
 /******************************************************************************/
 
+// CP437中没有ã(e3)的编码，这里暂用a(61)代替
+static u8 ucs_to_cp437[128] = {
+	// 0     1     2     3     4     5     6     7     8     9     a     b     c     d     e     f
+	0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, // 8
+	0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, // 9
+	0xff, 0xad, 0x9b, 0x9c, 0xa4, 0x9d, 0xa6, 0xa7, 0xa8, 0xa9, 0xa6, 0xae, 0xaa, 0xad, 0xae, 0xaf, // a
+	0xf8, 0xf1, 0xfd, 0xb3, 0xb4, 0xb5, 0xb6, 0xfa, 0xb8, 0xb9, 0xa7, 0xaf, 0xac, 0xab, 0xbe, 0xa8, // b
+	0xc0, 0xc1, 0xc2, 0xc3, 0x8e, 0x8f, 0x92, 0x80, 0xc8, 0x90, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf, // c
+	0xd0, 0xa5, 0xd2, 0xd3, 0xd4, 0xd5, 0x99, 0xd7, 0xd8, 0xd9, 0xda, 0xdb, 0x9a, 0xdd, 0xde, 0xe1, // d
+	0x85, 0xa0, 0x83, 0x61, 0x84, 0x86, 0x91, 0x87, 0x8a, 0x82, 0x88, 0x89, 0x8d, 0xa1, 0x8c, 0x8b, // e
+	0xf0, 0xa4, 0x95, 0xa2, 0x93, 0xf5, 0x94, 0xf6, 0xf8, 0x97, 0xa3, 0x96, 0x81, 0xfd, 0xfe, 0x98, // f
+};
+
 static u8 *find_ucs(int ucs)
 {
 	u8 *hzk14u = (u8*)0x02020000;
@@ -154,7 +167,6 @@ static u8 *find_ucs(int ucs)
 }
 
 
-
 void conio_put_char(int x, int y, int color, int v)
 {
 	int r, c;
@@ -165,6 +177,8 @@ void conio_put_char(int x, int y, int color, int v)
 	bmp = fbptr+y*llen+x;
 
 	if(v>=0x0100){
+		if(v==0x30fc)
+			v = 0x2014; // gb2312没有'ー'这个符号，用A1AA(U2014)代替。
 		bmp += llen+1;
 		font_data = find_ucs(v);
 		if(font_data==NULL){
@@ -179,6 +193,9 @@ void conio_put_char(int x, int y, int color, int v)
 			bmp += llen;
 		}
 	}else{
+		if(v>=0x80){
+			v = ucs_to_cp437[v-0x80];
+		}
 		font_data = font_8x16+v*16;
 		for (r=0; r<16; r++) {
 			u8 b = font_data[r];
@@ -370,7 +387,7 @@ u32 conio_getc(void)
 
 	switch(pdat_state){
 	case 0:
-		// ���м��
+		// 空闲检测
 		if(pdat != curr_pdat){
 			curr_pdat = pdat;
 			pdat_state = 1;
@@ -378,7 +395,7 @@ u32 conio_getc(void)
 		}
 		break;
 	case 1:
-		// �ȴ��ȶ�
+		// 等待稳定
 		if(pdat == curr_pdat){
 			pdat_count += 1;
 			if(pdat_count==2){
@@ -389,11 +406,11 @@ u32 conio_getc(void)
 		}
 		break;
 	case 2:
-		// �ȶ�״̬
+		// 稳定状态
 		pdat = last_pdat ^ curr_pdat;
 		last_pdat = curr_pdat;
 		if(curr_pdat){
-			// ת���ظ�״̬
+			// 转入重复状态
 			pdat_state = 3;
 			pdat_count = 0;
 			pdat_wait  = 500;
@@ -404,7 +421,7 @@ u32 conio_getc(void)
 		//printk("key0: %08x\n", last_value);
 		return last_value;
 	case 3:
-		// �ظ�״̬
+		// 重复状态
 		if(pdat != curr_pdat){
 			pdat_state = 0;
 		}else{

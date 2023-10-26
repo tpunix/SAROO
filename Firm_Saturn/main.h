@@ -43,6 +43,7 @@ typedef unsigned long long u64;
 #define SSCMD_FILERD   0x0006
 #define SSCMD_FILEWR   0x0007
 #define SSCMD_LISTBINS 0x0008
+#define SSCMD_SSAVE    0x0009
 
 
 #define IMGINFO_ADDR   0x22080000
@@ -57,10 +58,9 @@ typedef unsigned long long u64;
 #define bios_run_cd_player  INDIRECT_CALL(0x0600026C, void, void)
 
 int bios_cd_cmd(void);
-int read_1st(void);
-void CHEAT_patch(void);
-void RUN_CHEAT(void);
 int cdc_read_sector(int fad, int size, u8 *buf);
+void my_cdplayer(void);
+
 
 /*****************************************************************************/
 
@@ -123,6 +123,8 @@ int sci_getc(int timeout);
 
 
 /*****************************************************************************/
+
+extern int to_stm32;
 
 extern void (*printk_putc)(int ch);
 int printk(char *fmt, ...);
@@ -255,6 +257,10 @@ extern int skip_patch;
 
 void patch_game(char *id);
 
+
+/*****************************************************************************/
+
+extern u32 debug_flag;
 
 /*****************************************************************************/
 

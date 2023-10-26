@@ -43,25 +43,6 @@ char *lang_zhcn[LANG_STR_NR] = {
 	"SAROO Boot Menu",
 };
 
-char *lang_ja[LANG_STR_NR] = {
-	"ゲームリスト(%d/%d)",
-	"ファイルリスト(%d/%d)",
-	"ロード中......",
-	"ゲームを起動できない！ %d",
-	"ファイルをロード中......",
-	"ファイルを起動できない！ %d",
-	"ゲームリスト",
-	"CDプレイヤー",
-	"CDROMを起動",
-	"シリアルポートデバッグツール",
-	"バイナリファイルを起動",
-	"ファームウェアのアップデート",
-	"アップデート中、電源を切らないでください...",
-	"アップデート失敗！",
-	"アップデート完了、再起動してください！",
-	"SAROO ブートメニュー",
-};
-
 
 char *lang_en[LANG_STR_NR] = {
 	"Select Game(%d/%d)",
@@ -80,6 +61,46 @@ char *lang_en[LANG_STR_NR] = {
 	"Update Failed!",
 	"Update Finish! Please PowerOn again!",
 	"SAROO Boot Menu",
+};
+
+
+char *lang_ptbr[LANG_STR_NR] = {
+	"Selecionar Jogo(%d/%d)",
+	"Selecionar Arquivo(%d/%d)",
+	"Inicializando Jogo ......",
+	"Erro ao inicializar o jogo! %d",
+	"Carregando arquivo ......",
+	"Erro ao carregar o arquivo! %d",
+	"Selecionar Jogo",
+	"Tocador de CD do Sistema",
+	"Carregar o Disco do Jogo",
+	"Shell de Depuração serial",
+	"Carregando Binário",
+	"Atualizar a Firmware",
+	"Atualizando... Não desligue o sistema!",
+	"Erro ao atualizar!",
+	"Finalizado, reinicie o sistema!",
+	"SAROO Menu de Inicialização",
+};
+
+
+char *lang_ja[LANG_STR_NR] = {
+	"ゲームリスト(%d/%d)",
+	"ファイルリスト(%d/%d)",
+	"ロード中......",
+	"ゲームを起動できない！ %d",
+	"ファイルをロード中......",
+	"ファイルを起動できない！ %d",
+	"ゲームリスト",
+	"CDプレイヤー",
+	"CDROMを起動",
+	"シリアルポートデバッグツール",
+	"バイナリファイルを起動",
+	"ファームウェアのアップデート",
+	"アップデート中、電源を切らないでください...",
+	"アップデート失敗！",
+	"アップデート完了、再起動してください！",
+	"SAROO ブートメニュー",
 };
 
 
@@ -145,6 +166,10 @@ void lang_init(void)
 	lang_cur = NULL;
 	if(lang_id==1){
 		lang_cur = lang_en;
+	}else if(lang_id==2){
+		lang_cur = lang_ptbr;
+	}else if(lang_id==3){
+		lang_cur = lang_ja;
 	}
 }
 

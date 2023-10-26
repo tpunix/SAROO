@@ -6,6 +6,21 @@ int CHEAT_ADDRES;
 
 /**********************************************************/
 
+#define MASK_EXMEM 0x3000
+
+void ssctrl_set(int mask, int val)
+{
+	int ssctrl = SS_CTRL;
+
+	ssctrl &= ~mask;
+	ssctrl |= val;
+
+	SS_CTRL = ssctrl;
+}
+
+
+/**********************************************************/
+
 
 void RUN_CHEAT(void)
 {
@@ -36,7 +51,7 @@ void CHEAT_patch(void)
 	__asm__ ( "ldc      r0, sr"  );
 	*(u32*)(0x0600090c) = 0xd401442b;
 	*(u16*)(0x06000910) = 0x9;
-	*(u32*)(0x06000914) = RUN_CHEAT;
+	*(u32*)(0x06000914) = (u32)RUN_CHEAT;
 	__asm__( "ldc      r3, sr"  );
 	
 }
@@ -144,7 +159,7 @@ void SF_ZERO3_patch(void)
 // Metal_Slug  合金弹头
 void Metal_Slug_patch(void)
 {
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)(0x06079E18) = 0x34403440;
 
 }
@@ -155,7 +170,7 @@ void Metal_Slug_patch(void)
 // 1MB RAM cart only
 void kof96_patch(void)
 {
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)(0x06058248) = 0x34403440;
 }
 
@@ -164,7 +179,7 @@ void kof96_patch(void)
 // KOF97
 void kof97_patch(void)
 {
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)(0x06066FC0) = 0x34403440;
 }
 
@@ -174,7 +189,7 @@ void kof97_patch(void)
 // 1MB RAM cart only
 void smrsp4_patch(void)
 {
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)(0x6067E60) = 0x34403440;
 }
 
@@ -185,7 +200,7 @@ void smrsp4_patch(void)
 // 0x0605ad90: 23301ff0
 void smrsp3_patch(void)
 {
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)0x0600d1d0 = 0x34403440;
 	*(u32*)0x0605ad90 = 0x34403440;
 }
@@ -197,7 +212,7 @@ void smrsp3_patch(void)
 // 0x0607C36C: 23301ff0
 void REAL_BOUT_patch(void)
 {
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)0x0602F6FC = 0x34403440;
 	*(u32*)0x0607C36C = 0x34403440;
 }
@@ -208,7 +223,7 @@ void REAL_BOUT_patch(void)
 // 0x060913C4: 23301ff0
 void REAL_BOUT_SP_v2_patch(void)
 {
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)0x060913C4 = 0x34403440;
 }
 
@@ -219,7 +234,7 @@ void REAL_BOUT_SP_v2_patch(void)
 // 0x06091230: 23301ff0
 void REAL_BOUT_SP_v1_patch(void)
 {
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)0x06091230 = 0x34403440;
 }
 
@@ -230,7 +245,6 @@ void REAL_BOUT_SP_v1_patch(void)
 // need change to 0x34403440
 void srmp7_patch(void)
 {
-//	SS_CTRL = (SAROO_EN | CS0_RAM1M);
 	*(u32*)(0x0601121C) = 0x34403440;
 }
 
@@ -250,7 +264,7 @@ void GROOVE_ON_FIGHT_patch(void)
 {
 	*(u32*)(0x200AA4) = 0x34403440;
 	*(u32*)(0x202EF0) = 0x34403440;
-	*(u32*)(0x200460) = GROOVE_ON_FIGHT_handle;
+	*(u32*)(0x200460) = (u32)GROOVE_ON_FIGHT_handle;
 }
 
 
@@ -267,8 +281,8 @@ void VAMPIRE_SAVIOR_patch(void)
 {
 	 *(u8*)(0x60A02D4) = 0x43;
 	 *(u8*)(0x60A442C) = 0x43;
-	 *(u32*)(0x060A03B8) = VAMPIRE_SAVIOR_handle;
-	 *(u32*)(0x060A447C) = VAMPIRE_SAVIOR_handle;
+	 *(u32*)(0x060A03B8) = (u32)VAMPIRE_SAVIOR_handle;
+	 *(u32*)(0x060A447C) = (u32)VAMPIRE_SAVIOR_handle;
 }
 
 
@@ -276,9 +290,7 @@ void VAMPIRE_SAVIOR_patch(void)
 // XMarvel Super Heroes (Japan)
 void MARVEL_SUPER_handle(void)
 {	
-	int retv;
-	retv = (u32*)(0x60D0FF4);
-	void (*go)(void) = (void(*)(void))retv;
+	void (*go)(void) = (void(*)(void))0x60D0FF4;
 	go();	
 	*(u32*)0x0600B0FC = 0x34403440;
 	*(u32*)0x0600B2D8 = 0x34403440;		
@@ -286,8 +298,7 @@ void MARVEL_SUPER_handle(void)
 
 void MARVEL_SUPER_patch(void)
 {
-	 //	SS_CTRL = (SAROO_EN | CS0_RAM1M);
-	*(u32*)(0x060D13F8) = MARVEL_SUPER_handle;
+	*(u32*)(0x060D13F8) = (u32)MARVEL_SUPER_handle;
 }
 
 
@@ -315,8 +326,8 @@ void xmvsf_patch(void)
 {
 	*(u8*)0x060084DD= 0x10;
 	*(u16*)(0x60084EC) = 0xB11C;
-	*(u32*)(0x6008520) = xmvsf_handle1;
-	*(u32*)(0x6008530) = xmvsf_handle2;
+	*(u32*)(0x6008520) = (u32)xmvsf_handle1;
+	*(u32*)(0x6008530) = (u32)xmvsf_handle2;
 }
 
 
@@ -324,7 +335,7 @@ void xmvsf_patch(void)
 // WAKUWAKU7                火热火热7 未修复
 void WAKU7_patch(void)
 {
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)(0x0601C19C) = 0x34403440;
 	*(u16*)(0x0601C16C) = 0x9;
 	*(u8*) (0x0601244d) = 0xa;
@@ -451,9 +462,9 @@ void patch_game(char *id)
 
 		if(key==3){
 			if(val0==1)
-				SS_CTRL = (SAROO_EN | CS0_RAM1M);
+				ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 			else if(val0==4)
-				SS_CTRL = (SAROO_EN | CS0_RAM4M);
+				ssctrl_set(MASK_EXMEM, CS0_RAM4M);
 		}else if(key<5){
 			val1 = LE32(cfgword);
 			cfgword += 1;

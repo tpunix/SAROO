@@ -190,6 +190,50 @@ void dump(int argc, int *args, int width)
 }
 
 
+/******************************************************************************/
+
+
+static u16 mksum(u32 addr)
+{
+	return (addr>>16) + addr;
+}
+
+
+int mem_test(void)
+{
+	u32 addr0 = 0x61400000;
+	u16 rd, sum;
+	int i, size=0x00100000;
+	
+	for(i=0; i<size; i++){
+		*(u16*)(addr0) = mksum(addr0);
+		addr0 += 2;
+	}
+
+	for(i=0; i<size; i++){
+		addr0 -= 2;
+		sum = mksum(addr0);
+		rd  = *(u16*)(addr0);
+		if(sum!=rd){
+			printk("Mismatch0 at %08x! read=%08x calc=%08x\n", addr0, rd, sum);
+			return -1;
+		}
+		*(u16*)(addr0) = ~sum;
+
+	}
+
+	for(i=0; i<size; i++){
+		sum = ~mksum(addr0);
+		rd  = *(u16*)(addr0);
+		if(sum!=rd){
+			printk("Mismatch2 at %08x! read=%08x calc=%08x\n", addr0, rd, sum);
+			return -3;
+		}
+		addr0 += 2;
+	}
+
+	return 0;
+}
 
 /******************************************************************************/
 
@@ -247,11 +291,10 @@ void simple_shell(void)
 		CMD(flu){
 			flash_update(0);
 		}
-		CMD(fet){
-			int flash_erase(int snb);
-			flash_erase(arg[0]);
-		}
 
+		CMD(mmt){
+			mem_test();
+		}
 		CMD(memset){
 			if(argc>=3){
 				memset((void*)arg[0], arg[1], arg[2]);
@@ -303,6 +346,13 @@ void simple_shell(void)
 				sector_delay = arg[0];
 			}
 			printk("sector_delay: %d\n", sector_delay);
+		}
+		CMD(fpdly){
+			extern int play_delay_force;
+			if(argc){
+				play_delay_force = arg[0];
+			}
+			printk("play_delay_force: %d\n", play_delay_force);
 		}
 		CMD(seram){
 			FIL fp;

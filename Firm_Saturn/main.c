@@ -15,6 +15,7 @@
 /**********************************************************/
 
 u32 mcu_ver;
+u32 debug_flag;
 
 /**********************************************************/
 
@@ -47,29 +48,48 @@ void LE32W(void *ptr, u32 val)
 
 u32 pad_read(void)
 {
-    u32 bits = 0;
+	u32 bits = 0;
 
+#ifdef PADMODE_DIRECT
+	PDR1 = 0x60; bits |= (PDR1 & 0x8) << 0;
+	PDR1 = 0x40; bits |= (PDR1 & 0xf) << 8;
+	PDR1 = 0x20; bits |= (PDR1 & 0xf) << 12;
+	PDR1 = 0x00; bits |= (PDR1 & 0xf) << 4;
+    bits ^= 0xfFF8;
+#else
 	while(SF&0x01);
 	SF = 0x01;
+	IREG0 = 0x00;
+	IREG1 = 0x08;
+	IREG2 = 0xf0;
 	COMREG = 0x10;
 	while(SF&0x01);
 
 	bits = (OREG2<<8) | (OREG3);
 	IREG0 = 0x40;
+	bits ^= 0xFFFF;
+#endif
 
-    return bits ^ 0xFFFF;
+	//printk("pad_read: %04x\n", bits);
+	return bits;
 }
 
 
 void pad_init(void)
 {
+#ifdef PADMODE_DIRECT
+    PDR1 = 0;
+    DDR1 = 0x60;
+    IOSEL = IOSEL1;
+#else
 	DDR1 = 0;
 	EXLE = 0;
     IOSEL = 0;
 
 	IREG0 = 0x00;
-	IREG1 = 0x0a;
+	IREG1 = 0x08;
 	IREG2 = 0xf0;
+#endif
 }
 
 
@@ -465,7 +485,7 @@ static int sel_handle(int ctrl)
 		SS_CMD = SSCMD_LOADDISC;
 		while(SS_CMD);
 
-		bios_run_cd_player();
+		my_cdplayer();
 	}else if(BUTTON_DOWN(ctrl, PAD_C)){
 		return MENU_EXIT;
 	}
@@ -536,10 +556,26 @@ int main_handle(int ctrl)
 		select_game();
 		return MENU_RESTART;
 	}else if(index==1){
+		// SAROOO Off, CDBlock On
+		SS_CTRL = CS0_RAM4M;
+		smpc_cmd(CDON);
 		bios_run_cd_player();
 		return MENU_RESTART;
 	}else if(index==2){
-		menu_status(&main_menu, "TODO");
+		// SAROOO Off, CDBlock On
+		SS_CTRL = CS0_RAM4M;
+		smpc_cmd(CDON);
+
+		menu_status(&main_menu, TT("游戏启动中......"));
+		int retv = bios_cd_cmd();
+		if(retv){
+			char buf[40];
+			sprintf(buf, TT("游戏启动失败! %d"), retv);
+			menu_status(&main_menu, buf);
+			// CDBlock Off, SAROOO On 
+			smpc_cmd(CDOFF);
+			SS_CTRL = SAROO_EN | CS0_RAM4M;
+		}
 		return 0;
 	}else if(index==3){
 		sel_mode = 1;
@@ -612,32 +648,43 @@ int _main(void)
 
 	mcu_ver = LE32((void*)(SYSINFO_ADDR+0x00));
 	lang_id = LE32((void*)(SYSINFO_ADDR+0x04));
-
+	debug_flag = LE32((void*)(SYSINFO_ADDR+0x08));
 
 	// restore bios_loadcd_init1
 	*(u32*)(0x060002dc) = 0x2650;
 
-	//ASR0 = 0x31101f00;
-	//AREF = 0x00000013;
+	if(debug_flag&0x0001){
+		// sci_putc
+		sci_init();
+		printk("\n\nSAROOO Serial Monitor Start!\n");
+		printk("   MCU ver: %08x\n", mcu_ver);
+		printk("    SS ver: %08x\n", get_build_date());
+		printk("  FPGA ver: %08x\n", SS_VER);
+		printk("   lang_id: %d\n", lang_id);
+	}else if(debug_flag&0x0004){
+		// conio_putc
+	}else if(debug_flag&0x0008){
+		// output to mcu
+		to_stm32 = 1;
+	}else{
+		printk_putc = NULL;
+	}
 
-	sci_init();
-	printk("\n\nSAROOO Serial Monitor Start!\n");
-	printk("   MCU ver: %08x\n", mcu_ver);
-	printk("    SS ver: %08x\n", get_build_date());
-	printk("  FPGA ver: %08x\n", SS_VER);
-	printk("   lang_id: %d\n", lang_id);
 
-	// CDBlock Off
+	// CDBlock Off, SAROOO On 
 	smpc_cmd(CDOFF);
-
-	// SAROOO On
 	SS_CTRL = (SAROO_EN | CS0_RAM4M);
 
-	//sci_shell();
+
+	if((debug_flag&0x0003)==0x0003){
+		sci_shell();
+	}
 
 	lang_init();
 	while(1){
 		menu_init();
+
+		sci_init();
 		sci_shell();
 	}
 

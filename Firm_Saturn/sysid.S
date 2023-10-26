@@ -23,7 +23,8 @@ title:      .ascii "                "
             .ascii "                "
             .ascii "                "
             .ascii "                "
-ipsize:     .long  __ip_len
+!ipsize:     .long  __ip_len
+ipsize:     .long  0x4000
 stackm:     .long 0
             .long 0
 stacks:     .long 0

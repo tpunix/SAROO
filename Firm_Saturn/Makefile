@@ -23,6 +23,7 @@ OBJ	=	obj/crt0.o  \
 		obj/ubr_debug.o  \
 		obj/cdblock.o  \
 		obj/game_patch.o  \
+		obj/game_save.o  \
 		obj/language.o  \
 		obj/crc32.o  \
 		obj/string.o \
@@ -36,13 +37,13 @@ BUILD_VER:
 	touch version.c
 
 $(EXE)	: $(OBJ)
-		$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $(EXE)
-		$(OBJDUMP) -xd $(EXE) > dump.txt
-		$(OBJCOPY) -O binary $(EXE) tmp.bin
-		dd if=/dev/zero  of=ramimage.bin bs=1k count=384
-		dd if=tmp.bin    of=ramimage.bin conv=notrunc
-		dd if=hzk14u.bin of=ramimage.bin bs=1k seek=128 conv=notrunc
-		rm -f tmp.bin
+	$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $(EXE)
+	$(OBJDUMP) -xd $(EXE) > dump.txt
+	$(OBJCOPY) -O binary $(EXE) tmp.bin
+	dd if=/dev/zero  of=ramimage.bin bs=1k count=384
+	dd if=tmp.bin    of=ramimage.bin conv=notrunc
+	dd if=hzk14u.bin of=ramimage.bin bs=1k seek=128 conv=notrunc
+	rm -f tmp.bin
 
 obj/%.o :	%.c
 		$(CC) -c $< -o $@ $(FLAGS)

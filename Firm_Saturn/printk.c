@@ -256,6 +256,7 @@ int vsnprintf(char *buf, int size, char *fmt, va_list args)
 /**********************************************************/
 
 void (*printk_putc)(int ch) = NULL;
+void (*printk_puts)(char *) = NULL;
 void stm32_puts(char *str);
 int to_stm32 = 0;
 
@@ -267,10 +268,6 @@ int printk(char *fmt, ...)
 	char printk_buf[128];
 	char *p;
 
-	if(printk_putc==NULL){
-		printk_putc = conio_putc;
-	}
-
 	/* Emit the output into the temporary buffer */
 	va_start(args, fmt);
 	printed_len = vsnprintf(printk_buf, sizeof(printk_buf), fmt, args);
@@ -278,12 +275,12 @@ int printk(char *fmt, ...)
 
 	if(to_stm32){
 		stm32_puts(printk_buf);
-	}else{
-#if 1
+	}else if(printk_puts){
+		printk_puts(printk_buf);
+	}else if(printk_putc){
 		for (p = printk_buf; *p; p++) {
 			printk_putc(*p);
 		}
-#endif
 	}
 
 	return printed_len;

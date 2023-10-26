@@ -54,23 +54,23 @@ _next_start:
 	mov		#0x13, r1
 	mov.l	r1, @(8,r0)
 
-	! Relocate self
-	mova	_real, r0
-	mov.l	start_ptr, r1
-_real:
-	shlr8	r0
-	shll8	r0
-	cmp/eq	r1, r0
-	bt		_clear_bss
+!	! Relocate self
+!	mova	_real, r0
+!	mov.l	start_ptr, r1
+!_real:
+!	shlr8	r0
+!	shll8	r0
+!	cmp/eq	r1, r0
+!	bt		_clear_bss
 
-	mov.l	end_ptr, r2
-1:
-	mov.l	@r0, r3
-	mov.l	r3, @r1
-	add		#4, r0
-	add		#4, r1
-	cmp/hs	r2, r1
-	bf		1b
+!	mov.l	end_ptr, r2
+!1:
+!	mov.l	@r0, r3
+!	mov.l	r3, @r1
+!	add		#4, r0
+!	add		#4, r1
+!	cmp/hs	r2, r1
+!	bf		1b
 
 _clear_bss:
 	! Clear BSS
@@ -108,7 +108,7 @@ stack_ptr:  .long __stack_end
 bss_start:  .long __bss_start
 bss_end:    .long __bss_end
 asr0_ptr:   .long 0x25fe00b0
-asr0_val:   .long 0x34403440
+asr0_val:   .long 0x38803880
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

@@ -681,6 +681,7 @@ int play_cd(void)
 		cdb.play_fad_start = track_to_fad(start_pos);
 		cdb.track = (start_pos>>8)&0xff;
 		cdb.index = start_pos&0xff;
+		mode &= 0x7f;
 	}
 
 	if(end_pos==0xffffff){

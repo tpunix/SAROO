@@ -107,6 +107,7 @@
 #define SSCMD_FILERD   0x0006
 #define SSCMD_FILEWR   0x0007
 #define SSCMD_LISTBIN  0x0008
+#define SSCMD_SSAVE    0x0009
 
 
 #define MSF_TO_FAD(m,s,f) ((m * 4500) + (s * 75) + f)
@@ -278,8 +279,11 @@ extern osSemaphoreId_t sem_wait_disc;
 extern int in_isr;
 
 extern int lang_id;
+extern int debug_flags;
 extern int sector_delay;
 extern int sector_delay_force;
+extern int play_delay;
+extern int play_delay_force;
 
 
 /******************************************************************************/
@@ -326,6 +330,16 @@ void free_block(BLOCK *block);
 
 int filter_sector(TRACK_INFO *track, BLOCK *wblk);
 
+
+/******************************************************************************/
+
+
+char *get_token(char **str_in);
+char *get_line(u8 *buf, int *pos, int size);
+
+int parse_config(char *fname, char *gameid);
+
+
 TRACK_INFO *get_track_info(int tn);
 u32 track_to_fad(u16 track_index);
 int fad_to_track(u32 fad);
@@ -337,7 +351,9 @@ int list_disc(int show);
 int load_disc(int index);
 int unload_disc(void);
 
-int parse_config(char *fname, char *gameid);
+int open_savefile(void);
+int load_savefile(char *gameid);
+int flush_savefile(void);
 
 /******************************************************************************/
 

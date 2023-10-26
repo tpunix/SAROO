@@ -10,9 +10,11 @@ osSemaphoreId_t sem_wait_disc;
 osSemaphoreId_t sem_wait_pause;
 
 int lang_id = 0;
+int debug_flags = 0;
 int sector_delay = 0;
 int sector_delay_force = -1;
-
+int play_delay = 0;
+int play_delay_force = -1;
 
 int log_mask = LOG_MASK_DEFAULT;
 
@@ -286,8 +288,13 @@ _restart_nowait:
 
 		if(cdb.play_type!=PLAYTYPE_FILE && play_track->mode==3){
 		}else{
-			SSLOG(_DTASK, "\nplay_task! fad_start=%08x(lba_%08x) fad_end=%08x fad=%08x type=%d free=%d\n",
+			SSLOG(_DTASK, "\nplay_task! fad_start=%08x(lba_%d) fad_end=%08x fad=%08x type=%d free=%d\n",
 					cdb.play_fad_start, cdb.play_fad_start-150, cdb.play_fad_end, cdb.fad, cdb.play_type, cdb.block_free);
+			if(cdb.play_fad_start == cdb.fad){
+				if(play_delay){
+					hw_delay(play_delay);
+				}
+			}
 		}
 
 		if(cdb.fad==0){
@@ -321,17 +328,18 @@ _restart_nowait:
 			}else
 			{
 				//printk("filter sector %08x...\n", cdb.fad);
-				retv = filter_sector(play_track, &wblk);
-				HIRQ = HIRQ_CSCT;
 				if(sector_delay){
 					hw_delay(sector_delay);
 				}
+				retv = filter_sector(play_track, &wblk);
+				HIRQ = HIRQ_CSCT;
 
 				if(retv==0){
 					// 送到某个过滤器成功
 				}else if(retv==2){
 					SSLOG(_DTASK, "buffer full! wait ...\n");
 					// block缓存已满, 需要等待某个事件再继续
+					HIRQ = HIRQ_BFUL;
 					cdb.status = STAT_PAUSE;
 					cdb.play_wait = 1;
 					goto _restart_wait;
@@ -511,6 +519,12 @@ void ss_cmd_handle(void)
 		SS_CMD = 0;
 		break;
 	}
+	case SSCMD_SSAVE:
+		// 保存当前SAVE
+		retv = flush_savefile();
+		SS_ARG = retv;
+		SS_CMD = 0;
+		break;
 	default:
 		SSLOG(_INFO, "[SS] unkonw cmd: %04x\n", cmd);
 		break;
@@ -678,6 +692,12 @@ void saturn_config(void)
 
 	parse_config("/saroocfg.txt", NULL);
 
+
+
+
+
+
+
 	// 检查是否有bootrom. 如果有,就加载到FPGA中
 	retv = f_open(&fp, "/ramimage.bin", FA_READ);
 	if(retv){
@@ -693,9 +713,15 @@ void saturn_config(void)
 	printk("    f_read: retv=%d rv=%08x\n", retv, rv);
 	f_close(&fp);
 
+
+	// 打开存档文件
+	open_savefile();
+
+
 	// 放置系统信息
 	*(u32*)(SYSINFO_ADDR+0x00) = get_build_date(); // 编译日期
 	*(u32*)(SYSINFO_ADDR+0x04) = lang_id;          // 菜单语言
+	*(u32*)(SYSINFO_ADDR+0x08) = debug_flags;      // 调试选项
 
 	// I2S
 	spi2_init();

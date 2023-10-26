@@ -841,6 +841,11 @@
               <FileType>1</FileType>
               <FilePath>.\Saturn\cdda_i2s.c</FilePath>
             </File>
+            <File>
+              <FileName>saturn_utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Saturn\saturn_utils.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

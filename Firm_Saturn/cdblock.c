@@ -601,7 +601,7 @@ int cdc_auth_device(void)
 		cdc_get_status(&status);
 		if(status!=0xff)
 			break;
-		printk("STATUS: %02x  HIRQ: %04x\n", status, HIRQ);
+		//printk("STATUS: %02x  HIRQ: %04x\n", status, HIRQ);
 	}
 
 	int retv = cdc_auth_status(&status);
@@ -798,18 +798,53 @@ void cdc_file_test(void)
 #define bios_loadcd_boot    INDIRECT_CALL(0x06000288, int,  void)  // 000018A8
 
 
-int old_mplayer_addr;
+void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg);
 
-void my_myplayer(int addr)
+void _call_04c8(void)
 {
-	int retv;
-	int (*go)(int) = (void*)old_mplayer_addr;
+	void (*go)(void) = (void*)(0x04c8);
+	go();
+	*(u32*)(0x25fe00b0) = 0x38803880;
+}
 
-	sci_init();
-	printk("\n-- read_main! addr=%08x --\n", addr);
+void my_cdplayer(void)
+{
+	void (*go)(int);
 
-	retv = go(addr);
-	printk("\n-- read_main: retv=%08x --\n", retv);
+	if(debug_flag&1) sci_init();
+	printk("\nLoad my multiPlayer ...\n");
+
+	go = (void*)0x1d7c;
+	go(0);
+
+	*(u32*)(0x06000348) = 0xffffffff;
+
+	memcpy((u8*)0x00280000, _call_04c8, 64);
+	go = (void*)0x00280000;
+	go(0);
+
+	if(debug_flag&1) sci_init();
+	*(u32*)(0xffffffb0) = 0;
+	*(u8 *)(0x2010001f) = 0x1a;
+
+	memset((u8*)0x0600a000, 0, 0xf6000);
+	memset((u8*)0x06000c00, 0, 0x09400);
+	memset((u8*)0x06000b00, 0, 0x00100);
+	memcpy((u8*)0x06000000, (u8*)0x20000600, 0x0210);
+	memcpy((u8*)0x06000220, (u8*)0x20000820, 0x08e0);
+	memcpy((u8*)0x06001100, (u8*)0x20001100, 0x0700);
+	memcpy((u8*)0x060002c0, (u8*)0x20001100, 0x0020);
+
+	*(u32*)(0x06000358) = (u32)bup_init;
+
+	*(u32*)(0x06000234) = 0x02ac;
+	*(u32*)(0x06000238) = 0x02bc;
+	*(u32*)(0x0600023c) = 0x0350;
+	*(u32*)(0x06000328) = 0x04c8;
+	*(u32*)(0x0600024c) = 0x4843444d;
+
+	go = (void*)0x06000680;
+	go(0);
 }
 
 
@@ -828,6 +863,8 @@ int my_bios_loadcd_init(void)
 	// This is needed for Yabause: Clear the diskChange flag.
 	int status;
 	cdc_get_hwinfo(&status);
+
+	cdc_auth_device();
 
 	return 0;
 }
@@ -873,10 +910,42 @@ int my_bios_loadcd_read(void)
 	return 0;
 }
 
+
+static u16 code_06b8[10] = {
+	0xd102, // mov.l #0x25fe00b0, r1
+	0xd203, // mov.l #0x38803880, r2
+	0x2122, // mov.l r2, @r1
+	0xd103, // mov.l next_call, r1
+	0x412b, // jmp   @r1
+	0x4f26, // lds.l @r15+, pr
+	0x25fe,0x00b0,
+	0x3880,0x3880,
+	// 060006cc: .long next_call
+};
+
+
+static void my_06b0(void)
+{
+	if(debug_flag&1) sci_init();
+	printk("\nbios_set_clock_speed(%d)!\n", *(u32*)(0x06000324));
+
+	void (*go)(void) = (void*)0x1800;
+	go();
+
+	*(u32*)(0x25fe00b0) = 0x38803880;
+
+	SF = 1;
+	COMREG = 0x19;
+	while(SF&1);
+}
+
+
 extern int to_stm32;
 extern int gets_from_stm32;
 
-int read_1st(void)
+void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg);
+
+void read_1st(void)
 {
 	printk("Read main ...\n");
 	int retv;
@@ -885,6 +954,13 @@ int read_1st(void)
 	go();
 
 	patch_game((char*)0x06002020);
+	*(u32*)(0x06000358) = (u32)bup_init;
+	*(u32*)(0x0600026c) = (u32)my_cdplayer;
+
+	// 0x06000320: 0x060006b0  bios_set_clock_speed
+	memcpy((u8*)0x060006b8, code_06b8, sizeof(code_06b8));
+	*(u32*)(0x060006cc) = (u32)my_06b0;
+
 
 	if(game_break_pc){
 		set_break_pc(game_break_pc, 0);
@@ -905,6 +981,7 @@ int my_bios_loadcd_boot(int r4, int r5)
 	__asm volatile ( "jmp  @%0":: "r" (r5) );
 	__asm volatile ( "mov  r4, r0" :: );
 	__asm volatile ( "nop" :: );
+	return 0;
 }
 
 
@@ -922,8 +999,8 @@ int bios_cd_cmd(void)
 	// emulate bios_loadcd_boot
 	*(u32*)(0x06000290) = 3;
 	ip_size = bios_loadcd_read();//1912读取ip文件
-	*(u32*)(0x06002270) = read_1st;	
-	*(u32*)(0x02000f04) =  cdc_read_sector;
+	*(u32*)(0x06002270) = (u32)read_1st;	
+	*(u32*)(0x02000f04) = (u32)cdc_read_sector;
 	*(u16*)(0x0600220c) = 9;
 
 	retv = my_bios_loadcd_boot(ip_size, 0x18be);//跳到18be
@@ -959,8 +1036,6 @@ void cdc_init1(void)
 
 void cdc_init(void)
 {
-	int status;
-
 	cdc_abort_file();
 	cdc_cdb_init(0);
 	cdc_end_trans(NULL);
@@ -972,6 +1047,7 @@ void cdc_init(void)
 	CDROM_syscdinit1(3);
 	CDROM_syscdinit2();
 
+	int status;
 	while(1){
 		cdc_get_status(&status);
 		if(status!=0xff)
@@ -1019,13 +1095,12 @@ int cdc_read_sector(int fad, int size, u8 *buf)
 void cdc_read_test(void)
 {
 	int status;
-	int cddev_filter;
 	int nsec, actsize;
 	int total, npart, free;
 	int hirq, cr1, cr2, cr3, cr4;
-	int old_hirq, old_cr1, old_cr2, old_cr3, old_cr4;
+	int old_hirq=0, old_cr1=0, old_cr2=0, old_cr3=0, old_cr4=0;
 
-	u8 *sbuf = 0x06040000;
+	u8 *sbuf = (u8*)0x06040000;
 	char *logbuf = (char*)0x06080000;
 	int log_p = 0;
 
@@ -1086,7 +1161,7 @@ void cdc_read_test(void)
 	cdc_get_buffer_size(&total, &npart, &free);
 	mem_dump("Sector Data", sbuf, 256);
 
-	memcmp(0x22100000, 0x06040000, 2048*0xc0);
+	memcmp((u8*)0x22100000, (u8*)0x06040000, 2048*0xc0);
 }
 
 
@@ -1096,11 +1171,9 @@ void cdc_read_test(void)
 
 void cd_cmd(void)
 {
-	int total, npart, free;
-
 	cdc_init();
 
-	cdc_get_toc(toc_buf);
+	cdc_get_toc((u8*)toc_buf);
 	show_toc();
 
 	cdc_read_test();
@@ -1111,7 +1184,8 @@ void cd_cmd(void)
 
 void cd_speed_test(void)
 {
-	int cmd_cnt, status, tm;
+	int cmd_cnt, tm;
+	//int status;
 
 	cmd_cnt = 0;
 
