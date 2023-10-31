@@ -17,7 +17,7 @@
 
 #define DLY_1S 1000
 
-int tiny_xmodem_recv(unsigned char *dest)
+int tiny_xmodem_recv(u8 *dest)
 {
 	int pk_size, pk_num, pk_chk, check_sum, pk_sum, next_pk;
 	int i, c, len;

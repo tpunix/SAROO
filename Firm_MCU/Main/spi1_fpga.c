@@ -244,12 +244,11 @@ int fpga_update(int check)
 		printk("No FPGA config file.\n");
 		return -1;
 	}
-
 	fsize = f_size(&fp);
-	printk("Found FPGA config file.\n");
-	printk("    Size %08x\n", fsize);
 
 	if(check){
+		printk("Found FPGA config file.\n");
+		printk("    Size %08x\n", fsize);
 		f_close(&fp);
 		return 0;
 	}
@@ -272,6 +271,7 @@ int fpga_update(int check)
 	f_close(&fp);
 
 	printk("FPGA update OK!\n");
+	f_unlink("/SAROO/update/SSMaster.rbf");
 	return 0;
 }
 

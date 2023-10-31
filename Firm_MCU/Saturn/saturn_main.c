@@ -15,6 +15,7 @@ int sector_delay = 0;
 int sector_delay_force = -1;
 int play_delay = 0;
 int play_delay_force = -1;
+int auto_update = 0;
 
 int log_mask = LOG_MASK_DEFAULT;
 
@@ -525,6 +526,12 @@ void ss_cmd_handle(void)
 		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
+	case SSCMD_LSAVE:
+		// 加载指定SAVE
+		retv = load_savefile((char*)(TMPBUFF_ADDR+0x10));
+		SS_ARG = retv;
+		SS_CMD = 0;
+		break;
 	default:
 		SSLOG(_INFO, "[SS] unkonw cmd: %04x\n", cmd);
 		break;
@@ -691,11 +698,48 @@ void saturn_config(void)
 	u32 rv;
 
 	parse_config("/saroocfg.txt", NULL);
+	
+	if(auto_update){
+		int fp, fl;
 
+		fp = fpga_update(1);
+		fl = flash_update(1);
+		if(fp==-1 && fl==-1){
+			// 没有升级文件
+			led_event(LEDEV_NONE);
+		}else{
+			led_event(LEDEV_BUSY);
+			if(fp==0){
+				fpga_update(0);
+			}
+			if(fl==0){
+				fl = flash_update(0);
+				if(fl<-1){
+					led_event(LEDEV_FILE_ERROR);
+					return;
+				}
+			}
+			led_event(LEDEV_OK);
+			return;
+		}
+	}
 
-
-
-
+	if(debug_flags&0xc0000000){
+		led_event(LEDEV_BUSY);
+		int cnt = 0;
+		while(1){
+			retv = mem_test(0x61000000, 0x00800000);
+			if(retv){
+				led_event(LEDEV_SDRAM_ERROR);
+				//return;
+			}
+			if((debug_flags&0x40000000)==0)
+				break;
+			cnt += 1;
+			printk("  times: %d\n", cnt);
+		}
+		led_event(LEDEV_NONE);
+	}
 
 
 	// 检查是否有bootrom. 如果有,就加载到FPGA中

@@ -272,10 +272,24 @@ void sci_shell(void)
 		CMD(d) { dump(argc, arg, 0); }
 		CMD(go){ void (*go)(void) = (void(*)(void))arg[0]; go(); }
 
-		CMD(t) { cd_cmd(); }
-		CMD(f) { cdc_file_test(); }
+		CMD(t) {
+			void cd_cmd(void);
+			cd_cmd();
+		}
+		CMD(f) {
+			void cdc_file_test(void);
+			cdc_file_test();
+		}
 		CMD(m) { bios_run_cd_player(); } /* 运行系统CD播放器 */
-		CMD(n) { bios_cd_cmd(); }        /* 启动游戏 */
+		CMD(n) { bios_cd_cmd(0); }       /* 启动游戏 */
+		CMD(cds) {
+			void cdc_dump(int count);
+			int count = 1;
+			if(argc>0)
+				count = arg[0];
+			cdc_dump(count);
+		}
+
 		CMD(menu) { menu_init(); }
 
 		CMD(nmi) {
@@ -345,20 +359,13 @@ void sci_shell(void)
 
 		CMD(c) {
 			/* 打开系统光驱 */
-			smpc_cmd(CDOFF);
-			printk("CDOFF ...\n");
-			printk("CDOFF ...\n");
-			smpc_cmd(CDON);
-			printk("CDON ...\n");
-			printk("CDON ...\n");
-			REG16(0x25897004) = 0x0000;
+			cdblock_on(1);
+			int retv = cdblock_check();
+			printk("cdblock_check: %d\n", retv);
 		}
 		CMD(s) {
 			/* 关闭系统光驱, 打开sarooo */
-			smpc_cmd(CDOFF);
-			printk("CDOFF ...\n");
-			printk("CDOFF ...\n");
-			REG16(0x25897004) = 0x8000;
+			cdblock_off();
 		}
 
 		CMD(listb){
@@ -378,7 +385,7 @@ void sci_shell(void)
 			/* 下载到ram并运行. 如果指定了地址, 则只下载. */
 			int xm_len, xm_addr;
 			xm_addr = (argc>0)? arg[0] : 0x06004000;
-			xm_len = tiny_xmodem_recv(xm_addr);
+			xm_len = tiny_xmodem_recv((u8*)xm_addr);
 			printk("                            \n");
 			printk("                            \n");
 			printk("Download to %08x, size %08x\n", xm_addr, xm_len);

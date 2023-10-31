@@ -463,7 +463,7 @@ static int sel_handle(int ctrl)
 			SS_CMD = SSCMD_LOADDISC;
 			while(SS_CMD);
 
-			retv = bios_cd_cmd();
+			retv = bios_cd_cmd(0);
 			if(retv){
 				char buf[40];
 				sprintf(buf, TT("游戏启动失败! %d"), retv);
@@ -556,18 +556,23 @@ int main_handle(int ctrl)
 		select_game();
 		return MENU_RESTART;
 	}else if(index==1){
-		// SAROOO Off, CDBlock On
-		SS_CTRL = CS0_RAM4M;
-		smpc_cmd(CDON);
+		cdblock_on(0);
 		bios_run_cd_player();
 		return MENU_RESTART;
 	}else if(index==2){
-		// SAROOO Off, CDBlock On
-		SS_CTRL = CS0_RAM4M;
-		smpc_cmd(CDON);
+		menu_status(&main_menu, TT("检查光盘中......"));
+		cdblock_on(1);
+		int retv = cdblock_check();
+		if(retv<0){
+			menu_status(&main_menu, TT("未发现光盘!"));
+			return 0;
+		}else if(retv!=4){
+			menu_status(&main_menu, TT("不是游戏光盘!"));
+			return 0;
+		}
 
 		menu_status(&main_menu, TT("游戏启动中......"));
-		int retv = bios_cd_cmd();
+		retv = bios_cd_cmd(4);
 		if(retv){
 			char buf[40];
 			sprintf(buf, TT("游戏启动失败! %d"), retv);
@@ -670,11 +675,7 @@ int _main(void)
 		printk_putc = NULL;
 	}
 
-
-	// CDBlock Off, SAROOO On 
-	smpc_cmd(CDOFF);
-	SS_CTRL = (SAROO_EN | CS0_RAM4M);
-
+	cdblock_off();
 
 	if((debug_flag&0x0003)==0x0003){
 		sci_shell();

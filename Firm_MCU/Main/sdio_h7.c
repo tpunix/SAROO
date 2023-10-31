@@ -510,6 +510,7 @@ int sdio_init(void)
 	SDIO->MASK = 0;
 	SDIO->ICR = 0x1fe00fff;
 	SDIO->CLKCR = 0;
+	SDIO->CLKCR = 1<<16;
 
 	sd_rca = 0;
 	cmd_sem = osSemaphoreNew(1, 0, NULL);

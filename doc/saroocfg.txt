@@ -1,5 +1,13 @@
 # SAROO config file
 # 可用配置:
+#   lang_id=x
+#     选择菜单语言:  0:中文  1:EN  2:PTBR  3:JA
+#   debug=xxxxxxxx
+#     各种调试选项
+#   auto_update:
+#     MCU自动升级固件
+#   play_delay=xxxx
+#     PLAY开始前的延时。十进制us单位。
 #   sector_delay=xxxx
 #     每读一个扇区后的延时。十进制us单位。
 #   exmem_1M
@@ -15,7 +23,7 @@
 #
 
 [global]
-
+lang_id = 0
 
 
 # Final Fight Revenge

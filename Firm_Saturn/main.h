@@ -44,6 +44,7 @@ typedef unsigned long long u64;
 #define SSCMD_FILEWR   0x0007
 #define SSCMD_LISTBINS 0x0008
 #define SSCMD_SSAVE    0x0009
+#define SSCMD_LSAVE    0x000a
 
 
 #define IMGINFO_ADDR   0x22080000
@@ -52,14 +53,138 @@ typedef unsigned long long u64;
 
 
 /*****************************************************************************/
+// cdblock
+
+
+typedef struct {
+	u16 cr1;
+	u16 cr2;
+	u16 cr3;
+	u16 cr4;
+}CDCMD;
+
+typedef struct {
+	int fad;
+	int size;
+	u8  unit;
+	u8  gap;
+	u8  fn;
+	u8  attr;
+}CdcFile;
+
+#define CR1     REG16(0x25890018)
+#define CR2     REG16(0x2589001c)
+#define CR3     REG16(0x25890020)
+#define CR4     REG16(0x25890024)
+#define HIRQ    REG16(0x25890008)
+#define HMSK    REG16(0x2589000c)
+
+#define HIRQ_CMOK   0x0001
+#define HIRQ_DRDY   0x0002
+#define HIRQ_CSCT   0x0004
+#define HIRQ_BFUL   0x0008
+#define HIRQ_PEND   0x0010
+#define HIRQ_DCHG   0x0020
+#define HIRQ_ESEL   0x0040
+#define HIRQ_EHST   0x0080
+#define HIRQ_ECPY   0x0100
+#define HIRQ_EFLS   0x0200
+#define HIRQ_SCDQ   0x0400
+
+
+#define STATUS_BUSY             0x00
+#define STATUS_PAUSE            0x01
+#define STATUS_STANDBY          0x02
+#define STATUS_PLAY             0x03
+#define STATUS_SEEK             0x04
+#define STATUS_SCAN             0x05
+#define STATUS_OPEN             0x06
+#define STATUS_NODISC           0x07
+#define STATUS_RETRY            0x08
+#define STATUS_ERROR            0x09
+#define STATUS_FATAL            0x0a
+#define STATUS_PERIODIC         0x20
+#define STATUS_TRANSFER         0x40
+#define STATUS_WAIT             0x80
+#define STATUS_REJECT           0xff
 
 
 #define INDIRECT_CALL(addr, return_type, ...) (**(return_type(**)(__VA_ARGS__)) addr)
-#define bios_run_cd_player  INDIRECT_CALL(0x0600026C, void, void)
 
-int bios_cd_cmd(void);
+#define bios_run_cd_player  INDIRECT_CALL(0x0600026C, void, void)
+#define bios_loadcd_init1   INDIRECT_CALL(0x060002dc, int,  int)  // 00002650
+#define bios_loadcd_init    INDIRECT_CALL(0x0600029c, int,  int)  // 00001904
+#define bios_loadcd_read    INDIRECT_CALL(0x060002cc, int,  void) // 00001912
+#define bios_loadcd_boot    INDIRECT_CALL(0x06000288, int,  void)  // 000018A8
+
+//!< mode 0 -> check, 1 -> do auth
+#define bios_check_cd_auth  INDIRECT_CALL(0x06000270, int,  int mode)
+
+
+void clear_hirq(int mask);
+int wait_hirq(int mask);
+int wait_status(int wait);
+int cdc_cmd(int wait, CDCMD *cmd, CDCMD *resp, char *cmdname);
+
+int cdc_get_status(int *status);
+int cdc_get_hwinfo(int *status);
+int cdc_cdb_init(int standby);
+int cdc_end_trans(int *cdwnum);
+int cdc_get_toc(u8 *buf);
+
+int cdc_play_fad(int mode, int start_fad, int range);
+
+int cdc_cddev_connect(int filter);
+int cdc_get_cddev(int *selnum);
+
+int cdc_set_filter_range(int selnum, int start_fad, int num_sector);
+int cdc_get_filter_range(int selnum, int *fad, int *num_sector);
+int cdc_set_filter_mode(int selnum, int mode);
+int cdc_get_filter_mode(int selnum, int *mode);
+int cdc_set_filter_connect(int selnum, int c_true, int c_false);
+int cdc_get_filter_connect(int selnum, int *c_true, int *c_false);
+int cdc_reset_selector(int flag, int selnum);
+
+int cdc_get_buffer_size(int *total, int *pnum, int *free);
+int cdc_get_numsector(int selnum, int *snum);
+int cdc_calc_actsize(int bufno, int spos, int snum);
+int cdc_get_actsize(int *actsize);
+int cdc_get_sector_info(int bufno, int secno, int *fad);
+
+int cdc_set_size(int size);
+int cdc_get_data(int bufnum, int spos, int snum);
+int cdc_get_del_data(int bufnum, int spos, int snum);
+void cdc_trans_data(u8 *buf, int length);
+
+int cdc_auth_status(int *status);
+int cdc_auth_device(void);
+
+int cdc_change_dir(int selnum, int fid);
+int cdc_read_dir(int selnum, int fid);
+int cdc_get_file_scope(int *fid, int *fnum, int *drend);
+int cdc_get_file_info(int fid, CdcFile *buf);
+int cdc_read_file(int selnum, int fid, int offset);
+int cdc_abort_file(void);
+
+
+
+
+
+
+void cdc_dump(int count);
+void show_selector(int id);
+void cdblock_on(int wait);
+void cdblock_off(void);
+int cdblock_check(void);
+
+
+
+int bios_cd_cmd(int type);
 int cdc_read_sector(int fad, int size, u8 *buf);
 void my_cdplayer(void);
+
+void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg);
+
 
 
 /*****************************************************************************/
@@ -125,6 +250,8 @@ int sci_getc(int timeout);
 /*****************************************************************************/
 
 extern int to_stm32;
+extern int gets_from_stm32;
+
 
 extern void (*printk_putc)(int ch);
 int printk(char *fmt, ...);
@@ -144,6 +271,7 @@ void *memset(void *s, int v, int n);
 void *memcpy(void *to, void *from, int n);
 int memcmp(void *dst, void *src, int n);
 
+int tiny_xmodem_recv(u8 *dest);
 
 /*****************************************************************************/
 

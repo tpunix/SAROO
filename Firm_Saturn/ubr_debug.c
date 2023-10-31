@@ -16,27 +16,27 @@ void (*game_break_handle)(REGS *reg);
 
 /**********************************************************/
 
-static inline u32 get_vbr(void)
+inline u32 get_vbr(void)
 {
 	u32 vbr;
 	__asm volatile ( "stc\tvbr,%0": "=r" (vbr) );
 	return	vbr;
 }
 
-static inline void set_vbr(u32 vbr)
+inline void set_vbr(u32 vbr)
 {
 	__asm volatile ( "ldc\t%0,vbr":: "r" (vbr) );
 }
 
 
-static inline u32 get_sr(void)
+inline u32 get_sr(void)
 {
 	u32 sr;
 	__asm volatile ( "stc\tsr,%0": "=r" (sr) );
 	return	sr;
 }
 
-static inline void set_sr(u32 sr)
+inline void set_sr(u32 sr)
 {
 	__asm volatile ( "ldc\t%0,sr":: "r" (sr) );
 }
@@ -118,7 +118,7 @@ void reloc_vbr(void)
 {
 	u32 old_vbr = get_vbr();
 	memcpy((void*)new_vtable, (void*)old_vbr, 1024);
-	set_vbr(new_vtable);
+	set_vbr((u32)new_vtable);
 	printk("New VBR at %08x\n", new_vtable);
 }
 

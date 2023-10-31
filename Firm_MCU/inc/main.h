@@ -30,6 +30,8 @@ u32 get_build_date(void);
 void *malloc(uint32_t size);
 void free(void *p);
 void memcpy32(void *dst, void *src, int len);
+int mem_test(u32 addr, int size);
+
 
 void uart4_init(void);
 u8   _getc(void);
@@ -66,6 +68,7 @@ int fpga_update(int check);
 
 #define MAKE_LEDEVENT(freq, times, flag)  (((flag)<<16) | ((times)<<8) | (freq))
 
+#define LEDEV_NONE              0
 #define LEDEV_SD_ERROR          MAKE_LEDEVENT(10, 10, 2)
 #define LEDEV_FPGA_ERROR        MAKE_LEDEVENT(10, 20, 2)
 #define LEDEV_SDRAM_ERROR       MAKE_LEDEVENT(15, 8,  2)
@@ -73,6 +76,8 @@ int fpga_update(int check);
 #define LEDEV_FILE_ERROR        MAKE_LEDEVENT(15, 5,  1)
 #define LEDEV_SCFG_ERROR        MAKE_LEDEVENT(15, 4,  1)
 #define LEDEV_CSCT              MAKE_LEDEVENT(7,  1,  0)
+#define LEDEV_BUSY              MAKE_LEDEVENT(50, 1,  1)
+#define LEDEV_OK                MAKE_LEDEVENT(13, 2,  1)
 
 
 void led_event(int ev);

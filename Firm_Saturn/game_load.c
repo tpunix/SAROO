@@ -1,197 +1,249 @@
-/*
- * Sega Saturn cartridge flash tool
- * by Anders Montonen, 2012
- *
- * Original software by ExCyber
- * Graphics routines by Charles MacDonald
- *
- * Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)
- */
 
-#include "vdp2.h"
+#include "main.h"
 #include "smpc.h"
 
-#include "vdp.h"
-#include "conio.h"
+
+/**********************************************************/
 
 
-#define bios_loadcd_init    INDIRECT_CALL(0x0600029c, int,  int)
-
-#define bios_loadcd_read    INDIRECT_CALL(0x060002cc, int,  void)
-
-#define bios_loadcd_boot    INDIRECT_CALL(0x06000288, int,  int)
-
-
-
-
-#if 0
-
-u32 set_sp(u32 addr)
+// 调用04c8的代码必须在内部RAM中运行。
+static void _call_04c8(void)
 {
-	asm("
-		mov       r15, r0
-		mov       r4, r15
-	");
+	void (*go)(void) = (void*)(0x04c8);
+	go();
+	*(u32*)(0x25fe00b0) = 0x38803880;
 }
 
-int load_game(void)
+void my_cdplayer(void)
 {
-	int retv, save_sp;
+	void (*go)(int);
 
-	cdc_cdb_init(0);
-	cdc_change_dir(23, 0xffffff);
-	cdc_abort_file();
+	if(debug_flag&1) sci_init();
+	printk("\nLoad my multiPlayer ...\n");
 
-	retv = bios_loadcd_init(0);
-	printk("bios_loadcd_init: %d\n", retv);
+	go = (void*)0x1d7c;
+	go(0);
 
-	save_sp = set_sp(0x06002000);
+	*(u32*)(0x06000348) = 0xffffffff;
 
-	while(1){
-		retv = bios_loadcd_boot(0);
-		printk("bios_loadcd_boot: %d\n", retv);
-		if(retv<0)
-			break;
-	}
+	memcpy((u8*)0x00280000, _call_04c8, 64);
+	go = (void*)0x00280000;
+	go(0);
 
-	set_sp(save_sp);
-	return retv;
-}
+	if(debug_flag&1) sci_init();
+	*(u32*)(0xffffffb0) = 0;
+	*(u8 *)(0x2010001f) = 0x1a;
 
-#else
+	memset((u8*)0x0600a000, 0, 0xf6000);
+	memset((u8*)0x06000c00, 0, 0x09400);
+	memset((u8*)0x06000b00, 0, 0x00100);
+	memcpy((u8*)0x06000000, (u8*)0x20000600, 0x0210);
+	memcpy((u8*)0x06000220, (u8*)0x20000820, 0x08e0);
+	memcpy((u8*)0x06001100, (u8*)0x20001100, 0x0700);
+	memcpy((u8*)0x060002c0, (u8*)0x20001100, 0x0020);
 
-static inline void	set_sr2( unsigned int	sr ){
-	asm volatile ( "ldc\t%0,sr":: "r" (sr) );
-}
+	*(u32*)(0x06000358) = (u32)bup_init;
 
-static inline unsigned int	get_sr( void ){
-	unsigned int	sr;
+	*(u32*)(0x06000234) = 0x02ac;
+	*(u32*)(0x06000238) = 0x02bc;
+	*(u32*)(0x0600023c) = 0x0350;
+	*(u32*)(0x06000328) = 0x04c8;
+	*(u32*)(0x0600024c) = 0x4843444d;
 
-	asm volatile ( "stc\tsr,%0": "=r" (sr) );
-	return	sr;
-}
-
-static inline void	set_imask( unsigned int	imask ){
-	unsigned int	sr = get_sr();
-
-	sr &= ~0x000000f0;
-	sr |= ( imask << 4 );
-	set_sr( sr );
-}
-
-static inline void	set_vbr2( void	*vbr ){
-	asm volatile ( "ldc\t%0,vbr":: "r" (vbr) );
-}
-
-static inline void	set_gbr2( void	*gbr ){
-	asm volatile ( "ldc\t%0,gbr":: "r" (gbr) );
+	go = (void*)0x06000680;
+	go(0);
 }
 
 
-int load_game(void)
+int my_bios_loadcd_init(void)
 {
-	int retv;
-	u8 *ip_addr = (u8*)0x06002000;
-	u32 main_addr;
-	u32 main_size;
-
-	retv = cdc_read_sector(ip_addr, 150, 16);
-	if(retv<0){
-		printk("load_game: read ip.bin failed!\n");
-		return retv;
-	}
-
-	retv = cdc_read_sector((u8*)0x0600a000, 150+20, 1);
-	if(retv<0){
-		printk("load_game: read root dir failed!\n");
-		return retv;
-	}
-
-	memcpy((u8*)0x06000c00, (u8*)0x06002000, 0x0100);
-	memcpy((u8*)0x060002a0, (u8*)0x060020e0, 0x0020);
-
-	*(u32*)(0x060002b0) = 0x06010000;
-	*(u32*)(0x06000290) = 3;
-	
-	*(u32*)(0x06002270) = 0x06000284;
+	printk("\nmy_bios_loadcd_init!\n");
 
 	*(u32*)(0x06000278) = 0;
 	*(u32*)(0x0600027c) = 0;
 
-	main_addr = *(u32*)(0x060020f0);
-	main_size = *(u32*)(0x0600a052);
-	main_offs = *(u32*)(0x0600a04a);
-	printk("main_offset=%08x main_size=%08x main_addr=%08x\n", main_offs, main_size, main_addr);
+	cdc_abort_file();
+	cdc_end_trans(NULL);
+	cdc_reset_selector(0xfc, 0);
+	cdc_set_size(0);
 
-	// Setup the vector table area, etc.(all bioses have it at 0x00000600-0x00000810)
-	for(i=0; i<0x210; i+=4){
-		*(u32*)(0x06000000+i) = *(u32*)(0x00000600+i);
-	}
-
-	// Setup the bios function pointers, etc.(all bioses have it at 0x00000820-0x00001100)
-	for(i=0; i<0x8e0; i+=4){
-		*(u32*)(0x06000220+i) = *(u32*)(0x00000820+i);
-	}
-
-	// I'm not sure this is really needed
-	for(i=0; i<0x700; i+=4){
-		*(u32*)(0x06001100+i) = *(u32*)(0x00001100+i);
-	}
-
-	// Fix some spots in 0x06000210-0x0600032C area
-	*(u32*)0x06000234 = 0x000002ac;
-	*(u32*)0x06000238 = 0x000002bc;
-	*(u32*)0x0600023c = 0x00000350;
-	*(u32*)0x06000240 = 0x32524459;
-	*(u32*)0x0600024c = 0x00000000;
-	*(u32*)0x06000268 = *(u32*)0x00001344;
-	*(u32*)0x0600026c = *(u32*)0x00001348;
-	*(u32*)0x0600029c = *(u32*)0x00001354;
-	*(u32*)0x060002c4 = *(u32*)0x00001104;
-	*(u32*)0x060002c8 = *(u32*)0x00001108;
-	*(u32*)0x060002cc = *(u32*)0x0000110c;
-	*(u32*)0x060002d0 = *(u32*)0x00001110;
-	*(u32*)0x060002d4 = *(u32*)0x00001114;
-	*(u32*)0x060002d8 = *(u32*)0x00001118;
-	*(u32*)0x060002dc = *(u32*)0x0000111c;
-	*(u32*)0x06000328 = 0x000004c8;
-	*(u32*)0x0600032c = 0x00001800;
-
-	// Fix SCU interrupts
-	for(i=0; i<0x80; i+=4){
-		*(u32*)(0x06000a00+i) = 0x0600083c;
-	}
-
-
-	set_sr2(0);
-	set_vbr2(0x06000000);
-
-	__asm__  volatile ("mov   #0, r0");
-	__asm__  volatile ("mov   #0, r1");
-	__asm__  volatile ("mov   #0, r2");
-	__asm__  volatile ("mov   #0, r3");
-	__asm__  volatile ("mov   #0, r4");
-	__asm__  volatile ("mov   #0, r5");
-	__asm__  volatile ("mov   #0, r6");
-	__asm__  volatile ("mov   #0, r7");
-	__asm__  volatile ("mov   #0, r8");
-	__asm__  volatile ("mov   #0, r9");
-	__asm__  volatile ("mov   #0, r10");
-	__asm__  volatile ("mov   #0, r11");
-	__asm__  volatile ("mov   #0, r12");
-	__asm__  volatile ("mov   #0, r13");
-	__asm__  volatile ("mov   #0, r14");
-	__asm__  volatile ("lds   r14, pr");
-
-	__asm__  volatile ("ldc	r14, gbr");
-	__asm__  volatile ("lds	r14, mach");
-	__asm__  volatile ("lds r14, macl");
-
-
-	setStackptr(0x6002000, 0x6002e00);
+	// This is needed for Yabause: Clear the diskChange flag.
+	int status;
+	cdc_get_hwinfo(&status);
 
 	return 0;
 }
 
+
+int my_bios_loadcd_read(void)
+{
+	int status, tm;
+	u8 *sbuf = (u8*)0x06002000;
+	char ipstr[64];
+
+	printk("\nmy_bios_loadcd_read!\n");
+
+	cdc_reset_selector(0, 0);
+	cdc_cddev_connect(0);
+	cdc_play_fad(0, 150, 16);
+
+	HIRQ = 0;
+	tm = 10000000;
+	while(tm){
+		if(HIRQ&HIRQ_PEND)
+			break;
+		tm -= 1;
+	}
+	if(tm==0){
+		printk("  PLAY timeout!\n");
+		return -1;
+	}
+
+	cdc_get_data(0, 0, 16);
+	cdc_trans_data(sbuf, 2048*16);
+	cdc_end_trans(&status);
+
+	*(u16*)(0x060003a0) = 1;
+
+	memcpy(ipstr, (u8*)0x06002020, 16);
+	ipstr[16] = 0;
+	printk("\nLoad game: %s\n", ipstr);
+	memcpy(ipstr, (u8*)0x06002060, 32);
+	ipstr[32] = 0;
+	printk("  %s\n\n", ipstr);
+
+	return 0;
+}
+
+
+static u16 code_06b8[10] = {
+	0xd102, // mov.l #0x25fe00b0, r1
+	0xd203, // mov.l #0x38803880, r2
+	0x2122, // mov.l r2, @r1
+	0xd103, // mov.l next_call, r1
+	0x412b, // jmp   @r1
+	0x4f26, // lds.l @r15+, pr
+	0x25fe,0x00b0,
+	0x3880,0x3880,
+	// 060006cc: .long next_call
+};
+
+
+static void my_06b0(void)
+{
+	if(debug_flag&1) sci_init();
+	printk("\nbios_set_clock_speed(%d)!\n", *(u32*)(0x06000324));
+
+	void (*go)(void) = (void*)0x1800;
+	go();
+
+	*(u32*)(0x25fe00b0) = 0x38803880;
+
+	SF = 1;
+	COMREG = 0x19;
+	while(SF&1);
+}
+
+
+static void read_1st(void)
+{
+	printk("Read main ...\n");
+	int retv;
+	retv = *(u32*)(0x06000284);
+	void (*go)(void) = (void(*)(void))retv;
+	go();
+
+	patch_game((char*)0x06002020);
+	*(u32*)(0x06000358) = (u32)bup_init;
+	*(u32*)(0x0600026c) = (u32)my_cdplayer;
+
+	// 0x06000320: 0x060006b0  bios_set_clock_speed
+	memcpy((u8*)0x060006b8, code_06b8, sizeof(code_06b8));
+	*(u32*)(0x060006cc) = (u32)my_06b0;
+
+
+	if(game_break_pc){
+		set_break_pc(game_break_pc, 0);
+		install_ubr_isr();
+//		install_isr(ISR_NMI);
+//		void reloc_vbr(void);
+//		reloc_vbr();
+		to_stm32 = 1;
+		gets_from_stm32 = 1;
+		*(u32*)(0x22820000) = 0;
+	}
+}
+
+
+static int my_bios_loadcd_boot(int r4, int r5)
+{
+	__asm volatile ( "sts.l  pr, @-r15" :: );
+	__asm volatile ( "jmp  @%0":: "r" (r5) );
+	__asm volatile ( "mov  r4, r0" :: );
+	__asm volatile ( "nop" :: );
+	return 0;
+}
+
+
+int bios_cd_cmd(int type)
+{
+	int retv, ip_size;
+
+	my_bios_loadcd_init();
+
+#if 1
+	my_bios_loadcd_boot(0, 0x1904);
+
+	while(1){
+		ip_size = bios_loadcd_read();
+		if(ip_size==0x8000)
+			break;
+	}
+
+	char ipstr[64];
+
+	memcpy(ipstr, (u8*)0x06002020, 16);
+	ipstr[16] = 0;
+	printk("\nLoad game: %s\n", ipstr);
+	memcpy(ipstr, (u8*)0x06002060, 32);
+	ipstr[32] = 0;
+	printk("  %s\n\n", ipstr);
+
+
+#else
+	retv = my_bios_loadcd_read();
+	if(retv)
+		return retv;
+
+	// emulate bios_loadcd_boot
+	*(u32*)(0x06000290) = 3;
+	ip_size = bios_loadcd_read();//1912读取ip文件
 #endif
+
+	if(type>0){
+		// 光盘游戏。需要通知MCU加载SAVE。
+		memcpy((void*)(TMPBUFF_ADDR+0x10), (u8*)0x06002020, 16);
+		*(u8*)(TMPBUFF_ADDR+0x20) = 0;
+
+		SS_ARG = 0;
+		SS_CMD = SSCMD_LSAVE;
+		while(SS_CMD);
+	}
+
+	*(u32*)(0x06002270) = (u32)read_1st;	
+	*(u32*)(0x02000f04) = (u32)cdc_read_sector;
+	*(u16*)(0x0600220c) = 9;
+
+	retv = my_bios_loadcd_boot(ip_size, 0x18be);//跳到18be
+	if((retv==-8)||(retv==-4)){
+		*(u32*)(0x06000254) = 0x6002100;
+		retv = my_bios_loadcd_boot(0, 0x18c6);
+	}
+	printk("bios_loadcd_boot  retv=%d\n", retv);
+
+	return retv;
+}
+
+
+/**********************************************************/
 

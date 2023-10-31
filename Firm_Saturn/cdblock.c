@@ -5,64 +5,12 @@
 
 /**********************************************************/
 
-typedef struct {
-	u16 cr1;
-	u16 cr2;
-	u16 cr3;
-	u16 cr4;
-}CDCMD;
-
-typedef struct {
-	int fad;
-	int size;
-	u8  unit;
-	u8  gap;
-	u8  fn;
-	u8  attr;
-}CdcFile;
-
-#define CR1     REG16(0x25890018)
-#define CR2     REG16(0x2589001c)
-#define CR3     REG16(0x25890020)
-#define CR4     REG16(0x25890024)
-#define HIRQ    REG16(0x25890008)
-#define HMSK    REG16(0x2589000c)
-
-#define HIRQ_CMOK   0x0001
-#define HIRQ_DRDY   0x0002
-#define HIRQ_CSCT   0x0004
-#define HIRQ_BFUL   0x0008
-#define HIRQ_PEND   0x0010
-#define HIRQ_DCHG   0x0020
-#define HIRQ_ESEL   0x0040
-#define HIRQ_EHST   0x0080
-#define HIRQ_ECPY   0x0100
-#define HIRQ_EFLS   0x0200
-#define HIRQ_SCDQ   0x0400
-
-
-#define STATUS_BUSY             0x00
-#define STATUS_PAUSE            0x01
-#define STATUS_STANDBY          0x02
-#define STATUS_PLAY             0x03
-#define STATUS_SEEK             0x04
-#define STATUS_SCAN             0x05
-#define STATUS_OPEN             0x06
-#define STATUS_NODISC           0x07
-#define STATUS_RETRY            0x08
-#define STATUS_ERROR            0x09
-#define STATUS_FATAL            0x0a
-#define STATUS_PERIODIC         0x20
-#define STATUS_TRANSFER         0x40
-#define STATUS_WAIT             0x80
-#define STATUS_REJECT           0xff
-
-
 
 void clear_hirq(int mask)
 {
 	HIRQ = ~mask;
 }
+
 
 int wait_hirq(int mask)
 {
@@ -77,25 +25,39 @@ int wait_hirq(int mask)
 	return -3;
 }
 
-int wait_peri(void)
-{
-	CDCMD resp;
-	int status;
 
-	while(1){
-		int i;
-		resp.cr1 = CR1;
-		resp.cr2 = CR2;
-		resp.cr3 = CR3;
-		resp.cr4 = CR4;
-		printk("STATUS=%04x\n", resp.cr1);
-		status = resp.cr1>>8;
-		if(status&STATUS_PERIODIC)
-			break;
-		for(i=0; i<100000; i++);
+int wait_busy(void)
+{
+	int i;
+
+	for(i=0; i<0x240000; i++){
+		int cds = (CR1>>8)&0x0f;
+		if(cds)
+			return 0;
 	}
 
-	return 0;
+	return -3;
+}
+
+
+void cdc_dump(int count)
+{
+	int hirq_old=-1, cr1_old=-1;
+	int hirq, cr1, cr2, cr3, cr4;
+
+	while(count){
+		hirq = HIRQ;
+		cr1 = CR1;
+		cr2 = CR2;
+		cr3 = CR3;
+		cr4 = CR4;
+		if( (hirq_old != hirq) || (cr1_old != cr1) ){
+			printk("HIRQ: %04x CR1:%04x CR2:%04x CR3:%04x CR4:%04x\n", hirq, cr1, cr2, cr3, cr4);
+			hirq_old = hirq;
+			cr1_old = cr1;
+		}
+		count -= 1;
+	}
 }
 
 
@@ -143,20 +105,6 @@ int cdc_cmd(int wait, CDCMD *cmd, CDCMD *resp, char *cmdname)
 }
 
 /**********************************************************/
-
-
-u32 *toc_buf = (u32*)0x06090000;
-
-void show_toc(void)
-{
-	int i;
-
-	for(i=0; i<102; i++){
-		if(toc_buf[i]!=0xffffffff)
-			printk("TOC %3d:  %08x\n", i+1, toc_buf[i]);
-	}
-}
-
 
 
 int cdc_get_status(int *status)
@@ -568,46 +516,30 @@ int cdc_auth_status(int *status)
 }
 
 
-
-void cdc_wait_auth(void)
-{
-	int i, status;
-
-	while(1){
-		for(i=0; i<100000; i++);
-		cdc_get_status(&status);
-		if(status!=0xff)
-			break;
-		printk("STATUS: %02x  HIRQ: %04x\n", status, HIRQ);
-	}
-}
-
 int cdc_auth_device(void)
 {
 	CDCMD cmd, resp;
-	int i, status;
+	int status;
 
-	printk("\n\nCD_AUTH ...\n");
+	printk("\n\nCD_AUTH ... HIRQ=%04x\n", HIRQ);
 
 	cmd.cr1 = 0xe000;
 	cmd.cr2 = 0x0000;
 	cmd.cr3 = 0x0000;
 	cmd.cr4 = 0x0000;
 
-	cdc_cmd(HIRQ_EFLS, &cmd, &resp, "cdc_auth_device");
-
+	clear_hirq(HIRQ_EFLS);
+	cdc_cmd(0, &cmd, &resp, "cdc_auth_device");
 	while(1){
-		for(i=0; i<100000; i++);
-		cdc_get_status(&status);
-		if(status!=0xff)
+		int retv = wait_hirq(HIRQ_EFLS);
+		if(retv==0)
 			break;
-		//printk("STATUS: %02x  HIRQ: %04x\n", status, HIRQ);
 	}
 
-	int retv = cdc_auth_status(&status);
+	cdc_auth_status(&status);
 	printk("AUTH: %02x\n\n", status);
 
-	return retv;
+	return status;
 }
 
 /**********************************************************/
@@ -701,25 +633,130 @@ int cdc_abort_file(void)
 	return cdc_cmd(0, &cmd, &resp, "cdc_abort_file");
 }
 
-void cdc_init(void);
 
-int wait_status(int wait)
+/**********************************************************/
+
+
+void cdc_init(void)
 {
-	int status;
+	cdc_abort_file();
+	cdc_cdb_init(0);
+	cdc_end_trans(NULL);
+	cdc_reset_selector(0xfc, 0);
 
-	while(1){
-		cdc_get_status(&status);
-		printk("STATUS: %02x  HIRQ=%04x\n", status, HIRQ);
-		if(status&0x80){
-			return -1;
-		}
-		status &= 0x0f;
-		if(status==wait)
-			return 0;
+	cdc_auth_device();
+}
+
+
+int cdc_read_sector(int fad, int size, u8 *buf)
+{
+	int nsec, retv, status, num;
+	num = (size+3)&0xfffffffc;
+
+	cdc_set_size(0);
+	cdc_reset_selector(0, 0);
+	cdc_cddev_connect(0);
+
+	cdc_play_fad(0, fad, (size+0x7ff)>>11);
+	while(num>0){
+		retv = cdc_get_numsector(0, &nsec);
+		if(retv<0)
+			return retv;
+		if(nsec==0)
+			continue;
+		
+		if(num>=2048)
+			nsec=2048;
+		else
+			nsec=num;	
+		cdc_get_del_data(0, 0, 1);
+		cdc_trans_data(buf, nsec);
+		
+		cdc_end_trans(&status);
+
+		buf += nsec;
+		num -= nsec;
 	}
 
-	return -1;
+	return size;
 }
+
+
+void cdblock_on(int wait)
+{
+	int cdstat;
+	int cr1, cr2, cr3, cr4;
+
+	SS_CTRL = CS0_RAM4M;
+	smpc_cmd(CDON);
+
+	if(wait){
+		do{
+			cr1 = CR1;
+			cr2 = CR2;
+			cr3 = CR3;
+			cr4 = CR4;
+			cdstat = (cr1>>8)&0x0f;
+		}while(cdstat==0);
+	}
+}
+
+
+void cdblock_off(void)
+{
+	smpc_cmd(CDOFF);
+	SS_CTRL = SAROO_EN | CS0_RAM4M;
+}
+
+
+int cdblock_check(void)
+{
+	int retv, cdstat;
+
+	cdc_abort_file();
+	cdc_cdb_init(0);
+	cdc_end_trans(NULL);
+	cdc_reset_selector(0xfc, 0);
+
+	while(1){
+		cdc_get_status(&cdstat);
+		cdstat &= 0x0f;
+		// cdc_reset_selector‰ºöÊúâÊØîËæÉÈïøÁöÑBUSYÁä∂ÊÄÅ„ÄÇ
+		if(cdstat==STATUS_BUSY)
+			continue;
+		if(cdstat==STATUS_OPEN || cdstat==STATUS_NODISC){
+			return -1;
+		}
+		if(cdstat==STATUS_PAUSE)
+			break;
+	}
+
+	// 0: no Disc 
+	// 1: Audio Disc
+	// 2: Data Disc
+	// 3: Pirated Saturn Disc
+	// 4: Saturn Disc
+	retv = cdc_auth_device();
+
+	return retv;
+}
+
+
+/**********************************************************/
+
+
+u32 *toc_buf = (u32*)0x06090000;
+
+void show_toc(void)
+{
+	int i;
+
+	for(i=0; i<102; i++){
+		if(toc_buf[i]!=0xffffffff)
+			printk("TOC %3d:  %08x\n", i+1, toc_buf[i]);
+	}
+}
+
 
 void cdc_file_test(void)
 {
@@ -773,324 +810,11 @@ void cdc_file_test(void)
 	cdc_get_numsector(1, &free);
 	printk("cdc_get_numsector 1: %d HIRQ=%04x\n", free, HIRQ);
 	cdc_get_buffer_size(&total, &npart, &free);
-
-
-
-}
-
-/**********************************************************/
-
-
-
-#define INDIRECT_CALL(addr, return_type, ...) (**(return_type(**)(__VA_ARGS__)) addr)
-
-#define bios_run_cd_player  INDIRECT_CALL(0x0600026C, void, void)
-
-//!< mode 0 -> check, 1 -> do auth
-#define bios_check_cd_auth  INDIRECT_CALL(0x06000270, int,  int mode)
-
-#define bios_loadcd_init1   INDIRECT_CALL(0x060002dc, int,  int)  // 00002650
-
-#define bios_loadcd_init    INDIRECT_CALL(0x0600029c, int,  int)  // 00001904
-
-#define bios_loadcd_read    INDIRECT_CALL(0x060002cc, int,  void) // 00001912
-
-#define bios_loadcd_boot    INDIRECT_CALL(0x06000288, int,  void)  // 000018A8
-
-
-void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg);
-
-void _call_04c8(void)
-{
-	void (*go)(void) = (void*)(0x04c8);
-	go();
-	*(u32*)(0x25fe00b0) = 0x38803880;
-}
-
-void my_cdplayer(void)
-{
-	void (*go)(int);
-
-	if(debug_flag&1) sci_init();
-	printk("\nLoad my multiPlayer ...\n");
-
-	go = (void*)0x1d7c;
-	go(0);
-
-	*(u32*)(0x06000348) = 0xffffffff;
-
-	memcpy((u8*)0x00280000, _call_04c8, 64);
-	go = (void*)0x00280000;
-	go(0);
-
-	if(debug_flag&1) sci_init();
-	*(u32*)(0xffffffb0) = 0;
-	*(u8 *)(0x2010001f) = 0x1a;
-
-	memset((u8*)0x0600a000, 0, 0xf6000);
-	memset((u8*)0x06000c00, 0, 0x09400);
-	memset((u8*)0x06000b00, 0, 0x00100);
-	memcpy((u8*)0x06000000, (u8*)0x20000600, 0x0210);
-	memcpy((u8*)0x06000220, (u8*)0x20000820, 0x08e0);
-	memcpy((u8*)0x06001100, (u8*)0x20001100, 0x0700);
-	memcpy((u8*)0x060002c0, (u8*)0x20001100, 0x0020);
-
-	*(u32*)(0x06000358) = (u32)bup_init;
-
-	*(u32*)(0x06000234) = 0x02ac;
-	*(u32*)(0x06000238) = 0x02bc;
-	*(u32*)(0x0600023c) = 0x0350;
-	*(u32*)(0x06000328) = 0x04c8;
-	*(u32*)(0x0600024c) = 0x4843444d;
-
-	go = (void*)0x06000680;
-	go(0);
-}
-
-
-int my_bios_loadcd_init(void)
-{
-	printk("\nmy_bios_loadcd_init!\n");
-
-	*(u32*)(0x06000278) = 0;
-	*(u32*)(0x0600027c) = 0;
-
-	cdc_abort_file();
-	cdc_end_trans(NULL);
-	cdc_reset_selector(0xfc, 0);
-	cdc_set_size(0);
-
-	// This is needed for Yabause: Clear the diskChange flag.
-	int status;
-	cdc_get_hwinfo(&status);
-
-	cdc_auth_device();
-
-	return 0;
-}
-
-
-int my_bios_loadcd_read(void)
-{
-	int status, tm;
-	u8 *sbuf = (u8*)0x06002000;
-	char ipstr[64];
-
-	printk("\nmy_bios_loadcd_read!\n");
-
-	cdc_reset_selector(0, 0);
-	cdc_cddev_connect(0);
-	cdc_play_fad(0, 150, 16);
-
-	HIRQ = 0;
-	tm = 10000000;
-	while(tm){
-		if(HIRQ&HIRQ_PEND)
-			break;
-		tm -= 1;
-	}
-	if(tm==0){
-		printk("  PLAY timeout!\n");
-		return -1;
-	}
-
-	cdc_get_data(0, 0, 16);
-	cdc_trans_data(sbuf, 2048*16);
-	cdc_end_trans(&status);
-
-	*(u16*)(0x060003a0) = 1;
-
-	memcpy(ipstr, (u8*)0x06002020, 16);
-	ipstr[16] = 0;
-	printk("\nLoad game: %s\n", ipstr);
-	memcpy(ipstr, (u8*)0x06002060, 32);
-	ipstr[32] = 0;
-	printk("  %s\n\n", ipstr);
-
-	return 0;
-}
-
-
-static u16 code_06b8[10] = {
-	0xd102, // mov.l #0x25fe00b0, r1
-	0xd203, // mov.l #0x38803880, r2
-	0x2122, // mov.l r2, @r1
-	0xd103, // mov.l next_call, r1
-	0x412b, // jmp   @r1
-	0x4f26, // lds.l @r15+, pr
-	0x25fe,0x00b0,
-	0x3880,0x3880,
-	// 060006cc: .long next_call
-};
-
-
-static void my_06b0(void)
-{
-	if(debug_flag&1) sci_init();
-	printk("\nbios_set_clock_speed(%d)!\n", *(u32*)(0x06000324));
-
-	void (*go)(void) = (void*)0x1800;
-	go();
-
-	*(u32*)(0x25fe00b0) = 0x38803880;
-
-	SF = 1;
-	COMREG = 0x19;
-	while(SF&1);
-}
-
-
-extern int to_stm32;
-extern int gets_from_stm32;
-
-void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg);
-
-void read_1st(void)
-{
-	printk("Read main ...\n");
-	int retv;
-	retv = *(u32*)(0x06000284);
-	void (*go)(void) = (void(*)(void))retv;
-	go();
-
-	patch_game((char*)0x06002020);
-	*(u32*)(0x06000358) = (u32)bup_init;
-	*(u32*)(0x0600026c) = (u32)my_cdplayer;
-
-	// 0x06000320: 0x060006b0  bios_set_clock_speed
-	memcpy((u8*)0x060006b8, code_06b8, sizeof(code_06b8));
-	*(u32*)(0x060006cc) = (u32)my_06b0;
-
-
-	if(game_break_pc){
-		set_break_pc(game_break_pc, 0);
-		install_ubr_isr();
-//		install_isr(ISR_NMI);
-//		void reloc_vbr(void);
-//		reloc_vbr();
-		to_stm32 = 1;
-		gets_from_stm32 = 1;
-		*(u32*)(0x22820000) = 0;
-	}
-}
-
-
-int my_bios_loadcd_boot(int r4, int r5)
-{
-	__asm volatile ( "sts.l  pr, @-r15" :: );
-	__asm volatile ( "jmp  @%0":: "r" (r5) );
-	__asm volatile ( "mov  r4, r0" :: );
-	__asm volatile ( "nop" :: );
-	return 0;
-}
-
-
-int bios_cd_cmd(void)
-{
-	int retv, ip_size;
-
-	my_bios_loadcd_init();
-
-	retv = my_bios_loadcd_read();
-	if(retv)
-		return retv;
-
-
-	// emulate bios_loadcd_boot
-	*(u32*)(0x06000290) = 3;
-	ip_size = bios_loadcd_read();//1912∂¡»°ipŒƒº˛
-	*(u32*)(0x06002270) = (u32)read_1st;	
-	*(u32*)(0x02000f04) = (u32)cdc_read_sector;
-	*(u16*)(0x0600220c) = 9;
-
-	retv = my_bios_loadcd_boot(ip_size, 0x18be);//Ã¯µΩ18be
-	if((retv==-8)||(retv==-4)){
-		*(u32*)(0x06000254) = 0x6002100;
-		retv = my_bios_loadcd_boot(0, 0x18c6);
-	}
-	printk("bios_loadcd_boot  retv=%d\n", retv);
-
-	return retv;
 }
 
 
 /**********************************************************/
 
-
-
-
-#define       CDROM_syscdinit1(i) \
-              ((**(void(**)(int))0x60002dc)(i))
-#define       CDROM_syscdinit2() \
-              ((**(void(**)(void))0x600029c)())
-
-void cdc_read_test(void);
-
-void cdc_init1(void)
-{
-	cdc_abort_file();
-	cdc_cdb_init(0);
-	cdc_end_trans(NULL);
-	cdc_reset_selector(0xfc, 0);
-}
-
-void cdc_init(void)
-{
-	cdc_abort_file();
-	cdc_cdb_init(0);
-	cdc_end_trans(NULL);
-	cdc_reset_selector(0xfc, 0);
-
-	cdc_auth_device();
-
-#if 0
-	CDROM_syscdinit1(3);
-	CDROM_syscdinit2();
-
-	int status;
-	while(1){
-		cdc_get_status(&status);
-		if(status!=0xff)
-			break;
-	}
-	printk("cdc_init done!\n");
-	cdc_read_test();
-#endif
-}
-
-
-int cdc_read_sector(int fad, int size, u8 *buf)
-{
-	int nsec, retv, status, num;
-	num = (size+3)&0xfffffffc;
-
-	cdc_set_size(0);
-	cdc_reset_selector(0, 0);
-	cdc_cddev_connect(0);
-
-	cdc_play_fad(0, fad, (size+0x7ff)>>11);
-	while(num>0){
-		retv = cdc_get_numsector(0, &nsec);
-		if(retv<0)
-			return retv;
-		if(nsec==0)
-			continue;
-		
-		if(num>=2048)
-			nsec=2048;
-		else
-			nsec=num;	
-		cdc_get_del_data(0, 0, 1);
-		cdc_trans_data(buf, nsec);
-		
-		cdc_end_trans(&status);
-
-		buf += nsec;
-		num -= nsec;
-	}
-
-	return size;
-}
 
 void cdc_read_test(void)
 {

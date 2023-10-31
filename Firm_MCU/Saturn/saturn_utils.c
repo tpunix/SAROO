@@ -137,6 +137,7 @@ typedef struct {
 CFGARG arg_list [] = {
 	{"sector_delay", ARG_DEC, &sector_delay},
 	{"play_delay",   ARG_DEC, &play_delay},
+	{"auto_update",  ARG_DEC, &auto_update},
 	{"exmem_",       ARG_NON, config_exmem},
 	{"M_",           ARG_NON, config_wrmem},
 	{"lang_id",      ARG_DEC, &lang_id},

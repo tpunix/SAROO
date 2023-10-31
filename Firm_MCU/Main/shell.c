@@ -199,40 +199,45 @@ static u16 mksum(u32 addr)
 }
 
 
-int mem_test(void)
+int mem_test(u32 addr, int size)
 {
-	u32 addr0 = 0x61400000;
 	u16 rd, sum;
-	int i, size=0x00100000;
+	int i, ecnt=0;
 	
+	printk("Memory test at %08x ...", addr);
+	
+	size /= 2;
 	for(i=0; i<size; i++){
-		*(u16*)(addr0) = mksum(addr0);
-		addr0 += 2;
+		*(u16*)(addr) = mksum(addr);
+		addr += 2;
 	}
 
 	for(i=0; i<size; i++){
-		addr0 -= 2;
-		sum = mksum(addr0);
-		rd  = *(u16*)(addr0);
+		addr -= 2;
+		sum = mksum(addr);
+		rd  = *(u16*)(addr);
 		if(sum!=rd){
-			printk("Mismatch0 at %08x! read=%08x calc=%08x\n", addr0, rd, sum);
-			return -1;
+			printk("\nMismatch0 at %08x! read=%08x calc=%08x\n", addr, rd, sum);
+			ecnt += 1;
 		}
-		*(u16*)(addr0) = ~sum;
+		*(u16*)(addr) = ~sum;
 
 	}
 
 	for(i=0; i<size; i++){
-		sum = ~mksum(addr0);
-		rd  = *(u16*)(addr0);
+		sum = ~mksum(addr);
+		rd  = *(u16*)(addr);
 		if(sum!=rd){
-			printk("Mismatch2 at %08x! read=%08x calc=%08x\n", addr0, rd, sum);
-			return -3;
+			printk("\nMismatch2 at %08x! read=%08x calc=%08x\n", addr, rd, sum);
+			ecnt += 1;
 		}
-		addr0 += 2;
+		addr += 2;
 	}
 
-	return 0;
+	if(ecnt==0)
+		printk("    OK!\n\n");
+
+	return ecnt;
 }
 
 /******************************************************************************/
@@ -293,8 +298,15 @@ void simple_shell(void)
 		}
 
 		CMD(mmt){
-			mem_test();
+			u32 addr = 0x61000000;
+			int size = 0x00100000;
+			if(argc==2){
+				addr = arg[0];
+				size = arg[1];
+			}
+			mem_test(addr, size);
 		}
+
 		CMD(memset){
 			if(argc>=3){
 				memset((void*)arg[0], arg[1], arg[2]);

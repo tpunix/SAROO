@@ -545,8 +545,10 @@ u32 bup_set_date(BUPDATE *bdt)
 /******************************************************************************/
 
 
-void bup_init(u8 *lib_addr, u8 *work_addr, BUPCFG *cfg)
+void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg_ptr)
 {
+	BUPCFG *cfg = (BUPCFG*)cfg_ptr;
+
 	if(debug_flag&1)
 		sci_init();
 

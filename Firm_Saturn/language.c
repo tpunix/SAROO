@@ -6,7 +6,7 @@
 
 int lang_id = 0;
 
-#define LANG_STR_NR 16
+#define LANG_STR_NR 19
 #define LANG_NR 8
 
 typedef struct _str_entry
@@ -41,6 +41,9 @@ char *lang_zhcn[LANG_STR_NR] = {
 	"升级失败!",
 	"升级完成,请重新开机!",
 	"SAROO Boot Menu",
+	"检查光盘中......",
+	"未发现光盘!",
+	"不是游戏光盘!",
 };
 
 
@@ -61,6 +64,9 @@ char *lang_en[LANG_STR_NR] = {
 	"Update Failed!",
 	"Update Finish! Please PowerOn again!",
 	"SAROO Boot Menu",
+	"Checking Disc ......",
+	"No Disc Found!",
+	"Not a Game Disc!",
 };
 
 
@@ -81,6 +87,9 @@ char *lang_ptbr[LANG_STR_NR] = {
 	"Erro ao atualizar!",
 	"Finalizado, reinicie o sistema!",
 	"SAROO Menu de Inicialização",
+	"Verificando o disco ......",
+	"Sem CD!",
+	"Não é um disco de jogo!",
 };
 
 
@@ -101,6 +110,9 @@ char *lang_ja[LANG_STR_NR] = {
 	"アップデート失敗！",
 	"アップデート完了、再起動してください！",
 	"SAROO ブートメニュー",
+	"ディスクを確認してください...",
+	"ディスクなし!",
+	"ゲームディスクじゃないよ!",
 };
 
 

@@ -108,6 +108,7 @@
 #define SSCMD_FILEWR   0x0007
 #define SSCMD_LISTBIN  0x0008
 #define SSCMD_SSAVE    0x0009
+#define SSCMD_LSAVE    0x000a
 
 
 #define MSF_TO_FAD(m,s,f) ((m * 4500) + (s * 75) + f)
@@ -280,6 +281,7 @@ extern int in_isr;
 
 extern int lang_id;
 extern int debug_flags;
+extern int auto_update;
 extern int sector_delay;
 extern int sector_delay_force;
 extern int play_delay;

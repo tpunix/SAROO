@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Sega Saturn cartridge flash tool
  * by Anders Montonen, 2012
  *
@@ -272,6 +272,10 @@ void conio_putc(int ch)
 
 /******************************************************************************/
 
+int abs(int v)
+{
+	return (v<0)? -v : v;
+}
 
 void put_pixel(int x, int y, int c)
 {

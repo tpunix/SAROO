@@ -225,10 +225,10 @@ int flash_update(int check)
 		return -1;
 	}
 	fsize = f_size(&fp);
-	printk("Found firm file.\n");
-	printk("    Size %08x\n", fsize);
 
 	if(check){
+		printk("Found firm file.\n");
+		printk("    Size %08x\n", fsize);
 		f_close(&fp);
 		return 0;
 	}
@@ -236,16 +236,16 @@ int flash_update(int check)
 
 	u32 rv;
 	f_read(&fp, fbuf, fsize, &rv);
+	f_close(&fp);
 
-
-	disable_irq();
+	int key = disable_irq();
 
 	int firm_addr = 0x08000000;
 	_puts("erase ...\n");
 	retv = flash_erase(firm_addr);
 	if(retv){
+		restore_irq(key);
 		_puts("    faile!\n");
-		f_close(&fp);
 		return -2;
 	}
 
@@ -253,14 +253,16 @@ int flash_update(int check)
 	for(i=0; i<fsize; i+=32){
 		retv = flash_write32(firm_addr+i, fbuf+i);
 		if(retv){
+			restore_irq(key);
 			_puts("    faile!\n");
-			f_close(&fp);
 			return -3;
 		}
 	}
 
-	f_close(&fp);
-	_puts("done.\n");
+	restore_irq(key);
+
+	printk("MCU update OK!\n");
+	f_unlink("/SAROO/update/ssmaster.bin");
 	return 0;
 }
 
@@ -317,10 +319,13 @@ void main_task(void *arg)
 
 static osSemaphoreId_t sem_led;
 static int led_ev = 0;
+static int loop = 0;
 
 void led_event(int ev)
 {
 	led_ev = ev;
+	if(ev==0)
+		loop = 0;
 	osSemaphoreRelease(sem_led);
 }
 
@@ -331,7 +336,6 @@ void led_task(void *arg)
 	int freq;
 	int times;
 	int lock;
-	int loop = 0;
 
 	sem_led = osSemaphoreNew(1, 0, NULL);
 
@@ -373,7 +377,7 @@ int main(void)
 	osThreadNew(main_task, NULL, &attr);
 
 	memset(&attr, 0, sizeof(attr));
-	attr.priority = osPriorityLow;
+	attr.priority = osPriorityHigh;
 	osThreadNew(led_task, NULL, &attr);
 
 	osKernelStart();
