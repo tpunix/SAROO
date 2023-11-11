@@ -377,9 +377,10 @@ static void page_update(int up)
 {
 	MENU_DESC *menu = &sel_menu;
 
-	menu->current = (up)? 10: 0;
 	menu->num = 0;
 	fill_selmenu();
+
+	menu->current = (up)? menu->num-1: 0;
 	draw_menu_frame(menu);
 }
 
@@ -431,6 +432,9 @@ static int sel_handle(int ctrl)
 		}else if(page>0){
 			page -= 1;
 			page_update(1);
+		}else{
+			page = total_page-1;
+			page_update(1);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_DOWN)){
 		if(menu->current<(menu->num-1)){
@@ -438,6 +442,9 @@ static int sel_handle(int ctrl)
 			menu_update(menu);
 		}else if((page+1)<total_page){
 			page += 1;
+			page_update(0);
+		}else{
+			page = 0;
 			page_update(0);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_LT)){
@@ -657,6 +664,12 @@ int _main(void)
 
 	// restore bios_loadcd_init1
 	*(u32*)(0x060002dc) = 0x2650;
+	*(u32*)(0x02000f04) =  (u32)cdc_read_sector;	
+	*(u32*)(0x02000f08) =  (u32)read_file;
+	*(u32*)(0x02000f0c) =  (u32)write_file;
+	*(u32*)(0x02000f38) =  (u32)sci_init;
+	*(u32*)(0x02000f3c) =  (u32)printk;
+
 
 	if(debug_flag&0x0001){
 		// sci_putc
