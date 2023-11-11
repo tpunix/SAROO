@@ -24,7 +24,7 @@ void fspi_setcs(int val)
 	if(val)
 		ctrl |= 0x08;
 	else
-		ctrl &= 0x07;
+		ctrl &= ~0x08;
 	*(volatile u16*)(0x60000016) = ctrl;
 }
 
@@ -34,7 +34,7 @@ void fspi_setclk(int val)
 	if(val)
 		ctrl |= 0x04;
 	else
-		ctrl &= 0x0b;
+		ctrl &= ~0x04;
 	*(volatile u16*)(0x60000016) = ctrl;
 }
 
@@ -44,7 +44,7 @@ void fspi_setdi(int val)
 	if(val)
 		ctrl |= 0x02;
 	else
-		ctrl &= 0x0d;
+		ctrl &= ~0x02;
 	*(volatile u16*)(0x60000016) = ctrl;
 }
 
@@ -124,6 +124,25 @@ int epcs_status(void)
 	return status;
 }
 
+int epcs_wstat(int stat)
+{
+	// status write enable
+	fspi_setcs(0);
+	fspi_delay();
+	fspi_trans(0x50);
+	fspi_setcs(1);
+	fspi_delay();
+
+	fspi_setcs(0);
+	fspi_delay();
+	fspi_trans(0x01);
+	fspi_trans(stat);
+	fspi_setcs(1);
+	fspi_delay();
+
+	return 0;
+}
+
 int epcs_wen(int en)
 {
 	fspi_setcs(0);
@@ -173,7 +192,7 @@ int epcs_sector_erase(int addr)
 	return 0;
 }
 
-int epcs_page_write(int addr, u8 *buf)
+int epcs_page_write(int addr, u8 *buf, int size)
 {
 	int i;
 
@@ -187,7 +206,7 @@ int epcs_page_write(int addr, u8 *buf)
 	fspi_trans((addr>> 8)&0xff);
 	fspi_trans((addr>> 0)&0xff);
 
-	for(i=0; i<256; i++){
+	for(i=0; i<size; i++){
 		fspi_trans(buf[i]);
 	}
 
@@ -253,26 +272,88 @@ int fpga_update(int check)
 		return 0;
 	}
 
+	int fid = epcs_readid();
+	printk("EPCS ID: %08x\n", fid);
 
-	printk("EPCS ID: %08x\n", epcs_readid());
+	if(fid==0xbf8e){
+		// SST25VF080 上电默认写保护
+		epcs_wstat(0);
+	}
+	printk("EPCS SR: %02x\n", epcs_status());
 
+	printk("Erase ...\n");
 	for(addr=0; addr<fsize; addr+=4096){
 		epcs_sector_erase(addr);
 	}
 
+	printk("Write ...\n");
 	for(addr=0; addr<fsize; addr+=256){
 		u32 rv;
 		f_read(&fp, fbuf, 256, &rv);
 		for(i=0; i<256; i++){ // Altera need LSB first
 			fbuf[i] = rbit_u8(fbuf[i]);
 		}
-		epcs_page_write(addr, fbuf);
+		if(fid==0xbf8e){
+			// SST25VF080 的02命令只能写一个字节
+			for(i=0; i<256; i++){
+				epcs_page_write(addr+i, fbuf+i, 1);
+			}
+		}else{
+			epcs_page_write(addr, fbuf, 256);
+		}
 	}
 	f_close(&fp);
 
 	printk("FPGA update OK!\n");
 	f_unlink("/SAROO/update/SSMaster.rbf");
 	return 0;
+}
+
+
+/******************************************************************************/
+
+
+void sdram_config(int type, int reftime)
+{
+	u32 cfgbuf[8];
+	int div, rcnt;
+	
+	if(type==3 || type==2){
+		// 64MB/32MB, row=13
+		rcnt = reftime*100000/8192;
+	}else if(type==1 || type==0){
+		// 16MB/8MB, row=12
+		rcnt = reftime*100000/4096;
+	}else{
+		printk("Invalid sdram config!\n");
+		return;
+	}
+	printk("SDRAM type: %d  refcnt: %d\n", type, rcnt);
+
+	memset(cfgbuf, 0xff, 32);
+	cfgbuf[0] = 0x43524453; // "SDRC"
+	cfgbuf[1] = (type<<10) | (rcnt&0x3ff);
+	
+	flash_write_config((u8*)cfgbuf);
+}
+
+
+void sdram_set(void)
+{
+	u32 *cfgbuf = (u32*)0x080e0000;
+	int type, rcnt;
+	
+	if(cfgbuf[0]!=0x43524453)
+		return;
+
+	type = (cfgbuf[1]>>10)&3;
+	rcnt = (cfgbuf[1])&0x3ff;
+	printk("SDRAM type: %d  refcnt: %d\n", type, rcnt);
+
+	int ctrl = *(volatile u16*)(0x60000016);
+	ctrl &= 0x000f;
+	ctrl |= (type<<14) | (rcnt<<4);
+	*(volatile u16*)(0x60000016) = ctrl;
 }
 
 
@@ -341,6 +422,8 @@ void fpga_config(void)
 	printk("      init done: %d\n", fpga_init_done());
 	printk("         status: %d\n", fpga_status());
 	printk("\n");
+	
+	sdram_set();
 	
 	return;
 }

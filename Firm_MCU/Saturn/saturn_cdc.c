@@ -176,6 +176,7 @@ void trans_start(void)
 		cdb.trans_size = 24;
 	}
 
+	FIFO_RCNT = 0;
 	ST_CTRL &= ~0x0200;
 	fill_fifo(dp, cdb.trans_size);
 	ST_STAT  = STIRQ_DAT;
@@ -216,17 +217,16 @@ void trans_handle(void)
 		ST_CTRL &= ~STIRQ_DAT;
 		//printk("trans_put: FIFO_STAT=%04x\n", FIFO_STAT);
 		int cnt = 2048;
+		int offs = 0;
+		if(cdb.put_sector_size==2048){
+			offs = 24;
+		}else if(cdb.put_sector_size==2336){
+			offs = 16;
+		}else if(cdb.put_sector_size==2340){
+			offs= 12;
+		}
 		while(cnt){
-			if(bt->size==0){
-				if(cdb.put_sector_size==2048){
-					bt->size = 24;
-				}else if(cdb.put_sector_size==2336){
-					bt->size = 16;
-				}else if(cdb.put_sector_size==2340){
-					bt->size = 12;
-				}
-			}
-			*(u16*)(bt->data + bt->size) = FIFO_DATA;
+			*(u16*)(bt->data + offs + bt->size) = FIFO_DATA;
 			bt->size += 2;
 			cnt -= 2;
 			if(bt->size == cdb.put_sector_size){
@@ -300,6 +300,7 @@ void trans_handle(void)
 			HIRQ = HIRQ_SCDQ;
 		}
 	}else{
+		cdb.trans_finish = 1;
 		ST_CTRL &= ~STIRQ_DAT;
 	}
 }
@@ -450,11 +451,15 @@ int filter_sector(TRACK_INFO *track, BLOCK *wblk)
 // 普通命令
 
 
+static int old_status;
 // 0x00 [SR]
 int get_cd_status(void)
 {
 	set_report(cdb.status);
-	SSLOG(_DEBUG, " %02x\n", cdb.status);
+	if(old_status!=cdb.status){
+		SSLOG(_DEBUG, " %02x\n", cdb.status);
+		old_status = cdb.status;
+	}
 
 	return 0;
 }
@@ -478,7 +483,7 @@ int get_toc_info(void)
 	SSLOG(_INFO, "get_toc_info\n");
 
 	if(cdb.trans_type){
-		set_status(STAT_WAIT);
+		set_status(STAT_WAIT | cdb.status);
 		return 0;
 	}
 
@@ -599,7 +604,7 @@ int end_trans(void)
 			}
 		}
 	}else{
-		SSLOG(_BUFIO, "end_trans: cdwnum=%08x FIFO_STAT=%08x min_num=%d\n", cdb.cdwnum, FIFO_STAT, min_num);
+		SSLOG(_BUFIO, "end_trans: cdwnum=%08x FIFO_STAT=%08x RCNT=%04x min_num=%d\n", cdb.cdwnum, FIFO_STAT, FIFO_RCNT, min_num);
 		fifo_remain = (FIFO_STAT&0x0fff)*2; // FIFO中还有多少字节未读
 		if(fifo_remain>=512){
 			//FIFO中的数据大于512字节，不会产生中断。cdwnum会少记一次。
@@ -667,6 +672,7 @@ int play_cd(void)
 	
 	HIRQ_CLR = HIRQ_PEND;
 
+	int play_tno = 0;
 	if(start_pos==0xffffff){
 		// PTYPE_NOCHG
 	}else if(start_pos&0x800000){
@@ -681,7 +687,7 @@ int play_cd(void)
 		cdb.play_fad_start = track_to_fad(start_pos);
 		cdb.track = (start_pos>>8)&0xff;
 		cdb.index = start_pos&0xff;
-		mode &= 0x7f;
+		play_tno = 1;
 	}
 
 	if(end_pos==0xffffff){
@@ -695,6 +701,11 @@ int play_cd(void)
 			cdb.play_fad_end = track_to_fad(end_pos);
 		else
 			cdb.play_fad_end = track_to_fad((end_pos&0xff00)|0x63);
+		if(play_tno){
+			// STEAM-HEART'S fixup
+			// 明确指定start与stop的情况下,强制更新fad.
+			cdb.fad = cdb.play_fad_start;
+		}
 	}else{
 		// PTYPE_DFL
 		cdb.play_fad_end = track_to_fad(0xffff);
@@ -744,6 +755,10 @@ int seek_cd(void)
 		cdb.index = 1;
 		cdb.options = 0x00;
 		cdb.repcnt = 0;
+		// 三国志: 吞食天地2
+		// Seek后, Play(00ffffff, 00ffffff, ff).
+		// 需要指定play_fad_end以免Play多读数据.
+		cdb.play_fad_end = 0;
 	}else{
 		// PTYPE_TNO
 		if(pos){
@@ -800,7 +815,7 @@ int get_subcode(void)
 	int rel_fad, rm, rs, rf, m, s, f;
 
 	if(cdb.trans_type){
-		set_status(STAT_WAIT);
+		set_status(STAT_WAIT | cdb.status);
 		return 0;
 	}
 
@@ -1243,7 +1258,7 @@ int get_sector_data(void)
 	PARTITION *pp;
 
 	if(cdb.trans_type){
-		set_status(STAT_WAIT);
+		set_status(STAT_WAIT | cdb.status);
 		return 0;
 	}
 
@@ -1260,18 +1275,20 @@ int get_sector_data(void)
 		snum = pp->numblocks-spos;
 	}
 	SSLOG(_BUFIO, "get_sector_data: part=%d(%d) spos=%d snum=%d\n", pt, pp->numblocks, spos, snum);
+	if(spos<0 || snum<=0 || (spos+snum) > pp->numblocks){
+		set_status(STAT_WAIT | cdb.status);
+		return 0;
+	}
 	gs_spos = spos;
 	gs_snum = snum;
 
-	if(pp->numblocks){
-		cdb.trans_type = TRANS_DATA;
-		cdb.trans_part_index = pt;
-		cdb.trans_block_start = spos;
-		cdb.trans_block_end = spos+snum;
+	cdb.trans_type = TRANS_DATA;
+	cdb.trans_part_index = pt;
+	cdb.trans_block_start = spos;
+	cdb.trans_block_end = spos+snum;
+	trans_start();
 
-		trans_start();
-	}
-	set_status(0x4000 | cdb.status);
+	set_status(STAT_TRNS | cdb.status);
 	return HIRQ_DRDY|HIRQ_EHST;
 }
 
@@ -1293,14 +1310,15 @@ int del_sector_data(void)
 	if(spos==0xffff){
 		spos = pp->numblocks-1;
 	}
-	if(spos>=pp->numblocks){
-		// 梦幻之星1会传入spos=180导致后续错误
-		spos = 0;
-	}
 	if(snum==0xffff){
 		snum = pp->numblocks-spos;
 	}
 	SSLOG(_BUFIO, "del_sector_data: part=%d spos=%d snum=%d\n", pt, spos, snum);
+	if(spos<0 || snum<=0 || (spos+snum) > pp->numblocks){
+		// 梦幻之星1会传入spos=180导致后续错误
+		set_status(STAT_WAIT | cdb.status);
+		return 0;
+	}
 
 	while(snum){
 		remove_block(pp, spos);
@@ -1319,7 +1337,7 @@ int get_del_sector_data(void)
 	gs_snum = 0;
 
 	if(cdb.trans_type){
-		set_status(STAT_WAIT);
+		set_status(STAT_WAIT | cdb.status);
 		return 0;
 	}
 
@@ -1328,47 +1346,27 @@ int get_del_sector_data(void)
 	snum = cdb.cr4;
 	pp = &cdb.part[pt];
 
-	if(pp->numblocks){
-		if(spos==0xffff){
-			spos = pp->numblocks-1;
-		}
-		if(snum==0xffff){
-			snum = pp->numblocks-spos;
-		}
-	}else{
-		if(spos==0xffff){
-			spos = 0;
-		}
-		if(snum==0xffff){
-			snum = 0;
-		}
-	}
-
 	SSLOG(_BUFIO, "get_del_sector_data: part=%d(%d) spos=%d snum=%d\n", pt, pp->numblocks, spos, snum);
-	if(snum==0){
-		// 针对<重装机兵2雷诺斯>的临时处理
-		while(cdb.play_type){
-			cdc_delay(10);
-		}
-		snum = pp->numblocks;
-	}else{
-		while(pp->numblocks<snum){
-			// 在这里等待并不是个好办法.
-			cdc_delay(10);
-		}
+	if(spos==0xffff){
+		spos = pp->numblocks-1;
+	}
+	if(snum==0xffff){
+		snum = pp->numblocks-spos;
 	}
 	SSLOG(_BUFIO, "                   : part=%d(%d) spos=%d snum=%d\n", pt, pp->numblocks, spos, snum);
-
-	if(pp->numblocks){
-		cdb.trans_type = TRANS_DATA_DEL;
-		cdb.trans_part_index = pt;
-		cdb.trans_block_start = spos;
-		cdb.trans_block_end = spos+snum;
-
-		trans_start();
+	if(spos<0 || snum<=0 || (spos+snum) > pp->numblocks){
+		// 格兰蒂亚: 传入了snum=0. 似乎应该直接返回.
+		set_status(STAT_WAIT | cdb.status);
+		return 0;
 	}
 
-	set_status(0x4000 | cdb.status);
+	cdb.trans_type = TRANS_DATA_DEL;
+	cdb.trans_part_index = pt;
+	cdb.trans_block_start = spos;
+	cdb.trans_block_end = spos+snum;
+	trans_start();
+
+	set_status(STAT_TRNS | cdb.status);
 	return HIRQ_DRDY|HIRQ_EHST;
 }
 
@@ -1380,7 +1378,7 @@ int put_sector_data(void)
 	PARTITION *pp;
 
 	if(cdb.trans_type){
-		set_status(STAT_WAIT);
+		set_status(STAT_WAIT | cdb.status);
 		return 0;
 	}
 
@@ -1525,9 +1523,9 @@ int handle_diread(void)
 		SSLOG(_FILEIO, "  cdir_lba=%08x size=%08x\n", cdb.cdir_lba, cdb.cdir_size);
 		fill_fileinfo();
 		free_partition(pt);
+		HIRQ = HIRQ_EFLS;
 	}
 
-	HIRQ = HIRQ_EFLS;
 	return 0;
 }
 
@@ -1661,7 +1659,7 @@ int get_file_info(void)
 	int i;
 
 	if(cdb.trans_type){
-		set_status(STAT_WAIT);
+		set_status(STAT_WAIT | cdb.status);
 		return 0;
 	}
 
@@ -1760,9 +1758,10 @@ int read_file(void)
 	_set_filter(selnum, 0x40, cdb.play_fad_start, lba_size-offset);
 	disk_task_wakeup();
 
-	set_report(0x4000 | cdb.status);
-	return HIRQ_EFLS;
+	set_report(cdb.status);
+	return 0;
 }
+
 
 // 0x75 [SR]
 int abort_file(void)

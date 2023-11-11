@@ -421,7 +421,7 @@ int bup_dir(int dev, char *file_name, int tbsize, BUPDIR *dir)
 
 	printk("bup_dir(%d): %s  %d\n", dev, file_name, tbsize);
 	if(dev>0)
-		return BUP_NON;
+		return 0;
 
 	fnum = 0;
 	while(1){

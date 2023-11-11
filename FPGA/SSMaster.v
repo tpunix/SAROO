@@ -5,6 +5,10 @@
 
 // version 0.1: first step.
 //         0.2: for HW1.2
+//         0.3:
+//         0.4: support put_sector_data
+//         0.5: CDC bug fix
+
 
 module SSMaster(
 	// System
@@ -227,9 +231,10 @@ module SSMaster(
 		if(NRESET==0) begin
 			st_reg_ctrl <= 0;
 			st_reg_spi <= 3'b111;
+			st_reg_sdram <= 12'b11_1100001101; // type:64MB  refcnt: 0x30d(7.81us)
 		end else if(st_wr_start==1) begin
 			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h04) st_reg_ctrl <= ST_AD;
-			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h16) st_reg_spi <= ST_AD[3:1];
+			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h16) {st_reg_sdram, st_reg_spi} <= ST_AD[15:1];
 			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h20) ss_resp1 <= ST_AD;
 			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h22) ss_resp2 <= ST_AD;
 			if(fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h24) ss_resp3 <= ST_AD;
@@ -369,16 +374,17 @@ module SSMaster(
 	begin
 		st_reg_data_out <= 
 						(fsmc_addr[7:0]==8'h00)? 16'h5253 : // ID: "SR"
-						(fsmc_addr[7:0]==8'h02)? 16'h1204 : // ver: HW1.2 && SW0.4
+						(fsmc_addr[7:0]==8'h02)? 16'h1205 : // ver: HW1.2 && SW0.5
 						(fsmc_addr[7:0]==8'h04)? st_reg_ctrl :
 						(fsmc_addr[7:0]==8'h06)? st_reg_stat :
 						(fsmc_addr[7:0]==8'h08)? st_fifo_data_out :
 						(fsmc_addr[7:0]==8'h0a)? st_fifo_data_out :
 						(fsmc_addr[7:0]==8'h0c)? st_fifo_stat :
+						(fsmc_addr[7:0]==8'h0e)? st_fifo_rcnt :
 						(fsmc_addr[7:0]==8'h10)? ss_reg_cmd :
 						(fsmc_addr[7:0]==8'h12)? ss_reg_data :
 						(fsmc_addr[7:0]==8'h14)? ss_reg_ctrl :
-						(fsmc_addr[7:0]==8'h16)? {12'b0, EPCS_CS, EPCS_CLK, EPCS_DI, EPCS_DO} :
+						(fsmc_addr[7:0]==8'h16)? {st_reg_sdram, EPCS_CS, EPCS_CLK, EPCS_DI, EPCS_DO} :
 
 						(fsmc_addr[7:0]==8'h18)? ss_resp1 :
 						(fsmc_addr[7:0]==8'h1a)? ss_resp2 :
@@ -440,7 +446,7 @@ module SSMaster(
 
 	always @(posedge mclk)
 	begin
-		sscs_s0 <= (SS_CS0 & SS_CS1 & SS_CS2);
+		sscs_s0 <= (SS_CS0 & SS_CS1 & SS_CS2) | ~SS_FC1;
 		sscs_s1 <= sscs_s0;
 		sscs_s2 <= sscs_s1;
 		sscs_s3 <= sscs_s2;
@@ -463,7 +469,7 @@ module SSMaster(
 					(SS_RD==0 && ss_cdc_cs==1)? ss_cdc_data_out :
 					16'hzzzz;
 
-	assign SS_DATA_OE = (SS_CS0==1 && SS_CS1==1 && (SS_CS2==1 || (ss_cdc_cs==1 && SS_RD==0 && ss_cdc_en==0)));
+	assign SS_DATA_OE = ~SS_FC1 | (SS_CS0==1 && SS_CS1==1 && (SS_CS2==1 || (ss_cdc_cs==1 && SS_RD==0 && ss_cdc_en==0)));
 
 	assign SS_DATA_DIR = (SS_WR0 & SS_WR1);
 
@@ -497,7 +503,7 @@ module SSMaster(
 	begin
 		ss_bcr_data_out <= 
 			(SS_ADDR[5:1]==5'b00_000)? 16'h5253 : // ID: "SR"
-			(SS_ADDR[5:1]==5'b00_001)? 16'h1204 : // ver: HW1.2 && SW0.4
+			(SS_ADDR[5:1]==5'b00_001)? 16'h1205 : // ver: HW1.2 && SW0.5
 			(SS_ADDR[5:2]==4'b00_01 )? ss_reg_ctrl :
 			(SS_ADDR[5:2]==4'b00_10 )? ss_reg_stat :
 			(SS_ADDR[5:1]==5'b00_110)? ss_reg_timer[31:16] :
@@ -594,6 +600,19 @@ module SSMaster(
 				.full(fifo_full)
 			);
 
+	// Saturn set and STM32 reset
+	reg[15:0] st_fifo_rcnt;
+	always @(negedge NRESET or posedge mclk)
+	begin
+		if(NRESET==0)
+			st_fifo_rcnt <= 4'b0000;
+		else if(st_wr_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h0e)
+			st_fifo_rcnt <= 0;
+		else if(ss_fifo_read)
+			st_fifo_rcnt <= st_fifo_rcnt+1'b1;
+	end
+
+
 ///////////////////////////////////////////////////////
 // SATURN CDC                                        //
 ///////////////////////////////////////////////////////
@@ -649,7 +668,8 @@ module SSMaster(
 // SDRAM                                             //
 ///////////////////////////////////////////////////////
 
-	
+	reg[11:0] st_reg_sdram;
+
 	// STM32 is LittleEndian system
 	wire[25:0] st_ram_addr = {2'b0, fsmc_addr[23:0]};
 	wire[ 1:0] st_mask = {ST_BL1,ST_BL0};
@@ -689,7 +709,7 @@ module SSMaster(
 		NRESET, mclk,
 		ss_ram_cs, ss_rd_start, ss_wr_start, ss_mask, ss_ram_wait, ss_ram_addr, ss_ram_din, ss_ram_dout,
 		st_ram_cs, st_rd_start, st_wr_start, st_mask, st_ram_wait, st_ram_addr, ST_AD,      st_ram_data_out,
-		SD_CKE, SD_CS, SD_RAS, SD_CAS, SD_WE, SD_ADDR, SD_BA, SD_DQM, SD_DQ, ss_refresh
+		SD_CKE, SD_CS, SD_RAS, SD_CAS, SD_WE, SD_ADDR, SD_BA, SD_DQM, SD_DQ, ss_refresh, st_reg_sdram
 	);
 
 	assign SD_CLK = sdclk;

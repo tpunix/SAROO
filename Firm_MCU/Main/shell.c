@@ -296,6 +296,17 @@ void simple_shell(void)
 		CMD(flu){
 			flash_update(0);
 		}
+		CMD(sdram){
+			void sdram_config(int type, int reftime);
+			int type=3, reftime=64;
+			if(argc>=1){
+				type = arg[0];
+			}
+			if(argc>=2){
+				reftime = arg[1];
+			}
+			sdram_config(type, reftime);
+		}
 
 		CMD(mmt){
 			u32 addr = 0x61000000;
@@ -377,6 +388,10 @@ void simple_shell(void)
 			}else{
 				printk("create exram.bin failed! %d\n", retv);
 			}
+		}
+		CMD(pt){
+			void show_pt(int id);
+			show_pt(arg[0]);
 		}
 
 		CMD(q){

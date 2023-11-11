@@ -6,6 +6,7 @@
 module tsdram(
 	reset,
 	clk,
+	reg_sdram,
 
 	ext_refresh,
 	cmd_req,
@@ -37,6 +38,7 @@ module tsdram(
 
 	input reset;
 	input clk;
+	input [11:0] reg_sdram;
 
 	input ext_refresh;
 	input [ 1:0] cmd_req;
@@ -87,15 +89,40 @@ module tsdram(
 ///////////////////////////////////////////////////////
 
 	// A31 - A26 [A25 - A13] [A12 A11] [A10 - A1] A0
-	//           [R12 -  R0] [ B1  B0] [ C9 - C0] 
+	//           [R12 -  R0] [ B1  B0] [ C9 - C0]      64MB
+	//
+	// A31 - A25 [A24 - A12] [A11 A10] [ A9 - A1] A0
+	//           [R12 -  R0] [ B1  B0] [ C8 - C0]      32MB
+	//
+	// A31 - A24 [A23 - A12] [A11 A10] [ A9 - A1] A0
+	//           [R11 -  R0] [ B1  B0] [ C8 - C0]      16MB
+	//
+	// A31 - A23 [A22 - A11] [A10  A9] [ A8 - A1] A0
+	//           [R11 -  R0] [ B1  B0] [ C7 - C0]       8MB
 
 	localparam BANK_POS = COL_BITS+1;
 	localparam ROW_POS  = BANK_POS+2;
 
-	wire[ROW_BITS-1:0] col_addr = {3'b001, {(10-COL_BITS){1'b0}}, cmd_addr[COL_BITS:1]};
+//	wire[ROW_BITS-1:0] col_addr = {3'b001, {(10-COL_BITS){1'b0}}, cmd_addr[COL_BITS:1]};
+//	wire[1:0] bank_addr = cmd_addr[COL_BITS+2:COL_BITS+1];
+//	wire[ROW_BITS-1:0] row_addr = cmd_addr[ROW_BITS+COL_BITS+2:COL_BITS+3];
 
-	wire[1:0] bank_addr = cmd_addr[COL_BITS+2:COL_BITS+1];
-	wire[ROW_BITS-1:0] row_addr = cmd_addr[ROW_BITS+COL_BITS+2:COL_BITS+3];
+	wire[1:0] sdtype = reg_sdram[11:10];
+	wire[12:0] col_addr =
+		(sdtype==2'b11)? {3'b001,   cmd_addr[10:1]} :
+		(sdtype==2'b10)? {4'b0010,  cmd_addr[ 9:1]} :
+		(sdtype==2'b01)? {4'b0010,  cmd_addr[ 9:1]} :
+							  {5'b00100, cmd_addr[ 8:1]} ;
+	wire[1:0] bank_addr =
+		(sdtype==2'b11)? cmd_addr[12:11] :
+		(sdtype==2'b10)? cmd_addr[11:10] :
+		(sdtype==2'b01)? cmd_addr[11:10] :
+							  cmd_addr[10: 9] ;
+	wire[12:0] row_addr =
+		(sdtype==2'b11)? cmd_addr[25:13] :
+		(sdtype==2'b10)? cmd_addr[24:12] :
+		(sdtype==2'b01)? {1'b0, cmd_addr[23:12]} :
+							  {1'b0, cmd_addr[22:11]} ;
 
 
 ///////////////////////////////////////////////////////
@@ -110,7 +137,8 @@ module tsdram(
 		if(reset==0) begin
 			ref_count <= tPOR_count[15:0];
 		end else if(ref_ack) begin
-			ref_count <= tREF_count[15:0];
+//			ref_count <= tREF_count[15:0];
+			ref_count <= {6'b0, reg_sdram[9:0]};
 		end else if(ref_count) begin
 			ref_count <= ref_count-1'b1;
 		end

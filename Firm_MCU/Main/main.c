@@ -244,25 +244,53 @@ int flash_update(int check)
 	_puts("erase ...\n");
 	retv = flash_erase(firm_addr);
 	if(retv){
-		restore_irq(key);
-		_puts("    faile!\n");
-		return -2;
+		retv = -2;
+		goto _exit;
 	}
 
 	_puts("write ...\n");
 	for(i=0; i<fsize; i+=32){
 		retv = flash_write32(firm_addr+i, fbuf+i);
 		if(retv){
-			restore_irq(key);
-			_puts("    faile!\n");
-			return -3;
+			retv = -3;
+			goto _exit;
 		}
 	}
 
+_exit:
+	if(retv){
+		_puts("    faile!\n");
+	}
+	*(volatile u16*)(0x60000012) = retv;
+	*(volatile u16*)(0x60000010) = 0;
+
 	restore_irq(key);
 
-	printk("MCU update OK!\n");
-	f_unlink("/SAROO/update/ssmaster.bin");
+	if(retv==0){
+		_puts("MCU update OK!\n");
+		f_unlink("/SAROO/update/ssmaster.bin");
+	}
+
+	return retv;
+}
+
+
+int flash_write_config(u8 *cfgbuf)
+{
+	int retv;
+	
+	retv = flash_erase(0x080e0000);
+	if(retv){
+		printk("erase failed! %08x\n", retv);
+		return retv;
+	}
+	
+	retv = flash_write32(0x080e0000, cfgbuf);
+	if(retv){
+		printk("write failed! %08x\n", retv);
+		return retv;
+	}
+	
 	return 0;
 }
 

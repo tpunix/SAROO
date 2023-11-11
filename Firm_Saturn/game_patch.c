@@ -165,6 +165,15 @@ void Metal_Slug_patch(void)
 }
 
 
+/*********************************************************/
+ //Metal_Slug A 合金弹头1.005版
+void Metal_Slug_A_patch(void)
+{
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
+	*(u32*)(0x06079FBC) = 0x34403440;
+}
+
+
 /**********************************************************/
 // KOF96
 // 1MB RAM cart only
@@ -332,6 +341,26 @@ void xmvsf_patch(void)
 
 
 /**********************************************************/
+// Marvel Super Heroes vs. Street Fighter (Japan)
+void mshvssf_handle1(void)
+{
+	if(*(u16*)(0x600286e)== 0x2012)
+		*(u16*)(0x600286e) = 0x0009;
+	if(*(u16*)(0x600205A)== 0x2102)
+		*(u16*)(0x600205A) = 0x0009;
+	__asm volatile("jmp @%0"::"r"(0x6002000)); 
+	__asm volatile ("nop" :: );	
+}
+
+void mshvssf_patch(void)
+{
+	*(u8*)0x060F000B = 0x46;
+	*(u8*)0x060F001D = 0x41;
+	*(u32*)(0x60F0124) = (u32)mshvssf_handle1;
+}
+
+
+/**********************************************************/
 // WAKUWAKU7                火热火热7 未修复
 void WAKU7_patch(void)
 {
@@ -361,7 +390,7 @@ void FIGHTERS_HISTORY_patch(void)
 {
 	*(u16*)0x060507C4 = 0x9;
 	*(u16*)0x060507d8 = 0x9;
-	SS_CTRL = (SAROO_EN | CS0_RAM1M);
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)0x060500C8 = 0x34403440;
 	*(u32*)0x06057000 = 0x34403440;
 	*(u32*)0x0605707C = 0x34403440;
@@ -404,7 +433,8 @@ GAME_DB game_dbs[] = {
 	{"T-1230G",   "POCKET_FIGHTER", POCKET_FIGHTER_patch},
 	{"T-1246G",   "SF_ZERO3", SF_ZERO3_patch},
 
-	{"T-3111G",   "Metal_Slug", Metal_Slug_patch},
+	{"T-3111G   V1.002",   "Metal_Slug", Metal_Slug_patch},
+	{"T-3111G   V1.005",   "Metal_Slug_A", Metal_Slug_A_patch},
 	{"T-3108G",   "KOF96",    kof96_patch},
 	{"T-3121G",   "KOF97",    kof97_patch},
 	{"T-3104G",   "SamuraiSp3",  smrsp3_patch},
@@ -422,6 +452,7 @@ GAME_DB game_dbs[] = {
 	{"T-1248G",   "FINAL_FIGHT_REVENGE",  FINAL_FIGHT_REVENGE_patch},
 	{"T-1226G",   "XMENVSSF",  xmvsf_patch},
 	{"T-1215G",   "MARVEL_SUPER",  MARVEL_SUPER_patch},
+	{"T-1238G   V1.000",   "MSH_VS_SF", mshvssf_patch},
 	{NULL,},
 };
 

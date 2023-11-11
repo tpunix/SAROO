@@ -62,6 +62,7 @@ void saturn_config(void);
 
 int flash_update(int check);
 int fpga_update(int check);
+int flash_write_config(u8 *cfgbuf);
 
 
 /******************************************************************************/

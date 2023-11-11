@@ -153,6 +153,8 @@ int get_sector(int fad, BLOCK *wblk)
 			return -1;
 		}
 	}
+	if(wblk==NULL)
+		return 0;
 
 	if(fad>=buf_fad_start && fad<buf_fad_end){
 		// 在内部缓存中找到了要play的扇区
@@ -206,20 +208,19 @@ int get_sector(int fad, BLOCK *wblk)
 /******************************************************************************/
 
 
-void show_pt(void)
+void show_pt(int id)
 {
 	PARTITION *pt;
-	FILTER *ft;
+	BLOCK *bk;
+	int i;
 
-	if(cdb.cddev_filter==0xff){
-		return;
+	pt = &cdb.part[id];
+	SSLOG(_INFO, "Part_%d: nblks=%d\n", pt->numblocks);
+	bk = pt->head;
+	for(i=0; i<pt->numblocks; i++){
+		SSLOG(_INFO, "  %2d: size=%4d fad=%08x data=%08x\n", i, bk->size, bk->fad, bk->data);
+		bk = bk->next;
 	}
-	ft = &cdb.filter[cdb.cddev_filter];
-	pt = &cdb.part[ft->c_true];
-
-	SSLOG(_INFO, "           : Part_%d: nblks=%d\n", ft->c_true, pt->numblocks);
-
-
 }
 
 
@@ -281,6 +282,9 @@ _restart_nowait:
 			set_pause_ok();
 			goto _restart_wait;
 		}
+		
+		get_sector(cdb.fad, NULL);
+
 		if(cdb.play_fad_start==0 || cdb.play_type==0){
 			SSLOG(_DTASK, "play_task: play_type=%d! play_fad_start=%08x!\n", cdb.play_type, cdb.play_fad_start);
 			cdb.status = STAT_PAUSE;
@@ -291,8 +295,9 @@ _restart_nowait:
 		}else{
 			SSLOG(_DTASK, "\nplay_task! fad_start=%08x(lba_%d) fad_end=%08x fad=%08x type=%d free=%d\n",
 					cdb.play_fad_start, cdb.play_fad_start-150, cdb.play_fad_end, cdb.fad, cdb.play_type, cdb.block_free);
-			if(cdb.play_fad_start == cdb.fad){
+			if(cdb.play_type==PLAYTYPE_SECTOR && cdb.play_fad_start == cdb.fad){
 				if(play_delay){
+					cdb.status = STAT_SEEK;
 					hw_delay(play_delay);
 				}
 			}
@@ -329,7 +334,7 @@ _restart_nowait:
 			}else
 			{
 				//printk("filter sector %08x...\n", cdb.fad);
-				if(sector_delay){
+				if(cdb.play_type==PLAYTYPE_SECTOR && sector_delay){
 					hw_delay(sector_delay);
 				}
 				retv = filter_sector(play_track, &wblk);
@@ -341,6 +346,9 @@ _restart_nowait:
 					SSLOG(_DTASK, "buffer full! wait ...\n");
 					// block缓存已满, 需要等待某个事件再继续
 					HIRQ = HIRQ_BFUL;
+					if(cdb.play_type==PLAYTYPE_FILE){
+						HIRQ = HIRQ_EFLS;
+					}
 					cdb.status = STAT_PAUSE;
 					cdb.play_wait = 1;
 					goto _restart_wait;
