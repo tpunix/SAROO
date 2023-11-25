@@ -548,7 +548,8 @@ int init_cdblock(void)
 
 	cdb.trans_type = 0;
 	cdb.cdwnum = 0;
-	cdb.fad = 150;
+	// Galaxy Fight: 在play之后发出init_cdblock命令. 此处不能设置当前fad，否则会破坏之前的play。
+	//cdb.fad = 150;
 	cdb.cdir_lba = 0;
 	cdb.root_lba = 0;
 
@@ -704,6 +705,7 @@ int play_cd(void)
 		if(play_tno){
 			// STEAM-HEART'S fixup
 			// 明确指定start与stop的情况下,强制更新fad.
+			cdb.old_fad = cdb.fad;
 			cdb.fad = cdb.play_fad_start;
 		}
 	}else{
@@ -711,8 +713,10 @@ int play_cd(void)
 		cdb.play_fad_end = track_to_fad(0xffff);
 	}
 
-	if((mode&0x80)==0)
+	if((mode&0x80)==0){
+		cdb.old_fad = cdb.fad;
 		cdb.fad = cdb.play_fad_start;
+	}
 	if((mode&0x7f)!=0x7f)
 		cdb.max_repeat = mode&0x0f;
 
@@ -750,20 +754,31 @@ int seek_cd(void)
 	}else if(pos&0x800000){
 		// PTYPE_FAD
 		cdb.play_fad_start = pos&0x0fffff;
+		cdb.old_fad = cdb.fad;
 		cdb.fad = cdb.play_fad_start;
 		cdb.track = fad_to_track(cdb.play_fad_start);
 		cdb.index = 1;
 		cdb.options = 0x00;
 		cdb.repcnt = 0;
-		// 三国志: 吞食天地2
-		// Seek后, Play(00ffffff, 00ffffff, ff).
-		// 需要指定play_fad_end以免Play多读数据.
-		cdb.play_fad_end = 0;
+		ti = &cdb.tracks[cdb.track-1];
+		if(ti->mode==3){
+			// Steam Heart
+			// 使用Seek, Play(00ffffff, 00ffffff, ff)来继续播放音轨
+			// 需要指定play_fad_end.
+			cdb.play_fad_end = ti->fad_end;
+		}else{
+			// 三国志: 吞食天地2
+			// Seek后, Play(00ffffff, 00ffffff, ff).
+			// 需要指定play_fad_end以免Play多读数据.
+			cdb.old_fad = cdb.fad;
+			cdb.play_fad_end = cdb.fad;
+		}
 	}else{
 		// PTYPE_TNO
 		if(pos){
 
 			cdb.play_fad_start = track_to_fad(pos);
+			cdb.old_fad = cdb.fad;
 			cdb.fad = cdb.play_fad_start;
 			cdb.track = (pos>>8)&0xff;
 			cdb.index = pos&0xff;
@@ -1018,16 +1033,26 @@ int get_filter_mode(void)
 // 0x46 [SR]
 int set_filter_connection(void)
 {
-	int fid;
+	int fid, flag, ct, cf;
 
+	flag = cdb.cr1&0xff;
+	ct = cdb.cr2>>8;
+	cf = cdb.cr2&0xff;
 	fid = cdb.cr3>>8;
-	SSLOG(_FILTER, "set_filter_connection: fid=%d  mode=%d true=%02x false=%02x\n", fid, cdb.cr1&0xff, cdb.cr2>>8, cdb.cr2&0xff);
+	SSLOG(_FILTER, "set_filter_connection: fid=%d  flag=%d true=%02x false=%02x\n", fid, flag, ct, cf);
 
-	if(cdb.cr1&0x01){
-		cdb.filter[fid].c_true = cdb.cr2>>8;
+	if(fid>=24)
+		return 0;
+
+	if(flag&1){
+		if(ct>=24 && ct!=0xff)
+			return 0;
+		cdb.filter[fid].c_true = ct;
 	}
-	if(cdb.cr1&0x02){
-		cdb.filter[fid].c_false = cdb.cr2&0xff;
+	if(flag&2){
+		if(cf>=24 && cf!=0xff)
+			return 0;
+		cdb.filter[fid].c_false = cf;
 	}
 
 	return HIRQ_ESEL;
@@ -1076,6 +1101,15 @@ int reset_filter(void)
 	mode = cdb.cr1&0xff;
 	fid = cdb.cr3>>8;
 	SSLOG(_FILTER, "reset_filter: mode=%02x fid=%d\n", mode, fid);
+
+	if(fid==cdb.cddev_filter && cdb.play_type!=0){
+		cdb.pause_request = 1;
+		cdb.play_wait = 0;
+		SSLOG(_CDRV, "reset_filter: Send PAUSE request!\n");
+		do{
+			wait_pause_ok();
+		}while(cdb.pause_request);
+	}
 
 	if(mode==0){
 		if(gs_snum){
@@ -1515,6 +1549,7 @@ int handle_diread(void)
 		cdb.play_fad_start = cdb.cdir_lba+150;
 		cdb.track = fad_to_track(cdb.play_fad_start);
 		cdb.play_fad_end = cdb.play_fad_start+cdb.cdir_size;
+		cdb.old_fad = cdb.fad;
 		cdb.fad = cdb.play_fad_start;
 		_set_filter(cdb.dir_filter, 0x40, cdb.play_fad_start, cdb.cdir_size);
 		return 1;
@@ -1554,6 +1589,7 @@ int change_dir(void)
 			cdb.play_fad_start = 16+150;
 			cdb.track = fad_to_track(cdb.play_fad_start);
 			cdb.play_fad_end = cdb.play_fad_start+1;
+			cdb.old_fad = cdb.fad;
 			cdb.fad = cdb.play_fad_start;
 			_set_filter(selnum, 0x40, cdb.play_fad_start, 1);
 			disk_task_wakeup();
@@ -1569,6 +1605,7 @@ int change_dir(void)
 			cdb.play_fad_start = cdb.cdir_lba+150;
 			cdb.track = fad_to_track(cdb.play_fad_start);
 			cdb.play_fad_end = cdb.play_fad_start+cdb.cdir_size;
+			cdb.old_fad = cdb.fad;
 			cdb.fad = cdb.play_fad_start;
 			_set_filter(selnum, 0x40, cdb.play_fad_start, cdb.cdir_size);
 			disk_task_wakeup();
@@ -1598,6 +1635,7 @@ int change_dir(void)
 			cdb.play_fad_start = cdb.cdir_lba+150;
 			cdb.track = fad_to_track(cdb.play_fad_start);
 			cdb.play_fad_end = cdb.play_fad_start+cdb.cdir_size;
+			cdb.old_fad = cdb.fad;
 			cdb.fad = cdb.play_fad_start;
 			_set_filter(selnum, 0x40, cdb.play_fad_start, cdb.cdir_size);
 			disk_task_wakeup();
@@ -1629,6 +1667,7 @@ int read_dir(void)
 		cdb.play_fad_start = cdb.cdir_lba+150;
 		cdb.track = fad_to_track(cdb.play_fad_start);
 		cdb.play_fad_end = cdb.play_fad_start+cdb.cdir_size;
+		cdb.old_fad = cdb.fad;
 		cdb.fad = cdb.play_fad_start;
 		_set_filter(selnum, 0x40, cdb.play_fad_start, cdb.cdir_size);
 		disk_task_wakeup();
@@ -1753,6 +1792,7 @@ int read_file(void)
 	cdb.play_fad_start = fi->lba+offset+150;
 	cdb.track = fad_to_track(cdb.play_fad_start);
 	cdb.play_fad_end = cdb.play_fad_start + lba_size-offset;
+	cdb.old_fad = cdb.fad;
 	cdb.fad = cdb.play_fad_start;
 	cdb.options = 0x08;
 	_set_filter(selnum, 0x40, cdb.play_fad_start, lba_size-offset);

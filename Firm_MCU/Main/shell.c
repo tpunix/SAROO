@@ -286,10 +286,6 @@ void simple_shell(void)
 		CMD(d) { dump(argc, arg, 0); }
 		CMD(go){ void (*go)(void) = (void(*)(void))arg[0]; go(); }
 		
-		CMD(spt){
-			void play_i2s(void);
-			play_i2s();
-		}
 		CMD(fpu){
 			fpga_update(0);
 		}
@@ -333,9 +329,14 @@ void simple_shell(void)
 			}
 		}
 
-
 		CMD(ls){
 			scan_dir("/", 0, NULL);
+		}
+
+#ifndef BOOT
+		CMD(spt){
+			void play_i2s(void);
+			play_i2s();
 		}
 		CMD(lscue){
 			int list_disc(int show);
@@ -377,6 +378,13 @@ void simple_shell(void)
 			}
 			printk("play_delay_force: %d\n", play_delay_force);
 		}
+		CMD(pdly){
+			extern int play_delay;
+			if(argc){
+				play_delay = arg[0];
+			}
+			printk("play_delay: %d\n", play_delay);
+		}
 		CMD(seram){
 			FIL fp;
 			int retv = f_open(&fp, "/exram.bin", FA_CREATE_ALWAYS|FA_WRITE);
@@ -393,6 +401,7 @@ void simple_shell(void)
 			void show_pt(int id);
 			show_pt(arg[0]);
 		}
+#endif
 
 		CMD(q){
 			break;

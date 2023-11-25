@@ -5,6 +5,7 @@
 
 /******************************************************************************/
 
+#ifdef BOOT
 void set_mpu_entry(int index, u32 addr, u32 attr)
 {
 	MPU->RNR = index;
@@ -22,10 +23,12 @@ void mpu_config(void)
 
 	MPU->CTRL = 0x0005;
 }
+#endif
 
 
 void device_init(void)
 {
+#ifdef BOOT
 	RCC->AHB3ENR  = 0x00011001;  /* SDMMC1 FMC MDMA*/
 	RCC->AHB1ENR  = 0x08000003;  /* OTG2_FS DMA2 DMA1 */
 	RCC->AHB2ENR  = 0xe0000000;  /* SRAM3 SRAM2 SRAM1 */
@@ -76,15 +79,18 @@ void device_init(void)
 	GPIOE->AFR[0] = 0xcccccccc;
 	GPIOE->AFR[1] = 0xcccccccc;
 
-
-	uart4_init();
-
 	// FMC的地址复用模式, 只在MType为PSRAM/FLASH时可用.
 	// 各种模式的优先级: ExtMode > MuxMode > Mode1/2
 	// PSRAM模式下, 单次写入会扩展为带BL信号的4次写入. 所以FMC只能选择FLASH模式.
 	// FMC_CS1: 0xc0000000
 	FMC_Bank1_R->BTCR[0]  = 0x8000b05b;
 	FMC_Bank1_R->BTCR[1]  = 0x00020612;
+
+	mpu_config();
+
+#endif
+
+	uart4_init();
 }
 
 
@@ -219,7 +225,7 @@ int flash_update(int check)
 	u8 *fbuf = (u8*)0x24002000;
 
 	// 检查是否有升级文件.
-	retv = f_open(&fp, "/SAROO/update/ssmaster.bin", FA_READ);
+	retv = f_open(&fp, "/SAROO/update/mcuboot.bin", FA_READ);
 	if(retv){
 		printk("No firm file.\n");
 		return -1;
@@ -268,7 +274,7 @@ _exit:
 
 	if(retv==0){
 		_puts("MCU update OK!\n");
-		f_unlink("/SAROO/update/ssmaster.bin");
+		f_unlink("/SAROO/update/mcuboot.bin");
 	}
 
 	return retv;
@@ -314,6 +320,36 @@ void fs_mount(void *arg)
 
 }
 
+#ifdef BOOT
+void load_app(void)
+{
+	FIL fp;
+	int retv;
+	u32 rv;
+
+	// 检查是否有mcuapp. 如果有,就加载到FPGA中
+	retv = f_open(&fp, "/SAROO/mcuapp.bin", FA_READ);
+	if(retv){
+		printk("NO mcuapp file found!\n");
+		led_event(LEDEV_NOFIRM);
+		return;
+	}
+	printk("Found MCU app file.\n");
+	printk("    Size %08x\n", f_size(&fp));
+
+	rv = 0;
+	retv = f_read(&fp, (void*)0, f_size(&fp), &rv);
+	printk("    f_read: retv=%d rv=%08x\n", retv, rv);
+	f_close(&fp);
+
+	printk("Start app ...        \n\n\n\n\n\n\n\n");
+	u32 app_addr = 0;
+	void (*entry)(void) = (void*)(*(u32*)(app_addr+4));
+	__set_MSP(*(u32*)(app_addr+0));
+	entry();
+}
+#endif
+
 
 /******************************************************************************/
 
@@ -323,22 +359,19 @@ void fpga_config(void);
 void main_task(void *arg)
 {
 	device_init();
-
 	printk("\n\nSSMaster start! %08x\n\n", get_build_date());
 
-	mpu_config();
-
 	sdio_init();
-	
 	fs_mount(0);
-	
-	fpga_config();
 
+#ifdef BOOT
+	fpga_config();
+	load_app();
+#else
 	saturn_config();
+#endif
 
 	simple_shell();
-
-
 }
 
 

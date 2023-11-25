@@ -266,7 +266,7 @@ int printk(char *fmt, ...)
 	printed_len = vsnprintk(printk_buf, sizeof(printk_buf), fmt, args);
 	va_end(args);
 
-#if 0
+#ifdef BOOT
 	_puts(printk_buf);
 #else
 	uart4_puts(printk_buf);

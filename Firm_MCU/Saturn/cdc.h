@@ -259,6 +259,7 @@ typedef struct
 	int play_wait;
 	u32 play_fad_start;
 	u32 play_fad_end;
+	u32 old_fad;
 	int pause_request;
 	int max_repeat;
 

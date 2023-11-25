@@ -143,6 +143,7 @@ int get_sector(int fad, BLOCK *wblk)
 	// 先查找track信息
 	if(play_track==NULL || fad<play_track->fad_start || fad>play_track->fad_end){
 		cdb.track = fad_to_track(fad);
+		SSLOG(_DTASK, "Change to track %d\n", cdb.track);
 		if(cdb.track!=0xff){
 			play_track = &cdb.tracks[cdb.track-1];
 		}else{
@@ -244,6 +245,7 @@ void disk_task(void *arg)
 	BLOCK wblk;
 
 	cdb.status = STAT_NODISC;
+	set_status(cdb.status);
 	list_disc(0);
 
 	int wait_ticks = 10;
@@ -275,6 +277,7 @@ _restart_nowait:
 		if(cdb.pause_request){
 			SSLOG(_DTASK, "play_task: Recv PAUSE request!\n");
 			cdb.status = STAT_PAUSE;
+			set_status(cdb.status);
 			cdb.play_type = 0;
 			buf_fad_start = 0;
 			buf_fad_end = 0;
@@ -288,6 +291,7 @@ _restart_nowait:
 		if(cdb.play_fad_start==0 || cdb.play_type==0){
 			SSLOG(_DTASK, "play_task: play_type=%d! play_fad_start=%08x!\n", cdb.play_type, cdb.play_fad_start);
 			cdb.status = STAT_PAUSE;
+			set_status(cdb.status);
 			goto _restart_wait;
 		}
 
@@ -295,23 +299,37 @@ _restart_nowait:
 		}else{
 			SSLOG(_DTASK, "\nplay_task! fad_start=%08x(lba_%d) fad_end=%08x fad=%08x type=%d free=%d\n",
 					cdb.play_fad_start, cdb.play_fad_start-150, cdb.play_fad_end, cdb.fad, cdb.play_type, cdb.block_free);
-			if(cdb.play_type==PLAYTYPE_SECTOR && cdb.play_fad_start == cdb.fad){
-				if(play_delay){
-					cdb.status = STAT_SEEK;
-					hw_delay(play_delay);
-				}
-			}
 		}
 
 		if(cdb.fad==0){
 			cdb.fad = cdb.play_fad_start;
 		}
+		if(cdb.play_type!=PLAYTYPE_FILE && cdb.play_fad_start == cdb.fad){
+			if(play_delay){
+				int calc_delay = play_delay;
+#if 0
+				int fadiff = (cdb.old_fad>cdb.fad)? (cdb.old_fad-cdb.fad) : (cdb.fad-cdb.old_fad);
+				calc_delay = fadiff/5;
+				SSLOG(_DTASK, "calc_delay=%d  fadiff=%d\n", calc_delay, fadiff);
+				if(calc_delay>1000)
+#endif
+				{
+					cdb.status = STAT_SEEK;
+					set_status(cdb.status);
+					hw_delay(calc_delay);
+				}
+
+			}
+		}
+
 		cdb.status = STAT_PLAY;
+		set_status(cdb.status);
 
 		while(cdb.fad<cdb.play_fad_end){
 			if(cdb.pause_request){
 				SSLOG(_DTASK, "play_task: Recv PAUSE request!\n");
 				cdb.status = STAT_PAUSE;
+				set_status(cdb.status);
 				cdb.play_type = 0;
 				cdb.pause_request = 0;
 				set_pause_ok();
@@ -350,6 +368,7 @@ _restart_nowait:
 						HIRQ = HIRQ_EFLS;
 					}
 					cdb.status = STAT_PAUSE;
+					set_status(cdb.status);
 					cdb.play_wait = 1;
 					goto _restart_wait;
 				}else{
@@ -358,6 +377,7 @@ _restart_nowait:
 				//printk("filter return %d\n", retv);
 			}
 
+			cdb.old_fad = cdb.fad;
 			cdb.fad++;
 		}
 
@@ -372,6 +392,7 @@ _restart_nowait:
 					// 返回0表示本次dir_read完成
 					// 返回1表示需要继续读取下一个扇区
 					cdb.status = STAT_PAUSE;
+					set_status(cdb.status);
 					cdb.play_type = 0;
 				}else{
 					goto _restart_nowait;
@@ -379,6 +400,7 @@ _restart_nowait:
 			}else{
 				if(cdb.repcnt>=cdb.max_repeat){
 					cdb.status = STAT_PAUSE;
+					set_status(cdb.status);
 					if(cdb.play_type==PLAYTYPE_FILE){
 						HIRQ = HIRQ_EFLS;
 					}
@@ -387,6 +409,7 @@ _restart_nowait:
 				}else{
 					if(cdb.repcnt<14)
 						cdb.repcnt += 1;
+					cdb.old_fad = cdb.fad;
 					cdb.fad = cdb.play_fad_start;
 					cdb.track = fad_to_track(cdb.fad);
 					goto _restart_nowait;
@@ -705,7 +728,7 @@ void saturn_config(void)
 	int retv;
 	u32 rv;
 
-	parse_config("/saroocfg.txt", NULL);
+	parse_config("/SAROO/saroocfg.txt", NULL);
 	
 	if(auto_update){
 		int fp, fl;
@@ -751,7 +774,7 @@ void saturn_config(void)
 
 
 	// 检查是否有bootrom. 如果有,就加载到FPGA中
-	retv = f_open(&fp, "/ramimage.bin", FA_READ);
+	retv = f_open(&fp, "/SAROO/ssfirm.bin", FA_READ);
 	if(retv){
 		printk("NO bootrom file found!\n");
 		led_event(LEDEV_NOFIRM);

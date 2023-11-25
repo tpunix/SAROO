@@ -388,8 +388,6 @@ void WAKU7_patch(void)
 // FIGHTERS_HISTORY   斗士的历史   未修复
 void FIGHTERS_HISTORY_patch(void)
 {
-	*(u16*)0x060507C4 = 0x9;
-	*(u16*)0x060507d8 = 0x9;
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)0x060500C8 = 0x34403440;
 	*(u32*)0x06057000 = 0x34403440;

@@ -13,7 +13,7 @@ FLAGS	=	-Wall -m2 -Os -fomit-frame-pointer -std=c99
 
 LIBS	=	-lgcc
 
-EXE	=	ramimage.elf
+EXE	=	ssfirm.elf
 
 OBJ	=	obj/crt0.o  \
 		obj/main.o  \
@@ -41,9 +41,9 @@ $(EXE)	: $(OBJ)
 	$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $(EXE)
 	$(OBJDUMP) -xd $(EXE) > dump.txt
 	$(OBJCOPY) -O binary $(EXE) tmp.bin
-	dd if=/dev/zero  of=ramimage.bin bs=1k count=384
-	dd if=tmp.bin    of=ramimage.bin conv=notrunc
-	dd if=hzk14u.bin of=ramimage.bin bs=1k seek=128 conv=notrunc
+	dd if=/dev/zero  of=ssfirm.bin bs=1k count=384
+	dd if=tmp.bin    of=ssfirm.bin conv=notrunc
+	dd if=hzk14u.bin of=ssfirm.bin bs=1k seek=128 conv=notrunc
 	rm -f tmp.bin
 
 obj/%.o :	%.c
@@ -54,7 +54,7 @@ obj/%.o :	%.S
 
 clean	:
 		rm -f obj/*.o
-		rm -f $(EXE) ramimage.bin dump.txt
+		rm -f $(EXE) ssfirm.bin dump.txt
 
 makedir :
 		mkdir obj

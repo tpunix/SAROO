@@ -11,6 +11,7 @@ uint32_t SystemCoreClock = 400000000;
 
 void SystemInit (void)
 {
+#ifdef BOOT
 	/* enable CP10/CP11 (FPU) */
 	SCB->CPACR = 0x00f00000;
 
@@ -61,6 +62,7 @@ void SystemInit (void)
 
 	/* RTC:1Mhz sys_ck=PLL1_P */
 	RCC->CFGR = 0x2003;
+#endif
 
 	/* 4 bits for pre-emption priority, 0 bits for subpriority */
 	NVIC_SetPriorityGrouping(3);

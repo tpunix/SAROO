@@ -424,7 +424,7 @@ int load_disc(int index)
 		if(retv){
 			goto _exit;
 		}
-		parse_config("/saroocfg.txt", gameid);
+		parse_config("/SAROO/saroocfg.txt", gameid);
 
 		if(sector_delay_force>=0){
 			sector_delay = sector_delay_force;
