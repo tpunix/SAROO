@@ -110,6 +110,8 @@
 #define SSCMD_LISTBIN  0x0008
 #define SSCMD_SSAVE    0x0009
 #define SSCMD_LSAVE    0x000a
+#define SSCMD_LMEMS    0x000b
+#define SSCMD_SMEMS    0x000c
 
 
 #define MSF_TO_FAD(m,s,f) ((m * 4500) + (s * 75) + f)
@@ -358,6 +360,10 @@ int unload_disc(void);
 int open_savefile(void);
 int load_savefile(char *gameid);
 int flush_savefile(void);
+
+int load_smems(int id);
+int flush_smems(int flag);
+
 
 /******************************************************************************/
 

@@ -193,6 +193,7 @@ int parse_cue(char *fname)
 			}
 		}else if(strcmp(token, "PREGAP")==0){
 		}else if(strcmp(token, "CATALOG")==0){
+		}else if(strcmp(token, "REM")==0){
 		}else{
 			return -10;
 		}

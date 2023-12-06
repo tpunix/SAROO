@@ -343,7 +343,7 @@ void load_app(void)
 	f_close(&fp);
 
 	printk("Start app ...        \n\n\n\n\n\n\n\n");
-	u32 app_addr = 0;
+	volatile u32 app_addr = 0;
 	void (*entry)(void) = (void*)(*(u32*)(app_addr+4));
 	__set_MSP(*(u32*)(app_addr+0));
 	entry();

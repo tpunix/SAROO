@@ -563,6 +563,18 @@ void ss_cmd_handle(void)
 		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
+	case SSCMD_SMEMS:
+		// 保存当前SMEMS
+		retv = flush_smems(SS_ARG);
+		SS_ARG = retv;
+		SS_CMD = 0;
+		break;
+	case SSCMD_LMEMS:
+		// 加载指定SMEMS块
+		retv = load_smems(SS_ARG);
+		SS_ARG = retv;
+		SS_CMD = 0;
+		break;
 	default:
 		SSLOG(_INFO, "[SS] unkonw cmd: %04x\n", cmd);
 		break;

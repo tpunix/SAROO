@@ -257,26 +257,37 @@ _next_section:
 static FIL ss_fp;
 static int ss_index;
 
+
+#define SMEMS_FILE "/SAROO/SS_MEMS.BIN"
+#define SMEMS_HDR  (TMPBUFF_ADDR+0x1000)
+#define SMEMS_BUF  (TMPBUFF_ADDR+0x4000)
+
+static FIL sm_fp;
+static int sm_index0;
+static int sm_index1;
+
+
 int open_savefile(void)
 {
 	u32 rv;
 	int retv;
 	u8 *fbuf = (u8*)0x24002000;
 
+	printk("Open SSAVE ...\n");
 	ss_index = 0;
 
 	retv = f_open(&ss_fp, SSAVE_FILE, FA_READ|FA_WRITE);
-	if(retv>=0){
+	if(retv==0){
 		f_read(&ss_fp, fbuf, 0x40, &rv);
 		if(strcmp((char*)fbuf, "Saroo Save File")==0){
 			ss_index = 1;
-			return 0;
+			goto _open_mems;
 		}
 	}
 
 	printk("SS_SAVE.BIN not found! Create now.\n");
 	retv = f_open(&ss_fp, SSAVE_FILE, FA_READ|FA_WRITE|FA_CREATE_ALWAYS);
-	if(retv<0){
+	if(retv){
 		printk("Create SS_SAVE.BIN failed! %d\n", retv);
 		return retv;
 	}
@@ -287,6 +298,28 @@ int open_savefile(void)
 	f_sync(&ss_fp);
 
 	ss_index = 1;
+
+_open_mems:
+
+	retv = f_open(&sm_fp, SMEMS_FILE, FA_READ|FA_WRITE);
+	printk("Open SMEMS ... %d\n", retv);
+	if(retv){
+		printk("SS_MEMS.BIN not found! Create now.\n");
+		retv = f_open(&sm_fp, SMEMS_FILE, FA_READ|FA_WRITE|FA_CREATE_ALWAYS);
+		if(retv<0){
+			printk("Create SS_MEMS.BIN failed! %d\n", retv);
+			return retv;
+		}
+		f_lseek(&sm_fp, 0x800000);
+		f_close(&sm_fp);
+		f_open(&sm_fp, SMEMS_FILE, FA_READ|FA_WRITE);
+	}
+
+	f_read(&sm_fp, (u8*)SMEMS_HDR, 8192, &rv);
+	sm_index0 = 0;
+	sm_index1 = 0;
+
+	printk("Done.\n");
 	return 0;
 }
 
@@ -353,9 +386,60 @@ int flush_savefile(void)
 
 /******************************************************************************/
 
+int load_smems(int id)
+{
+	u32 rv;
+	int is_hdr;
+
+	is_hdr = id&0x8000;
+	id &= 0x7fff;
+	printk("Load SMEMS %04x\n", id);
+	if(id==0)
+		return 0;
+
+	f_lseek(&sm_fp, id*1024);
+	if(is_hdr){
+		f_read(&sm_fp, (u8*)SMEMS_HDR+8192, 1024, &rv);
+		sm_index0 = id;
+	}else{
+		f_read(&sm_fp, (u8*)SMEMS_BUF, 64*1024, &rv);
+		sm_index1 = id;
+	}
+
+	return 0;
+}
 
 
+int flush_smems(int flag)
+{
+	u32 rv;
 
+	int d = sm_index0-sm_index1;
+	if(d>=0 && d<64){
+		memcpy32((u8*)SMEMS_BUF+d*1024, (u8*)SMEMS_HDR+8192, 1024);
+	}
+
+	if(flag&1){
+		printk("Flush SMEMS header.\n");
+		f_lseek(&sm_fp, 0);
+		f_write(&sm_fp, (u8*)SMEMS_HDR, 8192, &rv);
+	}
+	if(flag&2){
+		printk("Flush SMEMS block %04x.\n", sm_index0);
+		if(d<0 || d>=64 || (flag&4)==0){
+			f_lseek(&sm_fp, sm_index0*1024);
+			f_write(&sm_fp, (u8*)SMEMS_HDR+8192, 1024, &rv);
+		}
+	}
+	if(flag&4){
+		printk("Flush SMEMS buffer %04x.\n", sm_index1);
+		f_lseek(&sm_fp, sm_index1*1024);
+		f_write(&sm_fp, (u8*)SMEMS_BUF, 64*1024, &rv);
+	}
+	f_sync(&sm_fp);
+
+	return 0;
+}
 
 
 /******************************************************************************/
