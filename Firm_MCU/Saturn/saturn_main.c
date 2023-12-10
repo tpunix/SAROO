@@ -141,7 +141,7 @@ int get_sector(int fad, BLOCK *wblk)
 	int retv, dp, nread;
 
 	// 先查找track信息
-	if(play_track==NULL || fad<play_track->fad_start || fad>play_track->fad_end){
+	if(play_track==NULL || fad<play_track->fad_0 || fad>play_track->fad_end){
 		cdb.track = fad_to_track(fad);
 		SSLOG(_DTASK, "Change to track %d\n", cdb.track);
 		if(cdb.track!=0xff){
@@ -277,7 +277,6 @@ _restart_nowait:
 		if(cdb.pause_request){
 			SSLOG(_DTASK, "play_task: Recv PAUSE request!\n");
 			cdb.status = STAT_PAUSE;
-			set_status(cdb.status);
 			cdb.play_type = 0;
 			buf_fad_start = 0;
 			buf_fad_end = 0;
@@ -291,7 +290,6 @@ _restart_nowait:
 		if(cdb.play_fad_start==0 || cdb.play_type==0){
 			SSLOG(_DTASK, "play_task: play_type=%d! play_fad_start=%08x!\n", cdb.play_type, cdb.play_fad_start);
 			cdb.status = STAT_PAUSE;
-			set_status(cdb.status);
 			goto _restart_wait;
 		}
 
@@ -315,7 +313,6 @@ _restart_nowait:
 #endif
 				{
 					cdb.status = STAT_SEEK;
-					set_status(cdb.status);
 					hw_delay(calc_delay);
 				}
 
@@ -323,13 +320,11 @@ _restart_nowait:
 		}
 
 		cdb.status = STAT_PLAY;
-		set_status(cdb.status);
 
 		while(cdb.fad<cdb.play_fad_end){
 			if(cdb.pause_request){
 				SSLOG(_DTASK, "play_task: Recv PAUSE request!\n");
 				cdb.status = STAT_PAUSE;
-				set_status(cdb.status);
 				cdb.play_type = 0;
 				cdb.pause_request = 0;
 				set_pause_ok();
@@ -368,7 +363,6 @@ _restart_nowait:
 						HIRQ = HIRQ_EFLS;
 					}
 					cdb.status = STAT_PAUSE;
-					set_status(cdb.status);
 					cdb.play_wait = 1;
 					goto _restart_wait;
 				}else{
@@ -392,7 +386,6 @@ _restart_nowait:
 					// 返回0表示本次dir_read完成
 					// 返回1表示需要继续读取下一个扇区
 					cdb.status = STAT_PAUSE;
-					set_status(cdb.status);
 					cdb.play_type = 0;
 				}else{
 					goto _restart_nowait;
@@ -400,7 +393,6 @@ _restart_nowait:
 			}else{
 				if(cdb.repcnt>=cdb.max_repeat){
 					cdb.status = STAT_PAUSE;
-					set_status(cdb.status);
 					if(cdb.play_type==PLAYTYPE_FILE){
 						HIRQ = HIRQ_EFLS;
 					}

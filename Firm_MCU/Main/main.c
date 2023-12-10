@@ -346,6 +346,7 @@ void load_app(void)
 	volatile u32 app_addr = 0;
 	void (*entry)(void) = (void*)(*(u32*)(app_addr+4));
 	__set_MSP(*(u32*)(app_addr+0));
+	__set_CONTROL(0);
 	entry();
 }
 #endif
