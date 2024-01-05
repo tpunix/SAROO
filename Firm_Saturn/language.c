@@ -115,6 +115,27 @@ char *lang_ja[LANG_STR_NR] = {
 	"ゲームディスクではありません",
 };
 
+char *lang_fr[LANG_STR_NR] = {
+	"Choisir un jeu (%d/%d)",
+	"Choisir un fichier (%d/%d)",
+	"Démarrage du jeu...",
+	"Erreur lors du démarrage du jeu ! %d",
+	"Chargement du fichier...",
+	"Erreur de chargement du fichier ! %d",
+	"Choisir un jeu",
+	"Lecteur CD",
+	"Charger un jeu CD-ROM",
+	"Console de débogage série",
+	"Charger un binaire",
+	"Mise à jour du firmware",
+	"Mise à jour... Ne pas éteindre le système !",
+	"Erreur de mise à jour !",
+	"Mise à jour terminée ! Redémarrez le système !",
+	"SAROO Menu de démarrage",
+	"Vérification du disque...",
+	"Aucun disque trouvé !",
+	"Disque de jeu non détecté !"
+};
 
 char **lang_cur;
 
@@ -182,6 +203,8 @@ void lang_init(void)
 		lang_cur = lang_ptbr;
 	}else if(lang_id==3){
 		lang_cur = lang_ja;
+	}else if(lang_id==4){
+		lang_cur = lang_fr;
 	}
 }
 
