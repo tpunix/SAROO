@@ -59,34 +59,22 @@ void CHEAT_patch(void)
 
 /**********************************************************/
 // KAITEI_DAISENSOU (Japan) 海底大战争日版 第一关后半部分会有音乐丢失情况
+void KAITEI_DAISENSOU_handle1(void)
+{
+	cdc_read_sector(2462+150, 0x54f00, (void*)0x22400000);
+}
+
+
+void KAITEI_DAISENSOU_handle2(void)
+{
+	memcpy((u8*)0x2AA000, (u8*)0x22400000, 0x54f00);
+}
+
+
 void KAITEI_DAISENSOU_patch(void)
 {	
-	//*(u16*)(0x6074D60) = 0x9;
-	*(u8*)(0x0600A2e5) = 0x30;
-	*(u16*)(0x0600A316) = 0x9;
-
-/*
-	*(u32*)(0x600A374) = 0x2FE6E600;
-	*(u32*)(0x600A378) = 0x4F22E500;
-	*(u32*)(0x600A37c) = 0xDE0AD30B;
-	*(u32*)(0x600A380) = 0x430B64E2;
-	*(u32*)(0x600A384) = 0xE501D30A;
-	*(u32*)(0x600A388) = 0x430B64E2;
-	*(u32*)(0x600A38c) = 0x950AD30B;
-	*(u32*)(0x600A390) = 0x430B64E2;
-	*(u32*)(0x600A394) = 0xD308D707;
-	*(u32*)(0x600A398) = 0xD6099503;
-	*(u32*)(0x600A39c) = 0x64E24F26;
-	*(u32*)(0x600A3a0) = 0x432B6EF6;
-	*(u32*)(0x600A3a4) = 0x00AA0009;
-	*(u32*)(0x600A3a8) = 0x06098028;
-	*(u32*)(0x600A3ac) = 0x060724B4;	
-	*(u32*)(0x600A3b0) = 0x06072C2C;
-	*(u32*)(0x600A3b4) = 0x00054F00;
-	*(u32*)(0x600A3b8) = 0x060727A4;
-	*(u32*)(0x600A3bc) = 0x06072D3E;
-	*(u32*)(0x600A3c0) = 0x002AA000;	
-*/
+	*(u32*)(0x6007324) = (u32)KAITEI_DAISENSOU_handle1;
+	*(u32*)(0x60044E0) = (u32)KAITEI_DAISENSOU_handle2;
 }
 
 
@@ -171,6 +159,86 @@ void Metal_Slug_A_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)(0x06079FBC) = 0x34403440;
+}
+
+
+/*********************************************************/
+// ULTRAMAN
+// 2MB ROM cart
+void jump_06b0(void)
+{
+	void (*go)(void) = (void*)(0x04c8);
+	go();
+	*(u32*)(0x25fe00b8) = 0x13;
+	go = (void*)0x1800;
+	go();
+
+	*(u32*)(0x25fe00b0) = 0x34403440;
+	*(u32*)(0x25fe00b8) = 0x13;
+
+	SF = 1;
+	COMREG = 0x19;
+	while(SF&1);
+}
+
+
+void jump_copy_code(int type) 
+{	
+	for(int i=0; i<0x200000; i+=4)
+		(REG32(0x22000000+i)) = (REG32(0x22400000+i));
+	void (*go)(void) = (void*)type;
+	go();		
+}
+
+
+void card_init(void)
+{	
+	*(u32*)(0x06000358) = 0x7d600;
+	*(u32*)(0x0600026c) = 0x186c;
+	*(u32*)(0x06000320) = 0x6000c80;
+	memcpy((u8*)0x200000, jump_copy_code, 0x60);
+	memcpy((u8*)0x6000c80, jump_06b0, 0x60);	
+}
+
+
+void ULTRAMAN_patch(void)
+{
+	need_bup = 0;
+
+	if(*(u32*)(0x6002fb4)==0x06004000){
+		read_file("/SAROO/ISO/ULTRAMAN.BIN", 0, 0x200000, (void*)0x22400000);
+		card_init();
+		void (*go)(int);
+		go = (void*)0x200000;
+		go(0x6002222);	
+	}
+}
+
+
+/*********************************************************/
+// KOF95
+// 2MB ROM cart
+void kof95_handle(void)
+{
+	if(*(u32*)(0x6002234)== 0x14401FF0) *(u32*)(0x6002234) = 0x34403440;
+	if(*(u32*)(0x600230c)== 0x14401FF0) *(u32*)(0x600230c) = 0x34403440;
+	if(*(u32*)(0x6002300)== 0x1FF01FF0) *(u32*)(0x6002300) = 0x34403440;
+
+	read_file("/SAROO/ISO/KOF95.BIN", 0, 0x200000, (void*)0x22400000);
+	card_init();
+	
+	void (*go)(int);
+	go = (void*)0x200000;
+	go(0x6002048);	
+}
+
+
+void kof95_patch(void)
+{
+	need_bup = 0;
+
+	if(*(u32*)(0x6002e28)==0x0607CD80)
+		*(u32*)(0x607CDC4) = (u32)kof95_handle;
 }
 
 
@@ -361,15 +429,14 @@ void mshvssf_patch(void)
 
 
 /**********************************************************/
-// WAKUWAKU7                火热火热7 未修复
+// WAKUWAKU7                火热火热7
 void WAKU7_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	*(u32*)(0x0601C19C) = 0x34403440;
 	*(u16*)(0x0601C16C) = 0x9;
 	*(u8*) (0x0601244d) = 0xa;
-	
-	
+
 	*(u32*)(0x06011E64+0x00) = 0xD207D108;
 	*(u32*)(0x06011E64+0x04) = 0x60436322;
 	*(u32*)(0x06011E64+0x08) = 0x44087370;
@@ -380,12 +447,11 @@ void WAKU7_patch(void)
 	*(u32*)(0x06011E64+0x1c) = 0x432B6422;
 	*(u32*)(0x06011E64+0x20) = 0x0603439C;
 	*(u32*)(0x06011E64+0x24) = 0x02000F04;
-	
 }
 
 
 /**********************************************************/
-// FIGHTERS_HISTORY   斗士的历史   未修复
+// FIGHTERS_HISTORY   斗士的历史
 void FIGHTERS_HISTORY_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
@@ -397,7 +463,7 @@ void FIGHTERS_HISTORY_patch(void)
 
 
 /**********************************************************/
-// Final Fight Revenge (Japan)  快打旋风复仇 未修复
+// Final Fight Revenge (Japan)  快打旋风复仇
 
 void FINAL_FIGHT_REVENGE_patch(void)
 {
@@ -408,6 +474,7 @@ void FINAL_FIGHT_REVENGE_patch(void)
 /**********************************************************/
 
 int skip_patch = 0;
+int need_bup = 1;
 
 typedef struct _game_db {
 	char *id;
@@ -417,48 +484,52 @@ typedef struct _game_db {
 
 
 GAME_DB game_dbs[] = {
-	
-	
-	{"T-1229G",   "VAMPIRE_SAVIOR",    VAMPIRE_SAVIOR_patch},
-	{"T-14411G",  "GROOVE_ON_FIGHT",    GROOVE_ON_FIGHT_patch},
-	{"T-22205G",  "NOEL3",   NOEL3_patch},
-	{"T-20109G",  "FRIENDS", FRIENDS_patch},
-	{"T-1245G",   "DND2",    DND2_patch},
-	{"T-1521G",   "ASTRA",   ASTRA_SUPERSTARS_patch},
-	{"T-9904G",   "cotton2", cotton2_patch},
-	{"T-9906G",   "cotton1", cotton1_patch},
+	{"T-1229G",            "VAMPIRE_SAVIOR",     VAMPIRE_SAVIOR_patch},
+	{"T-14411G",           "GROOVE_ON_FIGHT",    GROOVE_ON_FIGHT_patch},
+	{"T-22205G",           "NOEL3",              NOEL3_patch},
+	{"T-20109G",           "FRIENDS",            FRIENDS_patch},
+	{"T-1245G",            "DND2",               DND2_patch},
+	{"T-1521G",            "ASTRA",              ASTRA_SUPERSTARS_patch},
+	{"T-9904G",            "cotton2",            cotton2_patch},
+	{"T-9906G",            "cotton1",            cotton1_patch},
 
-	{"T-1230G",   "POCKET_FIGHTER", POCKET_FIGHTER_patch},
-	{"T-1246G",   "SF_ZERO3", SF_ZERO3_patch},
+	{"T-1230G",            "POCKET_FIGHTER",     POCKET_FIGHTER_patch},
+	{"T-1246G",            "SF_ZERO3",           SF_ZERO3_patch},
 
-	{"T-3111G   V1.002",   "Metal_Slug", Metal_Slug_patch},
-	{"T-3111G   V1.005",   "Metal_Slug_A", Metal_Slug_A_patch},
-	{"T-3108G",   "KOF96",    kof96_patch},
-	{"T-3121G",   "KOF97",    kof97_patch},
-	{"T-3104G",   "SamuraiSp3",  smrsp3_patch},
-	{"T-3116G",   "SamuraiSp4",  smrsp4_patch},
-	{"T-3105G",   "REAL_BOUT",  REAL_BOUT_patch},
-	{"T-3119G   V1.001",   "REAL_BOUT_SP_v1",  REAL_BOUT_SP_v1_patch},
-	{"T-3119G   V1.002",   "REAL_BOUT_SP_v2",  REAL_BOUT_SP_v2_patch},
-	{"T-15006G  V1.004",   "KAITEI_DAISENSOU", KAITEI_DAISENSOU_patch},
+	{"T-3111G   V1.002",   "Metal_Slug",         Metal_Slug_patch},
+	{"T-3111G   V1.005",   "Metal_Slug_A",       Metal_Slug_A_patch},
+	{"T-3101G",            "KOF95",              kof95_patch},
+	{"T-3108G",            "KOF96",              kof96_patch},
+	{"T-3121G",            "KOF97",              kof97_patch},
+	{"T-3104G",            "SamuraiSp3",         smrsp3_patch},
+	{"T-3116G",            "SamuraiSp4",         smrsp4_patch},
+	{"T-3105G",            "REAL_BOUT",          REAL_BOUT_patch},
+	{"T-3119G   V1.001",   "REAL_BOUT_SP_v1",    REAL_BOUT_SP_v1_patch},
+	{"T-3119G   V1.002",   "REAL_BOUT_SP_v2",    REAL_BOUT_SP_v2_patch},
+	{"T-10001G  V1.000",   "KAITEI_DAISENSOU",   KAITEI_DAISENSOU_patch},
+	{"T-15006G  V1.004",   "KAITEI_DAISENSOU",   KAITEI_DAISENSOU_patch},
 
-	{"T-16509G",  "SRMP7",    srmp7_patch},
-	{"T-16510G",  "SRMP7SP",  srmp7_patch},
+	{"T-13308G",           "ULTRAMAN",           ULTRAMAN_patch},
+	{"T-16509G",           "SRMP7",              srmp7_patch},
+	{"T-16510G",           "SRMP7SP",            srmp7_patch},
 
-	{"T-1515G",   "WAKU7",    WAKU7_patch},	
-	{"GS-9107",   "FIGHTERS", FIGHTERS_HISTORY_patch},		
-	{"T-1248G",   "FINAL_FIGHT_REVENGE",  FINAL_FIGHT_REVENGE_patch},
-	{"T-1226G",   "XMENVSSF",  xmvsf_patch},
-	{"T-1215G",   "MARVEL_SUPER",  MARVEL_SUPER_patch},
-	{"T-1238G   V1.000",   "MSH_VS_SF", mshvssf_patch},
+	{"T-1515G",            "WAKU7",              WAKU7_patch},
+	{"GS-9107",            "FIGHTERS",           FIGHTERS_HISTORY_patch},
+	{"T-1248G",            "FINAL_FIGHT_REVENGE",FINAL_FIGHT_REVENGE_patch},
+	{"T-1226G",            "XMENVSSF",           xmvsf_patch},
+	{"T-1215G",            "MARVEL_SUPER",       MARVEL_SUPER_patch},
+	{"T-1238G   V1.000",   "MSH_VS_SF",          mshvssf_patch},
+
 	{NULL,},
 };
+
 
 void patch_game(char *id)
 {
 	GAME_DB *gdb = &game_dbs[0];
 
 	CHEAT_ADDRES = 0;
+	need_bup = 1;
 
 	if(skip_patch)
 		return;
@@ -509,4 +580,5 @@ void patch_game(char *id)
 	}
 
 }
+
 
