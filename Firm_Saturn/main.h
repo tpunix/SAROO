@@ -45,6 +45,8 @@ typedef unsigned long long u64;
 #define SSCMD_LISTBINS 0x0008
 #define SSCMD_SSAVE    0x0009
 #define SSCMD_LSAVE    0x000a
+#define SSCMD_LMEMS    0x000b
+#define SSCMD_SMEMS    0x000c
 
 
 #define IMGINFO_ADDR   0x22080000
@@ -382,6 +384,7 @@ char *TT(char *str);
 // game patch
 
 extern int skip_patch;
+extern int need_bup;
 
 void patch_game(char *id);
 

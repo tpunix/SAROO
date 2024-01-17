@@ -418,6 +418,7 @@ int flush_smems(int flag)
 	if(d>=0 && d<64){
 		memcpy32((u8*)SMEMS_BUF+d*1024, (u8*)SMEMS_HDR+8192, 1024);
 	}
+	printk("\nflush_smems: flag=%02x s0=%04x s1=%04x d=%d\n", flag, sm_index0, sm_index1, d);
 
 	if(flag&1){
 		printk("Flush SMEMS header.\n");
