@@ -82,12 +82,27 @@ DRESULT disk_read (BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
 
 DRESULT disk_write (BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
 {
-	int result;
+	int result, retry;
 
-	result = sd_write_sector(sector, count, (BYTE *)buff);
+	retry = 4;
+	while(retry){
+		result = sd_write_sector(sector, count, (BYTE *)buff);
+		if(result){
+			printk("disk_write: pdrv=%d sector=%08x count=%d\n", pdrv, sector, count);
+			printk("    retv=%08x\n", result);
+			retry -= 1;
+			//sdio_reset();
+		}else{
+			if(retry<4)
+				printk("    retry write OK.\n");
+			break;
+		}
+	}
+
 	if(result)
 		return RES_ERROR;
 	return RES_OK;
+
 }
 
 #endif
