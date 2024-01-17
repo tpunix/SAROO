@@ -1102,7 +1102,7 @@ int reset_filter(void)
 	fid = cdb.cr3>>8;
 	SSLOG(_FILTER, "reset_filter: mode=%02x fid=%d\n", mode, fid);
 
-	if(fid==cdb.cddev_filter && cdb.play_type!=0){
+	if(fid==cdb.cddev_filter && cdb.play_type!=0 && cdb.play_track->mode!=3){
 		cdb.pause_request = 1;
 		cdb.play_wait = 0;
 		SSLOG(_CDRV, "reset_filter: Send PAUSE request!\n");
@@ -1275,6 +1275,7 @@ int set_sector_length(void)
 	id_get = SSCR1&0xff;
 	id_put = SSCR2>>8;
 
+	SSLOG(_INFO, "set_sector_length:  get=%d put=%d\n", id_get, id_put);
 	if(id_get<4){
 		cdb.sector_size = sector_len_table[id_get];
 	}

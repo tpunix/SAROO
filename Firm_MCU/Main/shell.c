@@ -347,8 +347,12 @@ void simple_shell(void)
 			load_disc(arg[0]);
 		}
 		CMD(cdc){
-			void cdc_dump();
-			cdc_dump();
+			void cdc_dump(int status);
+			if(argc){
+				cdc_dump(arg[0]);
+			}else{
+				cdc_dump(0);
+			}
 		}
 		CMD(log){
 			extern int log_mask;

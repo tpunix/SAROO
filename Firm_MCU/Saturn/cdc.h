@@ -264,6 +264,7 @@ typedef struct
 	u32 old_fad;
 	int pause_request;
 	int max_repeat;
+	TRACK_INFO *play_track;
 
 }CDBLOCK;
 

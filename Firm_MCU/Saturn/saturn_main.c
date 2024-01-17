@@ -133,19 +133,17 @@ static u32 buf_fad_offset = 0;
 // 内部缓存中的扇区大小
 static u32 buf_fad_size = 0;
 
-static TRACK_INFO *play_track = NULL;
-
 
 int get_sector(int fad, BLOCK *wblk)
 {
 	int retv, dp, nread;
 
 	// 先查找track信息
-	if(play_track==NULL || fad<play_track->fad_0 || fad>play_track->fad_end){
+	if(cdb.play_track==NULL || fad<cdb.play_track->fad_0 || fad>cdb.play_track->fad_end){
 		cdb.track = fad_to_track(fad);
 		SSLOG(_DTASK, "Change to track %d\n", cdb.track);
 		if(cdb.track!=0xff){
-			play_track = &cdb.tracks[cdb.track-1];
+			cdb.play_track = &cdb.tracks[cdb.track-1];
 		}else{
 			// play的FAD参数错误
 			SSLOG(_DTASK, "play_track not found!\n");
@@ -166,19 +164,19 @@ int get_sector(int fad, BLOCK *wblk)
 		// 内部缓存中没有要play的扇区. 从文件重新读取.
 		//printk(" fad_%08x not found. need read from file.\n", fad);
 
-		cdb.ctrladdr = play_track->ctrl_addr;
+		cdb.ctrladdr = cdb.play_track->ctrl_addr;
 		cdb.index = 1;
 
 		buf_fad_start = fad;
-		buf_fad_size = play_track->sector_size;
+		buf_fad_size = cdb.play_track->sector_size;
 
-		dp = play_track->file_offset+(fad-play_track->fad_start)*play_track->sector_size;
+		dp = cdb.play_track->file_offset+(fad-cdb.play_track->fad_start)*cdb.play_track->sector_size;
 		buf_fad_offset = dp&0x1ff;
 		dp &= ~0x1ff;
 
 		//printk("  seek at %08x\n", dp);
-		retv = f_lseek(play_track->fp, dp);
-		retv = f_read(play_track->fp, sector_buffer, 0x8000, (u32*)&nread);
+		retv = f_lseek(cdb.play_track->fp, dp);
+		retv = f_read(cdb.play_track->fp, sector_buffer, 0x8000, (u32*)&nread);
 		if(retv==0){
 			int num_fad = (nread-buf_fad_offset)/buf_fad_size;
 			buf_fad_end = buf_fad_start+num_fad;
@@ -216,7 +214,7 @@ void show_pt(int id)
 	int i;
 
 	pt = &cdb.part[id];
-	SSLOG(_INFO, "Part_%d: nblks=%d\n", pt->numblocks);
+	SSLOG(_INFO, "Part_%d: nblks=%d\n", id, pt->numblocks);
 	bk = pt->head;
 	for(i=0; i<pt->numblocks; i++){
 		SSLOG(_INFO, "  %2d: size=%4d fad=%08x data=%08x\n", i, bk->size, bk->fad, bk->data);
@@ -293,7 +291,7 @@ _restart_nowait:
 			goto _restart_wait;
 		}
 
-		if(cdb.play_type!=PLAYTYPE_FILE && play_track->mode==3){
+		if(cdb.play_type!=PLAYTYPE_FILE && cdb.play_track->mode==3){
 		}else{
 			SSLOG(_DTASK, "\nplay_task! fad_start=%08x(lba_%d) fad_end=%08x fad=%08x type=%d free=%d\n",
 					cdb.play_fad_start, cdb.play_fad_start-150, cdb.play_fad_end, cdb.fad, cdb.play_type, cdb.block_free);
@@ -339,7 +337,7 @@ _restart_nowait:
 			HIRQ = HIRQ_SCDQ;
 			set_peri_report();
 
-			if(cdb.play_type!=PLAYTYPE_FILE && play_track->mode==3){
+			if(cdb.play_type!=PLAYTYPE_FILE && cdb.play_track->mode==3){
 				if(fill_audio_buffer(wblk.data)<0){
 					cdb.play_wait = 1;
 					goto _restart_wait;
@@ -350,7 +348,7 @@ _restart_nowait:
 				if(cdb.play_type==PLAYTYPE_SECTOR && sector_delay){
 					hw_delay(sector_delay);
 				}
-				retv = filter_sector(play_track, &wblk);
+				retv = filter_sector(cdb.play_track, &wblk);
 				HIRQ = HIRQ_CSCT;
 
 				if(retv==0){
@@ -380,7 +378,7 @@ _restart_nowait:
 
 		if(cdb.fad>=cdb.play_fad_end){
 			// 本次play结束
-			play_track = NULL;
+			cdb.play_track = NULL;
 			if(cdb.play_type==PLAYTYPE_DIR){
 				if(handle_diread()==0){
 					// 返回0表示本次dir_read完成
@@ -443,13 +441,18 @@ void cdc_delay(int ticks)
 	osDelay(ticks);
 }
 
-void cdc_dump(void)
+void cdc_dump(int status)
 {
 	printk("CDB:\n");
 	printk("  status     : %02x\n", cdb.status);
 	printk("  block_free : %d\n",   cdb.block_free);
 	printk("  fad        : %08x\n", cdb.fad);
+	
+	if(status){
+		cdb.status = status;
+	}
 }
+
 /******************************************************************************/
 
 
