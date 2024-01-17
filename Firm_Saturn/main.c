@@ -563,6 +563,7 @@ int main_handle(int ctrl)
 		select_game();
 		return MENU_RESTART;
 	}else if(index==1){
+		write_file("/SAROO/SS_BUP.BIN", 0, 0x10000, (void*)0x20180000);
 		cdblock_on(0);
 		bios_run_cd_player();
 		return MENU_RESTART;
@@ -663,10 +664,11 @@ int _main(void)
 	debug_flag = LE32((void*)(SYSINFO_ADDR+0x08));
 
 	// restore bios_loadcd_init1
-	*(u32*)(0x060002dc) = 0x2650;
+	*(u32*)(0x060002dc) = *(u32*)(0x2000111c);
 	*(u32*)(0x02000f04) =  (u32)cdc_read_sector;	
 	*(u32*)(0x02000f08) =  (u32)read_file;
 	*(u32*)(0x02000f0c) =  (u32)write_file;
+	*(u32*)(0x02000f30) =  (u32)bios_cd_cmd;
 	*(u32*)(0x02000f38) =  (u32)sci_init;
 	*(u32*)(0x02000f3c) =  (u32)printk;
 

@@ -21,8 +21,38 @@ void my_cdplayer(void)
 	if(debug_flag&1) sci_init();
 	printk("\nLoad my multiPlayer ...\n");
 
-	go = (void*)0x1d7c;
-	go(0);
+
+	*(u8*)(0xfffffe92)  =  0x10;
+	*(u8*)(0xfffffe92)  =  0x1;
+
+	*(u32*)(0xffffff40) = 0x00;
+	*(u32*)(0xffffff44) = 0x00;
+	*(u16*)(0xffffff48) = 0x00;
+	*(u32*)(0xffffff60) = 0x00;
+	*(u32*)(0xffffff64) = 0x00;
+	*(u16*)(0xffffff68) = 0x00;	
+	*(u32*)(0xffffff70) = 0x00;
+	*(u32*)(0xffffff74) = 0x00;
+	*(u16*)(0xffffff78) = 0x00;	
+
+	*(u8*)(0xfffffe71)  =  0x0;
+	*(u8*)(0xfffffe72)  =  0x0;
+
+	*(u32*)(0xffffff80) = 0x00;	
+	*(u32*)(0xffffff84) = 0x00;	
+	*(u32*)(0xffffff88) = 0x01;	
+	*(u32*)(0xffffff8c) = 0x00;	
+	*(u32*)(0xffffff90) = 0x00;	
+	*(u32*)(0xffffff94) = 0x00;	
+	*(u32*)(0xffffff98) = 0x01;	
+	*(u32*)(0xffffff9c) = 0x00;	
+
+	*(u32*)(0xffffff08) = 0x00;
+	*(u32*)(0xffffffb0) = 0x00;
+
+	go = (void*)*(u32*)(0x060002dc);
+	go(3);
+
 
 	*(u32*)(0x06000348) = 0xffffffff;
 
@@ -154,8 +184,10 @@ static void read_1st(void)
 	go();
 
 	patch_game((char*)0x06002020);
-	*(u32*)(0x06000358) = (u32)bup_init;
-	*(u32*)(0x0600026c) = (u32)my_cdplayer;
+	if(need_bup){
+		*(u32*)(0x06000358) = (u32)bup_init;
+		*(u32*)(0x0600026c) = (u32)my_cdplayer;
+	}
 
 	// 0x06000320: 0x060006b0  bios_set_clock_speed
 	memcpy((u8*)0x060006b8, code_06b8, sizeof(code_06b8));
