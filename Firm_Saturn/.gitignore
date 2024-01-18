@@ -1,6 +1,6 @@
 
 /obj/*
-/ramimage.bin
-/ramimage.elf
+/ssfirm.bin
+/ssfirm.elf
 /dump.txt
 
