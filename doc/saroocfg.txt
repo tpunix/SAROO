@@ -60,3 +60,12 @@ sector_delay=6000
 [GS-9043   V1.002]
 sector_delay=4000
 
+
+# Bug! (USA) (R) Fixed First stage problem
+[MK-81004  V1.017]
+sector_delay=1000
+
+
+# Bug! (USA) Fixed First stage problem
+[GM-81004  V1.017]
+sector_delay=1000
