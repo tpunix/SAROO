@@ -472,6 +472,62 @@ void FINAL_FIGHT_REVENGE_patch(void)
 
 
 /**********************************************************/
+// Amagi_Shien_Japan_patch
+
+void Amagi_Shien_patch(void)
+{
+	*(u16*)(0x06012258) = 0x9;
+}
+
+
+/**********************************************************/
+// Sega Saturn de Hakken!! Tamagotchi Park (Japan)
+
+void Tamagotchi_Park_patch(void)
+{
+	*(u16*)(0x06030EDE) = 0xE400;
+}
+
+
+/**********************************************************/
+// CYBER_BOTS
+
+void  CYBER_BOTS_handle1(void)
+{
+	*(u16*)(0x0601695A) = 0x9;
+	__asm volatile("jmp @%0"::"r"(0x600D000));
+	__asm volatile ("nop" :: );
+}
+
+
+void CYBER_BOTS_patch(void)
+{
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
+	*(u32*)(0x060DD058) = (u32)CYBER_BOTS_handle1;
+}
+
+
+/**********************************************************/
+// FIGHTERS MEGAMIX_JAP_patch
+
+//jap 1m 2m
+void FIGHTERS_MEGAMIX_JAP_patch(void)
+{
+	*(u16*)(0x060203F4) = 0x9;
+}
+
+//USA PAL
+void FIGHTERS_MEGAMIX_USA_patch(void)
+{
+	if(*(u16*)(0x06020408)==0x400b)
+		*(u16*)(0x06020408) = 0x9;
+	else if(*(u16*)(0x0602040C)==0x400b)
+		*(u16*)(0x0602040C) = 0x9;
+}
+
+
+/**********************************************************/
+
 
 int skip_patch = 0;
 int need_bup = 1;
@@ -519,6 +575,12 @@ GAME_DB game_dbs[] = {
 	{"T-1226G",            "XMENVSSF",           xmvsf_patch},
 	{"T-1215G",            "MARVEL_SUPER",       MARVEL_SUPER_patch},
 	{"T-1238G   V1.000",   "MSH_VS_SF",          mshvssf_patch},
+
+	{"T-1513G",            "asj",                Amagi_Shien_patch},
+	{"T-13325G",           "jidang",             Tamagotchi_Park_patch},
+	{"T-1217G",            "CYBER_BOTS",         CYBER_BOTS_patch},
+	{"GS-9126",            "F_M_J",              FIGHTERS_MEGAMIX_JAP_patch},//包含3个日版地址相同
+	{"MK-81073",           "F_M_U",              FIGHTERS_MEGAMIX_USA_patch},//包含美版 欧版
 
 	{NULL,},
 };
