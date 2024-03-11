@@ -327,10 +327,11 @@ _restart_nowait:
 				if(calc_delay>1000)
 #endif
 				{
+					cdb.status = STAT_BUSY;
+					hw_delay(10000);
 					cdb.status = STAT_SEEK;
 					hw_delay(calc_delay);
 				}
-
 			}
 		}
 
@@ -655,6 +656,9 @@ void TIM6_DAC_IRQHandler(void)
 
 void hw_delay(int us)
 {
+	us = (us+9)/10;
+	if(us==0)
+		us = 2;
 	TIM6->CR1 = 0;
 	TIM6->ARR = us;
 	TIM6->CNT = 0;
@@ -668,7 +672,7 @@ void tim6_init(void)
 	sem_tim6 = osSemaphoreNew(1, 0, NULL);
 
 	TIM6->CR1 = 0;
-	TIM6->PSC = (200-1); // 200M/100 = 1M
+	TIM6->PSC = (2000-1); // 200M/2000 = 100k
 	TIM6->SR = 0;
 	TIM6->DIER = 1;
 
