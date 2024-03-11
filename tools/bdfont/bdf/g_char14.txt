@@ -1,0 +1,5 @@
+
+Load BDF: char14.bdf
+  PIXEL_SIZE: 15
+  FONT_ASCENT: 14
+Wrong PIXEL_SIZE: 15
