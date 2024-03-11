@@ -185,6 +185,29 @@ char *lang_zhtw[LANG_STR_NR] = {
 };
 
 
+char *lang_de[LANG_STR_NR] = {
+	"Spielauswahl(%d/%d)",
+	"Dateiauswahl(%d/%d)",
+	"Spiel wird geladen ......",
+	"Laden des Spiels fehlgeschlagen! %d",
+	"Datei wird geladen ......",
+	"Laden der Datei fehlgeschlagen! %d",
+	"Spiel auswählen",
+	"System CD-Player",
+	"Starte Spiel von CD",
+	"Serielles Debug Menü",
+	"Lade Binärdatei",
+	"Firmware Update",
+	"Update läuft... Konsole nicht ausschalten!",
+	"Update fehlgeschlagen!",
+	"Update erfolgreich! Konsole neu starten."
+	"SAROO Hauptmenü",
+	"Prüfe CD ......",
+	"Keine CD gefunden!",
+	"Keine Spiele-CD!",
+};
+
+
 char **lang_cur;
 
 
@@ -257,6 +280,8 @@ void lang_init(void)
 		lang_cur = lang_ru;
 	}else if(lang_id==6){
 		lang_cur = lang_zhtw;
+	}else if(lang_id==7){
+		lang_cur = lang_de;
 	}
 }
 
@@ -264,7 +289,7 @@ void lang_init(void)
 void lang_next(void)
 {
 	lang_id += 1;
-	if(lang_id>6)
+	if(lang_id>7)
 		lang_id = 0;
 
 	lang_init();
