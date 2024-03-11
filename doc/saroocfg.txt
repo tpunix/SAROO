@@ -1,7 +1,7 @@
 # SAROO config file
 # 可用配置:
 #   lang_id=x
-#     选择菜单语言:  0:中文  1:EN  2:PTBR  3:JA  4:FR
+#     选择菜单语言:  0:中文  1:EN  2:PTBR  3:JA  4:FR  5:RU  6:繁中  7:de
 #   debug=xxxxxxxx
 #     各种调试选项
 #   auto_update:
@@ -28,27 +28,27 @@ lang_id = 0
 
 # Final Fight Revenge
 [T-1248G   V1.004]
-sector_delay=2000
+sector_delay = 2000
 
 
 # PUZZLE BOBBLE 3
 [T-1109G   V1.002]
-sector_delay=4000
+sector_delay = 4000
 
 
 # D-XHIRD
 [T-10307G  V1.002]
-sector_delay=1000
+sector_delay = 1000
 
 
 # TAROMARU         太郎丸
 [T-4804G   V1.004]
-sector_delay=1000
+sector_delay=2000
 
 
 # SALAMANDER-DP    沙罗曼蛇合集
 [T-9520G   V1.010]
-sector_delay=2000
+sector_delay=4000
 
 
 # Princess Crown   公主的皇冠
@@ -59,6 +59,41 @@ sector_delay=6000
 # ROUKA NI ITIDANTOA-RU  世嘉经典-游戏大挑战-廊下
 [GS-9043   V1.002]
 sector_delay=4000
+
+
+# The Emblem of Justice (Japan) 修复过场景时黑屏的问题
+[T-21001G  V1.003]
+sector_delay=1000
+
+
+# 信长野望天翔记威力加强版 修复花屏
+[T-7643G   V1.001]
+sector_delay=2000
+
+
+# Time Bokan
+[T-20607G  V1.003]
+play_delay = 2000
+
+
+# Gotha - Ismailia SenEki (Japan)
+[GS-9009   V1.000]
+play_delay = 16000
+sector_delay = 5000
+
+
+# Last Bronx
+[GS-9152   V1.113]
+play_delay = 50000
+
+
+[GS-9133   V1.003]
+play_delay = 16000
+sector_delay = 5000
+
+
+[T-31505G  V1.004]
+play_delay = 50000
 
 
 # Bug! (USA) (R) Fixed First stage problem
