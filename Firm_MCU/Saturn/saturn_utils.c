@@ -125,6 +125,7 @@ int config_wrmem(char *lbuf)
 #define ARG_NON  0
 #define ARG_HEX  1
 #define ARG_DEC  2
+#define ARG_STR  3
 
 
 typedef struct {
@@ -143,6 +144,7 @@ CFGARG arg_list [] = {
 	{"lang_id",      ARG_DEC, &lang_id},
 	{"debug",        ARG_HEX, &debug_flags},
 	{"log_mask",     ARG_HEX, &log_mask},
+	{"multi_disc",   ARG_STR, &mdisc_str},
 	{NULL},
 };
 
@@ -218,6 +220,22 @@ _next_section:
 					if(arg->type==ARG_NON){
 						int (*action)(char*) = arg->action;
 						retv = action(lbuf+nlen);
+					}else if(arg->type==ARG_STR){
+						p = strchr(lbuf+nlen, '"');
+						if(p){
+							char *st = p+1;
+							p = strchr(st, '"');
+							if(p){
+								*p = 0;
+								printk("    %s = \"%s\"\n", arg->name, st);
+								strcpy((char*)(arg->action), st);
+								retv = 0;
+							}else{
+								retv = -1;
+							}
+						}else{
+							retv = -1;
+						}
 					}else{
 						int base = (arg->type==ARG_DEC)? 10 : 16;
 						p = strchr(lbuf+nlen, '=');

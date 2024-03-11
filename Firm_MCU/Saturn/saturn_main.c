@@ -16,6 +16,8 @@ int sector_delay_force = -1;
 int play_delay = 0;
 int play_delay_force = -1;
 int auto_update = 0;
+char mdisc_str[16];
+int next_disc = -1;
 
 int log_mask = LOG_MASK_DEFAULT;
 
@@ -263,6 +265,21 @@ _restart_wait:
 					if(cdb.block_free){
 						cdb.play_wait = 0;
 						goto _restart_nowait;
+					}
+				}
+			}
+			if(next_disc>=0){
+				int sd_card_insert(void);
+				int sdio_reset(void);
+				if(cdb.status==STAT_OPEN){
+					if(sd_card_insert()){
+						sdio_reset();
+						load_disc(next_disc);
+						HIRQ = HIRQ_DCHG;
+					}
+				}else{
+					if(sd_card_insert()==0){
+						cdb.status = STAT_OPEN;
 					}
 				}
 			}

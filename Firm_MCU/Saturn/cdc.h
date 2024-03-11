@@ -291,6 +291,8 @@ extern int sector_delay;
 extern int sector_delay_force;
 extern int play_delay;
 extern int play_delay_force;
+extern char mdisc_str[];
+extern int next_disc;
 
 
 /******************************************************************************/

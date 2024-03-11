@@ -587,6 +587,21 @@ int init_cdblock(void)
 	return HIRQ_ESEL;
 }
 
+
+// 0x05 [S-]
+int open_tray(void)
+{
+	SSLOG(_INFO, "open_tray\n");
+
+	SSCR1 = (cdb.status<<8);
+	SSCR2 = 0x0000;
+	SSCR3 = 0x0000;
+	SSCR4 = 0x0000;
+
+	return 0;
+}
+
+
 // 0x06 [S-]
 int end_trans(void)
 {
@@ -1954,6 +1969,8 @@ void cdc_cmd_process(void)
 	case 0x03: hirq = get_session_info();
 		break;
 	case 0x04: hirq = init_cdblock();
+		break;
+	case 0x05: hirq = open_tray();
 		break;
 	case 0x06: hirq = end_trans();
 		break;

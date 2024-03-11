@@ -327,6 +327,20 @@ int list_disc(int show)
 }
 
 
+int find_disc(char *name)
+{
+	int i;
+
+	for(i=0; i<total_disc; i++){
+		if(strcmp(name, path_str+disc_path[i])==0){
+			return i;
+		}
+	}
+	
+	return -1;
+}
+
+
 int unload_disc(void)
 {
 	int i;
@@ -425,7 +439,26 @@ int load_disc(int index)
 		if(retv){
 			goto _exit;
 		}
+
+		mdisc_str[0] = 0;
+		next_disc = -1;
+
 		parse_config("/SAROO/saroocfg.txt", gameid);
+		
+		if(mdisc_str[0]){
+			int mlen = strlen(mdisc_str);
+			strcpy(fname, path_str+disc_path[index]);
+			char *p = strstr(fname, mdisc_str);
+			if(p){
+				p[mlen] += 1;
+				next_disc = find_disc(fname);
+				if(next_disc<0){
+					p[mlen] = '1';
+					next_disc = find_disc(fname);
+				}
+				printk("next disc: [%d]  %s\n", next_disc, fname);
+			}
+		}
 
 		if(sector_delay_force>=0){
 			sector_delay = sector_delay_force;

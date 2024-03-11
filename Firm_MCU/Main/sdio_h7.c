@@ -114,7 +114,7 @@ static void sd_power_on(int on)
 		SDIO->POWER = 0x00000000;
 }
 
-static int sd_card_insert(void)
+int sd_card_insert(void)
 {
 	// PA15
 	return (GPIOA->IDR&0x8000)? 0: 1;
