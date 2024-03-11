@@ -224,7 +224,7 @@ int smpc_cmd(int cmd);
 
 
 void conio_init(void);
-void conio_put_char(int x, int y, int color, int ch);
+int conio_put_char(int x, int y, int color, int ch);
 void conio_putc(int ch);
 u32 conio_getc(void);
 
@@ -358,7 +358,7 @@ typedef struct menu_desc_t {
 	int num;
 	int current;
 	char title[64];
-	char items[11][64];
+	char items[11][96];
 	char *version;
 	int (*handle)(int index);
 }MENU_DESC;
@@ -378,6 +378,7 @@ int menu_default(MENU_DESC *menu, int ctrl);
 
 extern int lang_id;
 void lang_init(void);
+void lang_next(void);
 char *TT(char *str);
 
 /*****************************************************************************/

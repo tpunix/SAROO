@@ -43,5 +43,10 @@ SECTIONS
     	__bss_end = .;
 	}
 
+	. = __ip_start + 0x20000-4;
+	.pad_128k :
+	{
+		LONG(0);
+	}
 }
 

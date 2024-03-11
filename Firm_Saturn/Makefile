@@ -8,7 +8,8 @@ CC	=	sh-elf-gcc
 AS	=	sh-elf-as
 OBJDUMP = sh-elf-objdump
 OBJCOPY = sh-elf-objcopy
-LDFLAGS	=	-nostartfiles -nostdlib -T ldscript
+#LDFLAGS	=	-nostartfiles -nostdlib -T ldscript
+LDFLAGS	=	-nostartfiles -T ldscript
 FLAGS	=	-Wall -m2 -Os -fomit-frame-pointer -std=c99
 
 LIBS	=	-lgcc
@@ -41,10 +42,11 @@ $(EXE)	: $(OBJ)
 	$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $(EXE)
 	$(OBJDUMP) -xd $(EXE) > dump.txt
 	$(OBJCOPY) -O binary $(EXE) tmp.bin
-	dd if=/dev/zero  of=ssfirm.bin bs=1k count=384
-	dd if=tmp.bin    of=ssfirm.bin conv=notrunc
-	dd if=hzk14u.bin of=ssfirm.bin bs=1k seek=128 conv=notrunc
+	cat tmp.bin font_cjk.bin >ssfirm.bin
 	rm -f tmp.bin
+
+$(OBJ): main.h smpc.h vdp2.h font_latin.h
+
 
 obj/%.o :	%.c
 		$(CC) -c $< -o $@ $(FLAGS)

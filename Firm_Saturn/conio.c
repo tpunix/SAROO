@@ -33,8 +33,8 @@ static const unsigned short vga_pal[256] = {
     0x1505, 0x1905, 0x1905, 0x1D05, 0x2105, 0x20E5, 0x20C5, 0x20C5, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
 };
 
-#include "font_8x16.h"
-
+#include "font_latin.h"
+static const u8 *font_cjk = (u8*)0x02020000;
 
 static int pos_x, pos_y;
 static int text_color;
@@ -128,25 +128,11 @@ void fbtest(void)
 
 /******************************************************************************/
 
-// CP437中没有ã(e3)的编码，这里暂用a(61)代替
-static u8 ucs_to_cp437[128] = {
-	// 0     1     2     3     4     5     6     7     8     9     a     b     c     d     e     f
-	0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, // 8
-	0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, // 9
-	0xff, 0xad, 0x9b, 0x9c, 0xa4, 0x9d, 0xa6, 0xa7, 0xa8, 0xa9, 0xa6, 0xae, 0xaa, 0xad, 0xae, 0xaf, // a
-	0xf8, 0xf1, 0xfd, 0xb3, 0xb4, 0xb5, 0xb6, 0xfa, 0xb8, 0xb9, 0xa7, 0xaf, 0xac, 0xab, 0xbe, 0xa8, // b
-	0xc0, 0xc1, 0xc2, 0xc3, 0x8e, 0x8f, 0x92, 0x80, 0xc8, 0x90, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf, // c
-	0xd0, 0xa5, 0xd2, 0xd3, 0xd4, 0xd5, 0x99, 0xd7, 0xd8, 0xd9, 0xda, 0xdb, 0x9a, 0xdd, 0xde, 0xe1, // d
-	0x85, 0xa0, 0x83, 0x61, 0x84, 0x86, 0x91, 0x87, 0x8a, 0x82, 0x88, 0x89, 0x8d, 0xa1, 0x8c, 0x8b, // e
-	0xf0, 0xa4, 0x95, 0xa2, 0x93, 0xf5, 0x94, 0xf6, 0xf8, 0x97, 0xa3, 0x96, 0x81, 0xfd, 0xfe, 0x98, // f
-};
 
-static u8 *find_ucs(int ucs)
+static u8 *find_ucs(u8 *fdat, int ucs)
 {
-	u8 *hzk14u = (u8*)0x02020000;
-	u16 total = *(u16*)(hzk14u);
-	u16 *ucslist = (u16*)0x02020002;
-	u8 *font_data = hzk14u+2+total*2;
+	int total = *(u16*)(fdat);
+	u8 *fi;
 
 	int low, high, mp;
 
@@ -154,9 +140,12 @@ static u8 *find_ucs(int ucs)
 	high = total-1;
 	while(low<=high){
 		mp = (low+high)/2;
-		if(ucs==ucslist[mp]){
-			return font_data+mp*28;
-		}else if(ucs>ucslist[mp]){
+		fi = fdat+2+mp*5;
+		int code = (fi[0]<<8) | fi[1];
+		if(ucs==code){
+			int offset = (fi[2]<<16) | (fi[3]<<8) | fi[4];
+			return fdat+offset;
+		}else if(ucs>code){
 			low = mp+1;
 		}else{
 			high = mp-1;
@@ -167,46 +156,65 @@ static u8 *find_ucs(int ucs)
 }
 
 
-void conio_put_char(int x, int y, int color, int v)
+static u8 *find_font(int ucs)
 {
-	int r, c;
-	u8 *bmp, *font_data;
-	unsigned char fg = (color >> 4) & 0x0F;
-	unsigned char bg = (color >> 0) & 0x0F;
+	u8 *fdat;
 
-	bmp = fbptr+y*llen+x;
+	if(ucs==0x30fc)
+		ucs = 0x2014; // gb2312没有'ー'这个符号，用A1AA(U2014)代替。
 
-	if(v>=0x0100){
-		if(v==0x30fc)
-			v = 0x2014; // gb2312没有'ー'这个符号，用A1AA(U2014)代替。
-		bmp += llen+1;
-		font_data = find_ucs(v);
-		if(font_data==NULL){
-			font_data = find_ucs(0x25a1);
-		}
-		for (r=0; r<14; r++) {
-			u16 b = *(u16*)(font_data+r*2);
-			for (c=0; c<14; c++) {
-				u8 d = (b&(1<<(15-c))) ? fg : bg;
-				bmp[c] = d;
-			}
-			bmp += llen;
-		}
-	}else{
-		if(v>=0x80){
-			v = ucs_to_cp437[v-0x80];
-		}
-		font_data = font_8x16+v*16;
-		for (r=0; r<16; r++) {
-			u8 b = font_data[r];
-			for (c=0; c<8; c++) {
-				u8 d = (b & (0x80 >> c)) ? fg : bg;
-				bmp[c] = d;
-			}
-			bmp += llen;
+	fdat = find_ucs(font_latin, ucs);
+	if(fdat==NULL){
+		fdat = find_ucs((u8*)font_cjk, ucs);
+		if(fdat==NULL){
+			fdat = find_ucs((u8*)font_cjk, 0x25a1);
 		}
 	}
 
+	return fdat;
+}
+
+
+int fb_draw_font(int x, int y, int color, u8 *font_data, int lb, int rb)
+{
+	int r, c, bx;
+	u8 *bmp;
+	u8 fg = (color >> 4) & 0x0F;
+	u8 bg = (color >> 0) & 0x0F;
+
+	int ft_adv = font_data[0];
+	int ft_bw = font_data[1]>>4;
+	int ft_bh = font_data[1]&0x0f;
+	int ft_bx = font_data[2]>>4;
+	int ft_by = font_data[2]&0x0f;
+	int ft_lsize = (ft_bw>8)? 2: 1;
+	//printk("%02x: w=%d h=%d x=%d y=%d, adv=%d\n", v, ft_bw, ft_bh, ft_bx, ft_by, ft_adv);
+	
+	if(x+ft_adv<lb)
+		return ft_adv;
+
+	bx = x + ft_bx;
+	bmp = fbptr + (y+ft_by)*llen + bx;
+
+	for (r=0; r<ft_bh; r++) {
+		int b, mask;
+		if(ft_lsize==1){
+			b = font_data[3+r];
+			mask = 0x80;
+		}else{
+			b = (font_data[3+r*2+0]<<8) | (font_data[3+r*2+1]);
+			mask = 0x8000;
+		}
+		for (c=0; c<ft_bw; c++) {
+			if((bx+c)>=lb && (bx+c)<=rb){
+				bmp[c] = (b&mask) ? fg : bg;
+			}
+			mask >>= 1;
+		}
+		bmp += llen;
+	}
+
+	return ft_adv;
 }
 
 
@@ -221,26 +229,28 @@ static int utf8_to_ucs(char **ustr)
 		*ustr = str+1;
 		return *str;
 	}else if(*str<0xe0){
-		ucs = ((str[0]&0x1f)<<6) | (str[1]&0x3f);
-		*ustr = str+2;
+		if(str[1]<0x80){
+			ucs = '?';
+			*ustr = str+1;
+		}else{
+			ucs = ((str[0]&0x1f)<<6) | (str[1]&0x3f);
+			*ustr = str+2;
+		}
 		return ucs;
 	}else{
-		ucs = ((str[0]&0x0f)<<12) | ((str[1]&0x3f)<<6) | (str[2]&0x3f);
-		*ustr = str+3;
+		if(str[1]<0x80){
+			ucs = '?';
+			*ustr = str+1;
+		}else if(str[2]<0x80){
+			ucs = '?';
+			*ustr = str+2;
+		}else{
+			ucs = ((str[0]&0x0f)<<12) | ((str[1]&0x3f)<<6) | (str[2]&0x3f);
+			*ustr = str+3;
+		}
 		return ucs;
 	}
 
-}
-
-
-void conio_put_string(int x, int y, int color, char *str)
-{
-	int ch;
-
-	while( (ch=utf8_to_ucs(&str)) ){
-		conio_put_char(x, y, color, ch);
-		x += (ch>=0x100)? 16 : 8;
-	}
 }
 
 
@@ -255,9 +265,9 @@ void conio_putc(int ch)
 			pos_y = 0;
 		}
 	}else{
-		conio_put_char(pos_x, pos_y, text_color, ch);
-
-		pos_x += (ch>=0x100)? 16 : 8;;
+		u8 *font_data = find_font(ch);
+		int adv = fb_draw_font(pos_x, pos_y, text_color, font_data, 0, fbw-1);
+		pos_x += adv;
 		if(pos_x>=fbw){
 			pos_x = 0;
 			pos_y += 16;
@@ -334,9 +344,7 @@ void put_hline(int y, int x1, int x2, int c)
 	}
 
 	bmp += y*llen+x1;
-	for(x=0; x<x2; x++){
-		bmp[x] = c;
-	}
+	memset((u8*)bmp, c, x2);
 }
 
 void put_vline(int x, int y1, int y2, int c)
@@ -448,19 +456,129 @@ u32 conio_getc(void)
 
 /******************************************************************************/
 
+#define MENU_LB  16
+#define MENU_RB  303
+
+static int sel_oob;
+static int sel_state;
+static int sel_cnt;
+static int sel_offset;
+static u8 *sel_fdat[96];
+
+int menu_draw_string(int x, int y, int color, char *str, int lb, int rb)
+{
+	int ch, adv;
+
+	while( (ch=utf8_to_ucs(&str)) ){
+		u8 *font_data = find_font(ch);
+		adv = fb_draw_font(x, y, color, font_data, lb, rb);
+		x += adv;
+		if(x>rb)
+			return 1;
+	}
+
+	return 0;
+}
+
 
 static void draw_menu_item(int index, char *item, int select)
 {
-	int mx = 16;
-	int my = 24+index*16;
+	int y = 24+index*16;
 	int color = text_color;
 
 	if(select){
 		color = 0x0f;
 	}
-	put_box(mx, my, mx+36*8-1, my+16-1, (color&0x0f));
+	put_box(MENU_LB, y, MENU_RB, y+16-1, (color&0x0f));
+	menu_draw_string(MENU_LB, y, color, item, MENU_LB, MENU_RB);
+}
 
-	conio_put_string(mx, my, color, item);
+
+static int draw_menu_item_select(int index, char *item)
+{
+	int x, y = 24+index*16;
+	int color = 0x0f;
+	int i, adv;
+
+	put_box(MENU_LB, y, MENU_RB, y+16-1, color);
+
+	x = MENU_LB-sel_offset;
+	i = 0;
+	while(sel_fdat[i]){
+		adv = (sel_fdat[i])[0];
+		if(x+adv>=MENU_LB){
+			fb_draw_font(x, y, color, sel_fdat[i], MENU_LB, MENU_RB);
+		}
+		i += 1;
+		x += adv;
+		if(x>MENU_RB){
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+
+#define SEL_IDLE_TIME 1280
+
+void menu_timer(MENU_DESC *menu)
+{
+
+	if(sel_state==0){
+		if(sel_oob==0)
+			return;
+		sel_cnt += 1;
+		if(sel_cnt==SEL_IDLE_TIME){
+			sel_state = 1;
+			sel_offset = 0;
+		}
+	}else if(sel_state==1){
+		sel_offset += 1;
+		int i = menu->current;
+		while((TVSTAT&0x0008)==0);
+		int oob = draw_menu_item_select(i, menu->items[i]);
+		if(oob==0){
+			sel_state = 2;
+			sel_cnt = 0;
+		}
+	}else if(sel_state==2){
+		sel_cnt += 1;
+		if(sel_cnt==SEL_IDLE_TIME){
+			sel_state = 3;
+		}
+	}else if(sel_state==3){
+		sel_offset -= 1;
+		int i = menu->current;
+		while((TVSTAT&0x0008)==0);
+		draw_menu_item_select(i, menu->items[i]);
+		if(sel_offset==0){
+			sel_state = 0;
+			sel_cnt = 0;
+		}
+	}
+
+}
+
+
+static void sel_init(MENU_DESC *menu)
+{
+	int ch, n, w;
+	char *str = menu->items[menu->current];
+
+	n = 0;
+	w = 0;
+	while( (ch=utf8_to_ucs(&str)) ){
+		sel_fdat[n] = find_font(ch);
+		w += (sel_fdat[n])[0];
+		n += 1;
+	}
+	sel_fdat[n] = NULL;
+
+	sel_oob = (w>(MENU_RB+1-MENU_LB))? 1: 0;
+	sel_state = 0;
+	sel_cnt = 0;
+	sel_offset = 0;
 }
 
 
@@ -474,13 +592,15 @@ void menu_update(MENU_DESC *menu)
 	}
 
 	menu_status(menu, NULL);
+
+	sel_init(menu);
 }
 
 
 void draw_menu_frame(MENU_DESC *menu)
 {
 	memset(fbptr, 0, fbh*llen);
-	conio_put_string(32, 4, text_color, menu->title);
+	menu_draw_string(32, 4, text_color, menu->title, 0, fbw-1);
 
 	put_rect(10, 19, 309, 205, 0x0f);
 	put_rect(13, 22, 306, 202, 0x0f);
@@ -499,15 +619,15 @@ void menu_status(MENU_DESC *menu, char *string)
 
 	put_box(mx, my, mx+36*8-1, my+16-1, 0);
 	if(string){
-		conio_put_string(mx, my, text_color, string);
+		menu_draw_string(mx, my, text_color, string, 0, fbw-1);
 	}
 }
 
 
 void add_menu_item(MENU_DESC *menu, char *item)
 {
-	strncpy(menu->items[menu->num], item, 64);
-	menu->items[menu->num][36] = 0;
+	strncpy(menu->items[menu->num], item, 96);
+	menu->items[menu->num][95] = 0;
 	menu->num += 1;
 }
 
@@ -543,8 +663,10 @@ _restart:
 #if 1
 	while(1){
 		ctrl = conio_getc();
-		if(ctrl==0)
+		if(ctrl==0){
+			menu_timer(menu);
 			continue;
+		}
 		retv = menu->handle(ctrl);
 		if(retv==MENU_EXIT)
 			break;

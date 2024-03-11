@@ -555,6 +555,11 @@ int main_handle(int ctrl)
 	if(menu_default(&main_menu, ctrl))
 		return 0;
 
+	if(BUTTON_DOWN(ctrl, PAD_LT)){
+		lang_next();
+		return MENU_EXIT;
+	}
+
 	if(!BUTTON_DOWN(ctrl, PAD_A))
 		return 0;
 
@@ -595,7 +600,9 @@ int main_handle(int ctrl)
 		select_bins();
 		return MENU_RESTART;
 	}else if(index==4){
-		menu_status(&main_menu, NULL);
+		menu_status(&main_menu, "Open serial console ...");
+		sci_init();
+		sci_shell();
 		return MENU_EXIT;
 	}else if(index==update_index){
 		menu_status(&main_menu, TT("升级中,请勿断电..."));
@@ -699,9 +706,6 @@ int _main(void)
 	lang_init();
 	while(1){
 		menu_init();
-
-		sci_init();
-		sci_shell();
 	}
 
 	return 0;

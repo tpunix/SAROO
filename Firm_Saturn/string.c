@@ -4,6 +4,7 @@
 
 #include "main.h"
 
+#if 0
 void *memset(void *s, int v, int n)
 {
     register char *p = (char *)s;
@@ -29,6 +30,7 @@ void *memcpy(void *to, void *from, int n)
 
     return to;
 }
+#endif
 
 int memcmp(void *dst, void *src, int n)
 {
