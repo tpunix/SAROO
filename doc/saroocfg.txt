@@ -104,3 +104,9 @@ sector_delay=1000
 # Bug! (USA) Fixed First stage problem
 [GM-81004  V1.017]
 sector_delay=1000
+
+
+# Batman Forever - The Arcade Game(Japan)
+[T-8118G   V1.000]
+play_delay = 100000
+sector_delay = 4200
