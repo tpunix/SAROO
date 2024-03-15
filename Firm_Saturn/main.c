@@ -652,7 +652,7 @@ void menu_init(void)
 
 	main_menu.handle = main_handle;
 
-	sprintf(ver_buf, "MCU:%06x  SS:%06x  FPGA:%02x", mcu_ver&0xffffff, get_build_date()&0xffffff, SS_VER&0xff);
+	sprintf(ver_buf, "MCU:%06x        SS:%06x        FPGA:%02x", mcu_ver&0xffffff, get_build_date()&0xffffff, SS_VER&0xff);
 	main_menu.version = ver_buf;
 
 	menu_run(&main_menu);
