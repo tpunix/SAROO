@@ -200,7 +200,7 @@ char *lang_de[LANG_STR_NR] = {
 	"Firmware Update",
 	"Update läuft... Konsole nicht ausschalten!",
 	"Update fehlgeschlagen!",
-	"Update erfolgreich! Konsole neu starten."
+	"Update erfolgreich! Konsole neu starten.",
 	"SAROO Hauptmenü",
 	"Prüfe CD ......",
 	"Keine CD gefunden!",
@@ -235,6 +235,7 @@ char *TT(char *str)
 	STR_ENTRY *entry = lang_str_table[hash&0xff];
 	while(entry){
 		if(hash==entry->hash){
+			//printk("TT: %s(%08x) -> %d %s\n", str, hash, entry->index, lang_cur[entry->index]);
 			return lang_cur[entry->index];
 		}
 		entry = entry->next;
