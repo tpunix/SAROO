@@ -110,3 +110,21 @@ sector_delay=1000
 [T-8118G   V1.000]
 play_delay = 100000
 sector_delay = 4200
+
+
+# DAYTONA USA (E)
+# Fixes advanced and export routes booting to system
+[MK_8120050V1.000]
+sector_delay=500
+
+
+# DAYTONA USA (U)
+# Fixes advanced and export routes booting to system
+[MK-81200  V1.000]
+sector_delay=500
+
+
+# DAYTONA USA (J)
+# Fixes advanced and export routes booting to system
+[GS-9013   V1.000]
+sector_delay=500
