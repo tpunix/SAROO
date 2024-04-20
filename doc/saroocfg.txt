@@ -128,3 +128,9 @@ sector_delay=500
 # Fixes advanced and export routes booting to system
 [GS-9013   V1.000]
 sector_delay=500
+
+
+# LAST GLADIATORS
+# Fixes black screen when leaving options
+[T-4804H   V1.000]
+sector_delay=1000
