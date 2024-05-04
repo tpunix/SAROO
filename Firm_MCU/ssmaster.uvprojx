@@ -634,6 +634,11 @@
               <FileType>1</FileType>
               <FilePath>.\Saturn\saturn_utils.c</FilePath>
             </File>
+            <File>
+              <FileName>tinygif.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Saturn\tinygif.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1337,6 +1342,11 @@
               <FileName>saturn_utils.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Saturn\saturn_utils.c</FilePath>
+            </File>
+            <File>
+              <FileName>tinygif.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Saturn\tinygif.c</FilePath>
             </File>
           </Files>
         </Group>

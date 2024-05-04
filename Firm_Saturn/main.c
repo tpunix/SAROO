@@ -27,6 +27,13 @@ u32 BE32(void *ptr)
 }
 
 
+u32 LE16(void *ptr)
+{
+	u8 *b = (u8*)ptr;
+	return (b[1]<<8) | b[0];
+}
+
+
 u32 LE32(void *ptr)
 {
 	u8 *b = (u8*)ptr;
@@ -377,6 +384,48 @@ int mem_test(int size)
 
 /**********************************************************/
 
+
+void gif_timer(void)
+{
+	int gif_flag = *(u8*)0x22400000;
+	if(gif_flag){
+		u8 *dst = (u8*)(VDP2_VRAM+0x20000);
+		u8 *src = (u8*)(0x22401000);
+		int w = LE16((u8*)0x22400004);
+		int h = LE16((u8*)0x22400006);
+		int x = (fbw-w)/2;
+		int y = (fbh-h)/2;
+		if(x<0){
+			src -= x;
+		}else{
+			dst += x;
+		}
+		if(y<0){
+			src -= y*512;
+			h = fbh;
+		}else{
+			dst += y*512;
+		}
+
+		memcpy(dst, src, 512*h);
+		*(u8*)0x22400000 = 0;
+	}
+
+	int pal_flag = *(u8*)0x22400002;
+	if(pal_flag){
+		int i;
+		u8 *pal = (u8*)0x22400100;
+		for(i=0; i<256; i++){
+			nbg1_set_cram(i, pal[2], pal[1], pal[0]);
+			pal += 4;
+		}
+		*(u8*)0x22400002 = 0;
+	}
+}
+
+
+/**********************************************************/
+
 static int total_disc, total_page, page;
 static int sel_mode; // 0:game  1:binary
 
@@ -685,6 +734,8 @@ void menu_init(void)
 {
 	int i;
 
+	nbg1_on();
+
 	memset(&main_menu, 0, sizeof(main_menu));
 	strcpy(main_menu.title, TT("SAROO Boot Menu"));
 
@@ -708,6 +759,16 @@ void menu_init(void)
 
 int _main(void)
 {
+	// EFSDL/EFPAN for CDDA
+	*(u8* )(0x25b00217) =  0xc0;
+	*(u8* )(0x25b00237) =  0xc0;
+	// Master Volume
+	*(u16*)(0x25b00400) =  0x020f;
+
+	SS_ARG = 0;
+	SS_CMD = SSCMD_STARTUP;
+
+
 	conio_init();
 	pad_init();
 

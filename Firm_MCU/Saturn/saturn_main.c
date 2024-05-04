@@ -285,6 +285,8 @@ _restart_wait:
 			}
 			HIRQ = HIRQ_SCDQ;
 			set_peri_report();
+
+			gif_decode_timer();
 			goto _restart_wait;
 		}
 
@@ -504,6 +506,8 @@ void ss_cmd_handle(void)
 		retv = load_disc(SS_ARG);
 		SS_ARG = retv;
 		SS_CMD = 0;
+
+		gif_decode_exit();
 		break;
 	case SSCMD_CHECK:
 	{
@@ -588,6 +592,44 @@ void ss_cmd_handle(void)
 		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
+	case SSCMD_STARTUP: {
+		// 土星端启动!
+
+		// 复位buffer
+		buf_fad_start = 0;
+		buf_fad_end = 0;
+		buf_fad_size = 0;
+		// 镜像列表
+		list_disc(0, 0);
+
+		// 背景音乐
+		int audio_repeat = 0;
+		retv = load_pcm("/SAROO/bgsound.pcm");
+		if(retv){
+			retv = load_pcm("/SAROO/bgsound_r.pcm");
+			if(retv==0){
+				audio_repeat = 1;
+			}
+		}
+		SS_ARG = retv;
+		//SS_CMD = 0;
+		if(retv==0){
+			cdb.play_fad_start = track_to_fad(0x0100);
+			cdb.play_fad_end   = track_to_fad(0x0163);
+			cdb.track = 0x01;
+			cdb.index = 0x00;
+			cdb.fad = cdb.play_fad_start;
+			cdb.max_repeat = (audio_repeat)? 0x0f : 0x00;
+			cdb.repcnt = 0;
+			cdb.options = 0x00;
+			cdb.pause_request = 0;
+			cdb.play_type = PLAYTYPE_SECTOR;
+			disk_task_wakeup();
+		}
+		
+		gif_decode_init();
+		break;
+	}
 	default:
 		SSLOG(_INFO, "[SS] unkonw cmd: %04x\n", cmd);
 		break;

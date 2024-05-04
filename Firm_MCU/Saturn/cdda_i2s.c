@@ -148,10 +148,8 @@ int fill_audio_buffer(u8 *data)
 
 
 // test
-void play_i2s(void)
+void play_i2s(char *audio_file)
 {
-	char *audio_file = "/srmp7.bin";
-
 	FIL fp;
 	int retv, size;
 	u32 rv;

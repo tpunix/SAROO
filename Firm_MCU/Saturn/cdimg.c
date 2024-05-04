@@ -46,6 +46,34 @@ int get_gameid(char *gameid)
 /******************************************************************************/
 
 
+int load_pcm(char *fname)
+{
+	FIL *fp = &track_fp[0];
+	TRACK_INFO *tk;
+	int retv;
+
+	retv = f_open(fp, fname, FA_READ);
+	if(retv){
+		return -2;
+	}
+
+	tk = &cdb.tracks[0];
+	tk->fp = fp;
+	tk->file_offset = 0;
+	tk->sector_size = 2352;
+	tk->fad_0 = 150;
+	tk->fad_start = 150;
+	tk->fad_end = 150 + (f_size(fp))/2352 - 1;
+	tk->mode = 3;
+	tk->ctrl_addr = 0x01;
+
+	cdb.track_num = 1;
+	init_toc();
+
+	return 0;
+}
+
+
 int parse_iso(char *fname)
 {
 	FIL *fp = &track_fp[0];

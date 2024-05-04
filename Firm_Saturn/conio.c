@@ -724,6 +724,7 @@ _restart:
 		ctrl = conio_getc();
 		if(ctrl==0){
 			menu_timer(menu);
+			gif_timer();
 			continue;
 		}
 		retv = menu->handle(ctrl);

@@ -47,6 +47,7 @@ typedef unsigned long long u64;
 #define SSCMD_LSAVE    0x000a
 #define SSCMD_LMEMS    0x000b
 #define SSCMD_SMEMS    0x000c
+#define SSCMD_STARTUP  0x000d
 
 
 #define IMGINFO_ADDR   0x22080000
@@ -192,6 +193,9 @@ void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg);
 /*****************************************************************************/
 
 extern const int HZ;
+
+#define MS2TICK(ms)  ( (ms) * HZ / 1000)
+#define TICK2MS(tk)  ( (tk) * 1000 / HZ)
 
 void reset_timer(void);
 u32 get_timer(void);
@@ -401,6 +405,12 @@ void patch_game(char *id);
 /*****************************************************************************/
 
 extern u32 debug_flag;
+
+/*****************************************************************************/
+
+
+void gif_timer(void);
+
 
 /*****************************************************************************/
 

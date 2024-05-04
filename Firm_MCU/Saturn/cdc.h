@@ -112,6 +112,7 @@
 #define SSCMD_LSAVE    0x000a
 #define SSCMD_LMEMS    0x000b
 #define SSCMD_SMEMS    0x000c
+#define SSCMD_STARTUP  0x000d
 
 
 #define MSF_TO_FAD(m,s,f) ((m * 4500) + (s * 75) + f)
@@ -358,6 +359,7 @@ void init_toc(void);
 int list_bins(int show);
 int list_disc(int show);
 int load_disc(int index);
+int load_pcm(char *fname);
 int unload_disc(void);
 
 int open_savefile(void);
@@ -366,6 +368,12 @@ int flush_savefile(void);
 
 int load_smems(int id);
 int flush_smems(int flag);
+
+
+
+void gif_decode_init(void);
+void gif_decode_timer(void);
+void gif_decode_exit(void);
 
 
 /******************************************************************************/

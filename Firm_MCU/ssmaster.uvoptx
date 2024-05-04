@@ -73,9 +73,9 @@
         <LExpSel>0</LExpSel>
       </OPTXL>
       <OPTFL>
-        <tvExp>0</tvExp>
+        <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>0</IsCurrentTarget>
+        <IsCurrentTarget>1</IsCurrentTarget>
       </OPTFL>
       <CpuCode>18</CpuCode>
       <DebugOpt>
@@ -282,7 +282,7 @@
       <OPTFL>
         <tvExp>0</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>1</IsCurrentTarget>
+        <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
       <CpuCode>18</CpuCode>
       <DebugOpt>
@@ -364,11 +364,6 @@
           <AccSizeX>1</AccSizeX>
         </Mm>
       </MemoryWindow1>
-      <ScvdPack>
-        <Filename>D:\Keil_v5\Packs\ARM\CMSIS\5.6.0\CMSIS\RTOS2\RTX\RTX5.scvd</Filename>
-        <Type>ARM.CMSIS.5.6.0</Type>
-        <SubType>1</SubType>
-      </ScvdPack>
       <Tracepoint>
         <THDelay>0</THDelay>
       </Tracepoint>
@@ -902,6 +897,18 @@
       <bDave2>0</bDave2>
       <PathWithFileName>.\Saturn\saturn_utils.c</PathWithFileName>
       <FilenameWithoutPath>saturn_utils.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>5</GroupNumber>
+      <FileNumber>37</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>.\Saturn\tinygif.c</PathWithFileName>
+      <FilenameWithoutPath>tinygif.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
