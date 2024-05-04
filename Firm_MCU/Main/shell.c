@@ -389,6 +389,20 @@ void simple_shell(void)
 			}
 			printk("play_delay: %d\n", play_delay);
 		}
+		CMD(fedly){
+			extern int pend_delay_force;
+			if(argc){
+				pend_delay_force = arg[0];
+			}
+			printk("pend_delay_force: %d\n", pend_delay_force);
+		}
+		CMD(edly){
+			extern int pend_delay;
+			if(argc){
+				pend_delay = arg[0];
+			}
+			printk("pend_delay: %d\n", pend_delay);
+		}
 		CMD(seram){
 			FIL fp;
 			int retv = f_open(&fp, "/exram.bin", FA_CREATE_ALWAYS|FA_WRITE);

@@ -15,6 +15,8 @@ int sector_delay = 0;
 int sector_delay_force = -1;
 int play_delay = 0;
 int play_delay_force = -1;
+int pend_delay = 0;
+int pend_delay_force = -1;
 int auto_update = 0;
 char mdisc_str[16];
 int next_disc = -1;
@@ -409,6 +411,11 @@ _restart_nowait:
 				}
 			}else{
 				if(cdb.repcnt>=cdb.max_repeat){
+					if(pend_delay){
+						hw_delay(pend_delay);
+						cdb.status = STAT_BUSY;
+						hw_delay(pend_delay);
+					}
 					cdb.status = STAT_PAUSE;
 					if(cdb.play_type==PLAYTYPE_FILE){
 						HIRQ = HIRQ_EFLS;

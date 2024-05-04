@@ -530,6 +530,10 @@ int load_disc(int index)
 			play_delay = play_delay_force;
 			printk("    force play_delay = %d\n", play_delay);
 		}
+		if(pend_delay_force>=0){
+			pend_delay = pend_delay_force;
+			printk("    force pend_delay = %d\n", pend_delay);
+		}
 
 		load_savefile(gameid);
 	}
