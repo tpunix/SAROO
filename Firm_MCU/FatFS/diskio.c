@@ -20,6 +20,7 @@
 int sd_read_sector(u32 block, int count, u8 *buf);
 int sd_write_sector(u32 block, int count, u8 *buf);
 
+static osSemaphoreId_t sem_diskio;
 
 /*-----------------------------------------------------------------------*/
 /* Get Drive Status                                                      */
@@ -38,6 +39,7 @@ DSTATUS disk_status (BYTE pdrv)
 
 DSTATUS disk_initialize (BYTE pdrv)
 {
+	sem_diskio = osSemaphoreNew(1, 1, NULL);
 	return RES_OK;
 }
 
@@ -50,6 +52,10 @@ DSTATUS disk_initialize (BYTE pdrv)
 DRESULT disk_read (BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
 {
 	int result, retry;
+
+	result = osSemaphoreAcquire(sem_diskio, 100);
+	if(result==osErrorTimeout)
+		return RES_ERROR;
 
 	//printk("disk_read: pdrv=%d sector=%08x count=%d buf=%08x\n", pdrv, sector, count, buff);
 	retry = 4;
@@ -66,6 +72,8 @@ DRESULT disk_read (BYTE pdrv, BYTE *buff, LBA_t sector, UINT count)
 			break;
 		}
 	}
+
+	osSemaphoreRelease(sem_diskio);
 
 	if(result)
 		return RES_ERROR;
@@ -84,6 +92,10 @@ DRESULT disk_write (BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
 {
 	int result, retry;
 
+	result = osSemaphoreAcquire(sem_diskio, 100);
+	if(result==osErrorTimeout)
+		return RES_ERROR;
+
 	retry = 4;
 	while(retry){
 		result = sd_write_sector(sector, count, (BYTE *)buff);
@@ -98,6 +110,8 @@ DRESULT disk_write (BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count)
 			break;
 		}
 	}
+
+	osSemaphoreRelease(sem_diskio);
 
 	if(result)
 		return RES_ERROR;
