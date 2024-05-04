@@ -334,8 +334,6 @@ static int sel_mode; // 0:game  1:binary
 
 MENU_DESC sel_menu;
 
-
-
 static void fill_selmenu(void)
 {
 	int *disc_path = (int *)(IMGINFO_ADDR+0x04);
@@ -343,8 +341,8 @@ static void fill_selmenu(void)
 	char tmp[128];
 	int i;
 
-	for(i=0; i<11; i++){
-		int index = page*11+i;
+	for(i=0; i<MENU_ITEMS; i++){
+		int index = page*MENU_ITEMS+i;
 		if(index>=total_disc)
 			break;
 
@@ -423,7 +421,7 @@ static int sel_handle(int ctrl)
 	MENU_DESC *menu = &sel_menu;
 
 	total_disc = LE32((u8*)(IMGINFO_ADDR));
-	total_page = (total_disc+10)/11;
+	total_page = (total_disc+MENU_ITEMS-1)/MENU_ITEMS;
 
 	if(BUTTON_DOWN(ctrl, PAD_UP)){
 		if(menu->current>0){
@@ -460,7 +458,7 @@ static int sel_handle(int ctrl)
 		}
 		page_update(0);
 	}else if(BUTTON_DOWN(ctrl, PAD_A)){
-		int index = page*11 + menu->current;
+		int index = page*MENU_ITEMS + menu->current;
 		int retv;
 
 		if(sel_mode==0){
@@ -486,7 +484,7 @@ static int sel_handle(int ctrl)
 			}
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_Z)){
-		int index = page*11 + menu->current;
+		int index = page*MENU_ITEMS + menu->current;
 
 		SS_ARG = index;
 		SS_CMD = SSCMD_LOADDISC;
@@ -504,7 +502,7 @@ static int sel_handle(int ctrl)
 void select_game(void)
 {
 	total_disc = LE32((u8*)(IMGINFO_ADDR));
-	total_page = (total_disc+10)/11;
+	total_page = (total_disc+MENU_ITEMS-1)/MENU_ITEMS;
 	page = 0;
 
 	memset(&sel_menu, 0, sizeof(sel_menu));
@@ -678,6 +676,7 @@ int _main(void)
 	*(u32*)(0x02000f30) =  (u32)bios_cd_cmd;
 	*(u32*)(0x02000f38) =  (u32)sci_init;
 	*(u32*)(0x02000f3c) =  (u32)printk;
+
 
 
 	if(debug_flag&0x0001){

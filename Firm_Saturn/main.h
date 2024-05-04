@@ -241,6 +241,12 @@ void put_vline(int x, int y1, int y2, int c);
 void put_rect (int x1, int y1, int x2, int y2, int c);
 void put_box(int x1, int y1, int x2, int y2, int c);
 
+
+void nbg1_on(void);
+void nbg1_set_cram(int index, int r, int g, int b);
+void nbg1_put_pixel(int x, int y, int color);
+
+
 /*****************************************************************************/
 
 
@@ -354,11 +360,13 @@ extern int game_break_pc;
 /*****************************************************************************/
 
 
+#define MENU_ITEMS    12
+
 typedef struct menu_desc_t {
 	int num;
 	int current;
 	char title[64];
-	char items[11][96];
+	char items[MENU_ITEMS][96];
 	char *version;
 	int (*handle)(int index);
 }MENU_DESC;

@@ -13,25 +13,14 @@
 
 /******************************************************************************/
 
-
-static const unsigned short vga_pal[256] = {
-    0x0000, 0x5400, 0x02A0, 0x56A0, 0x0015, 0x5415, 0x0155, 0x56B5, 0x294A, 0x7D4A, 0x2BEA, 0x7FEA, 0x295F, 0x7D5F, 0x2BFF, 0x7FFF,
-    0x0000, 0x0842, 0x1084, 0x14A5, 0x1CE7, 0x2108, 0x294A, 0x318C, 0x39CE, 0x4210, 0x4A52, 0x5294, 0x5AD6, 0x6739, 0x739C, 0x7FFF,
-    0x7C00, 0x7C08, 0x7C0F, 0x7C17, 0x7C1F, 0x5C1F, 0x3C1F, 0x201F, 0x001F, 0x011F, 0x01FF, 0x02FF, 0x03FF, 0x03F7, 0x03EF, 0x03E8,
-    0x03E0, 0x23E0, 0x3FE0, 0x5FE0, 0x7FE0, 0x7EE0, 0x7DE0, 0x7D00, 0x7DEF, 0x7DF3, 0x7DF7, 0x7DFB, 0x7DFF, 0x6DFF, 0x5DFF, 0x4DFF,
-    0x3DFF, 0x3E7F, 0x3EFF, 0x3F7F, 0x3FFF, 0x3FFB, 0x3FF7, 0x3FF3, 0x3FEF, 0x4FEF, 0x5FEF, 0x6FEF, 0x7FEF, 0x7F6F, 0x7EEF, 0x7E6F,
-    0x7ED6, 0x7ED8, 0x7EDB, 0x7EDD, 0x7EDF, 0x76DF, 0x6EDF, 0x62DF, 0x5ADF, 0x5B1F, 0x5B7F, 0x5BBF, 0x5BFF, 0x5BFD, 0x5BFB, 0x5BF8,
-    0x5BF6, 0x63F6, 0x6FF6, 0x77F6, 0x7FF6, 0x7FB6, 0x7F76, 0x7F16, 0x3800, 0x3803, 0x3807, 0x380A, 0x380E, 0x280E, 0x1C0E, 0x0C0E,
-    0x000E, 0x006E, 0x00EE, 0x014E, 0x01CE, 0x01CA, 0x01C7, 0x01C3, 0x01C0, 0x0DC0, 0x1DC0, 0x29C0, 0x39C0, 0x3940, 0x38E0, 0x3860,
-    0x38E7, 0x38E8, 0x38EA, 0x38EC, 0x38EE, 0x30EE, 0x28EE, 0x20EE, 0x1CEE, 0x1D0E, 0x1D4E, 0x1D8E, 0x1DCE, 0x1DCC, 0x1DCA, 0x1DC8,
-    0x1DC7, 0x21C7, 0x29C7, 0x31C7, 0x39C7, 0x3987, 0x3947, 0x3907, 0x394A, 0x394B, 0x394C, 0x394D, 0x394E, 0x354E, 0x314E, 0x2D4E,
-    0x294E, 0x296E, 0x298E, 0x29AE, 0x29CE, 0x29CD, 0x29CC, 0x29CB, 0x29CA, 0x2DCA, 0x31CA, 0x35CA, 0x39CA, 0x39AA, 0x398A, 0x396A,
-    0x2000, 0x2002, 0x2004, 0x2006, 0x2008, 0x1808, 0x1008, 0x0808, 0x0008, 0x0048, 0x0088, 0x00C8, 0x0108, 0x0106, 0x0104, 0x0102,
-    0x0100, 0x0900, 0x1100, 0x1900, 0x2100, 0x20C0, 0x2080, 0x2040, 0x2084, 0x2085, 0x2086, 0x2087, 0x2088, 0x1C88, 0x1888, 0x1488,
-    0x1088, 0x10A8, 0x10C8, 0x10E8, 0x1108, 0x1107, 0x1106, 0x1105, 0x1104, 0x1504, 0x1904, 0x1D04, 0x2104, 0x20E4, 0x20C4, 0x20A4,
-    0x20A5, 0x20A6, 0x20A6, 0x20A7, 0x20A8, 0x1CA8, 0x18A8, 0x18A8, 0x14A8, 0x14C8, 0x14C8, 0x14E8, 0x1508, 0x1507, 0x1506, 0x1506,
-    0x1505, 0x1905, 0x1905, 0x1D05, 0x2105, 0x20E5, 0x20C5, 0x20C5, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+// _BGR
+static const unsigned int vga_pal[16] = {
+	0x00000000, 0x00aa0000, 0x0000aa00, 0x00aaaa00,
+	0x000000aa, 0x00aa00aa, 0x000055aa, 0x00aaaaaa,
+	0x00555555, 0x00ff5555, 0x0055ff55, 0x00ffff55,
+	0x005555ff, 0x00ff55ff, 0x0055ffff, 0x00ffffff,
 };
+
 
 #include "font_latin.h"
 static const u8 *font_cjk = (u8*)0x02020000;
@@ -41,74 +30,103 @@ static int text_color;
 
 static int llen;
 int fbw = 320;
-int fbh = 224;
+int fbh = 240;
 u8 *fbptr = (u8*)VDP2_VRAM;
 
 void vdp_init(void)
 {
-    int ii;
-    volatile unsigned short *vdp2_vram = (volatile unsigned short *)VDP2_VRAM;
-    volatile unsigned short *vdp2_cram = (volatile unsigned short *)VDP2_CRAM;
-    TVMD = 0x0000;
+	int i;
+	volatile unsigned int *vdp2_cram = (volatile unsigned int*)VDP2_CRAM;
 
-    RAMCTL = RAMCTL & (~0x3000);
+	// Disable VDP1
+	VDP1_REG_PTMR = 0;
+	*((volatile u16 *)(VDP1_RAM)) = 0x8000;
+	VDP1_REG_FBCR = 0x0000;
+ 	VDP1_REG_TVMR = 0x0000;
+ 	VDP1_REG_EWDR = 0x0000;
+ 	VDP1_REG_EWLR = (0 << 9) | 0;
 
-    // Map Offset Register: Bitmap screen will be located at VRAM offset 0
-    MPOFN = 0;
+	TVMD = 0x0000;
 
-    // Character Control Register: 256 colors, enable NBG0 as a bitmap. |8 for 1024x256 bitmap
-    CHCTLA = 0x0012|8;
+	RAMCTL = 0x2300;
+	CYCA0L = 0x0e44;
+	CYCA0U = 0xeeee;
+	CYCA1L = 0x1e55;
+	CYCA1U = 0xeeee;
 
-    // Screen Scroll Value Registers: No scroll
-    SCXIN0 = 0;
-    SCXDN0 = 0;
-    SCYIN0 = 0;
+	// Map Offset: NBG0 at 0(0x00000), NBG1 at 1(0x20000)
+	MPOFN = 0x0010;
+	// ColorRAM: NBG0 at 0, NBG1 at 1
+	CRAOFA = 0x0010;
+	// Character Control: NBG0/1: 512x256, 256 colors, bitmap
+	CHCTLA = 0x1212;
+	// Priority: 7
+	PRINA = 0x0707;
+
+	// Screen Scroll Value Registers: No scroll
+	SCXIN0 = 0;
+	SCXDN0 = 0;
+	SCYIN0 = 0;
+	SCYDN0 = 0;
 
 	// BackScreen mode
+	LCTA = 0x7fffe>>1;
 	BKTA = 0x7fffe>>1;
 
-    // Screen Display Enable Register: Invalidate the transparency code for
-    // NBG0 and display NBG0
-    BGON = 0x0001;
+	/* Clear VRAM */
+	memset((void*)VDP2_VRAM, 0, 0x80000);
 
-    /* Clear VRAM */
-    for (ii = 0; ii < 0x40000; ii++)
-        vdp2_vram[ii] = 0x0000;
+	/* Set CRAM */
+	for (i = 0; i < 256; i++)
+		vdp2_cram[i] = vga_pal[i];
 
-    /* Clear CRAM */
-    for (ii = 0; ii < 0x0800; ii++)
-        vdp2_cram[ii] = 0x0000;
+	// Enable NBG0
+	BGON = 0x0001;
+
+	TVMD = 0x8010;
 }
 
 
 void conio_init(void)
 {
-    int ii;
-    volatile unsigned short *vdp2_cram = (volatile unsigned short*)VDP2_CRAM;
 
 	vdp_init();
 
-    for (ii = 0; ii < 256; ii++)
-        vdp2_cram[ii] = vga_pal[ii];
-
-    //vdp2_cram[0] = vdp2_cram[1];
-    //vdp2_cram[1] = 0x10 << 10;
-
-	llen = 1024;
-
+	llen = 512;
 	pos_x = 0;
 	pos_y = 0;
 	text_color = 0xf0;
 	printk_putc = conio_putc;
 
-	TVMD = 0x8000;
 
 	void fbtest();
 	fbtest();
 }
 
 
+void nbg1_on(void)
+{
+	CCRNA = 0x0700; // 24:8
+	CCCTL = 0x0002;
+
+	BGON = 0x0003;
+}
+
+
+void nbg1_set_cram(int index, int r, int g, int b)
+{
+	*(u32*)(VDP2_CRAM + 0x0400 + index*4) = (b<<16) | (g<<8) | (r);
+}
+
+
+void nbg1_put_pixel(int x, int y, int color)
+{
+	*(u8*)(VDP2_VRAM + 0x20000 + y*512 + x) = color;
+}
+
+
 /******************************************************************************/
+
 
 void fbtest(void)
 {
@@ -121,9 +139,7 @@ void fbtest(void)
 		int y = 32;
 		put_box(x, y, x+10, y+10, i);
 	}
-
 }
-
 
 
 /******************************************************************************/
@@ -456,8 +472,8 @@ u32 conio_getc(void)
 
 /******************************************************************************/
 
-#define MENU_LB  16
-#define MENU_RB  303
+#define MENU_LB  8
+#define MENU_RB  311
 
 static int sel_oob;
 static int sel_state;
@@ -600,10 +616,10 @@ void menu_update(MENU_DESC *menu)
 void draw_menu_frame(MENU_DESC *menu)
 {
 	memset(fbptr, 0, fbh*llen);
-	menu_draw_string(32, 4, text_color, menu->title, 0, fbw-1);
+	menu_draw_string(16, 6, text_color, menu->title, 0, fbw-1);
 
-	put_rect(10, 19, 309, 205, 0x0f);
-	put_rect(13, 22, 306, 202, 0x0f);
+	put_hline( 22, 0, fbw-1, 0x0f);
+	put_hline(217, 0, fbw-1, 0x0f);
 
 	menu_update(menu);
 	if(menu->version){
@@ -615,7 +631,7 @@ void draw_menu_frame(MENU_DESC *menu)
 void menu_status(MENU_DESC *menu, char *string)
 {
 	int mx = 16;
-	int my = 224-16;
+	int my = 240-16-5;
 
 	put_box(mx, my, mx+36*8-1, my+16-1, 0);
 	if(string){
