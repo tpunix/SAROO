@@ -251,9 +251,10 @@ void disk_task(void *arg)
 
 	int wait_ticks = 10;
 	int play_wait_count = 0;
+	int lazy_play_state = 0;
 	while(1){
 _restart_wait:
-		wait_ticks = (cdb.play_wait || cdb.block_free!=MAX_BLOCKS)? 1: 10;
+		wait_ticks = (cdb.play_wait || cdb.block_free!=MAX_BLOCKS)? 1: 2;
 		retv = osSemaphoreAcquire(sem_wait_disc, wait_ticks);
 		if(retv==osErrorTimeout){
 			if(cdb.pause_request){
@@ -335,10 +336,21 @@ _restart_nowait:
 					cdb.status = STAT_SEEK;
 					hw_delay(calc_delay);
 				}
+				lazy_play_state = 1;
 			}
 		}
 
-		cdb.status = STAT_PLAY;
+		if(play_delay){
+			// SEEK向PLAY状态转换，有一定的延迟。
+			if(lazy_play_state==1){
+				lazy_play_state = 2;
+			}else if(lazy_play_state==2){
+				cdb.status = STAT_PLAY;
+				lazy_play_state = 0;
+			}
+		}else{
+			cdb.status = STAT_PLAY;
+		}
 
 		while(cdb.fad<cdb.play_fad_end){
 			if(cdb.pause_request){
