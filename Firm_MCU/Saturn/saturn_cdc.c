@@ -53,6 +53,28 @@ void free_block(BLOCK *block)
 }
 
 
+BLOCK *dup_block(BLOCK *block)
+{
+	if(block==NULL)
+		return NULL;
+
+	BLOCK *new = alloc_block();
+	if(new==NULL)
+		return NULL;
+
+	new->size = block->size;
+	new->fad  = block->fad;
+	new->cn   = block->cn;
+	new->fn   = block->fn;
+	new->sm   = block->sm;
+	new->ci   = block->ci;
+	memcpy(new->data, block->data, 2352);
+
+	new->next = NULL;
+	return new;
+}
+
+
 BLOCK *find_block(PARTITION *part, int index)
 {
 	BLOCK *p;
@@ -78,6 +100,28 @@ BLOCK *find_block(PARTITION *part, int index)
 	restore_irq(irqs);
 	return NULL;
 }
+
+
+void append_block(PARTITION *part, BLOCK *block)
+{
+	BLOCK *p, *prev;
+	int i, irqs;
+
+	irqs = disable_irq();
+
+	if(part->tail==NULL){
+		part->head = block;
+	}else{
+		part->tail->next = block;
+	}
+	part->tail = block;
+
+	block->next = NULL;
+	part->numblocks += 1;
+
+	restore_irq(irqs);
+}
+
 
 void remove_block(PARTITION *part, int index)
 {
@@ -1437,6 +1481,90 @@ int put_sector_data(void)
 }
 
 
+static int copy_move_error;
+// 0x65 [SR]
+int copy_sector_data(void)
+{
+	int src, dst, spos, snum;
+	PARTITION *ps, *pd;
+
+	dst  = cdb.cr1&0xff;
+	src  = cdb.cr3>>8;
+	spos = cdb.cr2;
+	snum = cdb.cr4;
+
+	ps = &cdb.part[src];
+	pd = &cdb.part[dst];
+
+	SSLOG(_BUFIO, "copy_sector_data: src=%d(%d) spos=%d snum=%d dst=%d\n", src, ps->numblocks, spos, snum, dst);
+	if(spos==0xffff){
+		spos = ps->numblocks-1;
+	}
+	if(snum==0xffff){
+		snum = ps->numblocks-spos;
+	}
+	SSLOG(_BUFIO, "                : src=%d(%d) spos=%d snum=%d\n", src, ps->numblocks, spos, snum);
+
+	copy_move_error = 0;
+
+	BLOCK *bs = find_block(ps, spos);
+	while(snum){
+		BLOCK *new = dup_block(bs);
+		if(new==NULL){
+			copy_move_error = 1;
+			break;
+		}
+		append_block(pd, new);
+		bs = bs->next;
+		snum -= 1;
+	}
+
+	set_status(cdb.status);
+	return HIRQ_ECPY;
+}
+
+
+// 0x66 [SR]
+int move_sector_data(void)
+{
+	int src, dst, spos, snum, i;
+	PARTITION *ps, *pd;
+
+	dst  = cdb.cr1&0xff;
+	src  = cdb.cr3>>8;
+	spos = cdb.cr2;
+	snum = cdb.cr4;
+
+	ps = &cdb.part[src];
+	pd = &cdb.part[dst];
+
+	SSLOG(_BUFIO, "move_sector_data: src=%d(%d) spos=%d snum=%d dst=%d\n", src, ps->numblocks, spos, snum, dst);
+	if(spos==0xffff){
+		spos = ps->numblocks-1;
+	}
+	if(snum==0xffff){
+		snum = ps->numblocks-spos;
+	}
+	SSLOG(_BUFIO, "                : src=%d(%d) spos=%d snum=%d\n", src, ps->numblocks, spos, snum);
+
+	copy_move_error = 0;
+
+	for(i=0; i<snum; i++){
+		BLOCK *bs = find_block(ps, spos);
+		BLOCK *new = dup_block(bs);
+		if(new==NULL){
+			copy_move_error = 1;
+			break;
+		}
+		append_block(pd, new);
+		remove_block(ps, spos);
+	}
+
+	set_status(cdb.status);
+	return HIRQ_ECPY;
+}
+
+
 // 0x67 [S-]
 int get_copy_error(void)
 {
@@ -1913,6 +2041,8 @@ char *cmd_str(int cmd)
 	case 0x62: return "del_sector_data";
 	case 0x63: return "get_del_sector_data";
 	case 0x64: return "put_sector_data";
+	case 0x65: return "copy_sector_data";
+	case 0x66: return "move_sector_data";
 	case 0x67: return "get_copy_error";
 
 	// file io
@@ -2020,6 +2150,10 @@ void cdc_cmd_process(void)
 	case 0x63: hirq = get_del_sector_data();
 		break;
 	case 0x64: hirq = put_sector_data();
+		break;
+	case 0x65: hirq = copy_sector_data();
+		break;
+	case 0x66: hirq = move_sector_data();
 		break;
 	case 0x67: hirq = get_copy_error();
 		break;
