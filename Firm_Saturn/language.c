@@ -207,6 +207,27 @@ char *lang_de[LANG_STR_NR] = {
 	"Keine Spiele-CD!",
 };
 
+char *lang_es[LANG_STR_NR] = {
+	"Seleccionar Juego(%d/%d)",
+	"Seleccionar Archivo(%d/%d)",
+	"Cargando Juego ......",
+	"¡Carga del Juego Fallida! %d",
+	"Cargando Archivo ......",
+	"¡Carga del Archivo Fallida! %d",
+	"Seleccionar Juego",
+	"Reproductor CD del Sistema",
+	"Cargar Disco de Juego",
+	"Consola de depuración Serie UART",
+	"Cargar Binario",
+	"Actualizar Firmware",
+	"Actualizando... ¡¡No Apage la Consola!!",
+	"¡Actualización Fallida!",
+	"¡Actualización Completada! ¡Ya puede Reiniciar!",
+	"SAROO Menú de arranque",
+	"Comprobando Disco .....",
+	"¡Disco no Encontrado!",
+	"¡No es un disco de Juego!",
+};
 
 char **lang_cur;
 
@@ -283,6 +304,8 @@ void lang_init(void)
 		lang_cur = lang_zhtw;
 	}else if(lang_id==7){
 		lang_cur = lang_de;
+	}else if(lang_id==8){
+		lang_cur = lang_es;
 	}
 }
 
@@ -290,7 +313,7 @@ void lang_init(void)
 void lang_next(void)
 {
 	lang_id += 1;
-	if(lang_id>7)
+	if(lang_id>8)
 		lang_id = 0;
 
 	lang_init();
