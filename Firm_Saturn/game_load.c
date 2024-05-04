@@ -5,6 +5,76 @@
 
 /**********************************************************/
 
+static int my_bios_loadcd_boot(int r4, int r5);
+
+static int (*cdp_boot_game)(void);
+static int sk0, sk1;
+static int bios_ver;
+static int force_no_bup = 0;
+
+static int cdp_boot(void)
+{
+	//set_imask(0x0f);
+
+	int pad = (sk0)? sk0 : sk1;
+	printk("cdp_boot! PAD=%04x\n", pad);
+
+	if(pad & PAD_START){
+		void (*go)(void) = (void*)(0x02000f00);
+		go();
+	}else if(pad & PAD_C){
+		// SAROO启动，但用系统存档
+		force_no_bup = 1;
+		bios_cd_cmd(0);
+	}else if(pad & PAD_A){
+		// SAROO启动
+		force_no_bup = 0;
+		bios_cd_cmd(0);
+	}
+
+	return 0;
+}
+
+
+static void (*orig_func)(void);
+
+static void cdp_hook(void)
+{
+	sk0 = *(u16*)0x06020232;
+	sk1 = *(u16*)0x06020236;
+	orig_func();
+}
+
+
+static int cdp_read_ip(void)
+{
+	if(debug_flag&1)
+		sci_init();
+	
+	int ip_size = my_bios_loadcd_boot(0, 0x1876);
+	if((ip_size==-8)||(ip_size==-4)){
+		ip_size=0x0;
+	}
+
+	printk("\ncdp_read_ip: %d\n", ip_size);
+
+	if(bios_ver==0){
+		if(*(u32*)(0x0604cd18) == 0x0604406c){
+			orig_func = (void*)0x0604406c;
+			*(u32*)(0x0604cd18) = (u32)cdp_hook;
+		}
+	}else if(bios_ver==1){
+		if(*(u32*)(0x0604d8e0) == 0x06044204){
+			orig_func = (void*)0x06044204;
+			*(u32*)(0x0604d8e0) = (u32)cdp_hook;
+		}
+	}else{
+		printk("Unkonw BIOS ver!\n");
+	}
+
+	return ip_size;
+}
+
 
 // 调用04c8的代码必须在内部RAM中运行。
 static void _call_04c8(void)
@@ -73,6 +143,27 @@ void my_cdplayer(void)
 	memcpy((u8*)0x060002c0, (u8*)0x20001100, 0x0020);
 
 	*(u32*)(0x06000358) = (u32)bup_init;
+
+	if(*(u32*)(0x06001340)==0x18a8){
+		// 1.00
+		bios_ver = 0;
+		cdp_boot_game = (void*)0x18a8;
+		*(u32*)(0x06001340) = (u32)cdp_boot;
+		*(u32*)(0x06001344) = (u32)cdp_read_ip;
+	}else if(*(u32*)(0x0600134c)==0x18a8){
+		// 1.01 1.02
+		bios_ver = 1;
+		cdp_boot_game = (void*)0x18a8;
+		*(u32*)(0x0600134c) = (u32)cdp_boot;
+		*(u32*)(0x06001350) = (u32)cdp_read_ip;
+	}else if(*(u32*)(0x060013d8)==0x19b8){
+		// 1.03
+		bios_ver = 2;
+		cdp_boot_game = (void*)0x19b8;
+		*(u32*)(0x060013d8) = (u32)cdp_boot;
+		*(u32*)(0x060013dc) = (u32)cdp_read_ip;
+	}
+
 
 	*(u32*)(0x06000234) = 0x02ac;
 	*(u32*)(0x06000238) = 0x02bc;
@@ -184,10 +275,11 @@ static void read_1st(void)
 	go();
 
 	patch_game((char*)0x06002020);
-	if(need_bup){
+	if(force_no_bup==0 && need_bup){
 		*(u32*)(0x06000358) = (u32)bup_init;
 		*(u32*)(0x0600026c) = (u32)my_cdplayer;
 	}
+	force_no_bup = 0;
 
 	// 0x06000320: 0x060006b0  bios_set_clock_speed
 	memcpy((u8*)0x060006b8, code_06b8, sizeof(code_06b8));
