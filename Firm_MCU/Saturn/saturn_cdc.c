@@ -495,16 +495,10 @@ int filter_sector(TRACK_INFO *track, BLOCK *wblk)
 // 普通命令
 
 
-static int old_status;
 // 0x00 [SR]
 int get_cd_status(void)
 {
 	set_report(cdb.status);
-	if(old_status!=cdb.status){
-		SSLOG(_DEBUG, " %02x\n", cdb.status);
-		old_status = cdb.status;
-	}
-
 	return 0;
 }
 
@@ -574,8 +568,13 @@ int init_cdblock(void)
 
 	SSLOG(_INFO, "init_cdblock\n");
 
+	// Wait change_dir finished
+	while(cdb.play_type==PLAYTYPE_DIR){
+		osDelay(1);
+	}
+
 	// Stop Play task
-	if(cdb.play_type!=0){
+	if(cdb.play_type){
 		cdb.pause_request = 1;
 		cdb.play_wait = 0;
 		disk_task_wakeup();
@@ -779,6 +778,7 @@ int play_cd(void)
 	if((mode&0x7f)!=0x7f)
 		cdb.max_repeat = mode&0x0f;
 
+	cdb.options = 0x04;
 	cdb.repcnt = 0;
 	cdb.pause_request = 0;
 	cdb.play_type = PLAYTYPE_SECTOR;
@@ -2070,7 +2070,7 @@ void cdc_cmd_process(void)
 	cmd = (cdb.cr1>>8)&0xff;
 
 	//if(cmd!=0)
-		SSLOG(_DEBUG, "\nSS CDC: %s\n", cmd_str(cmd));
+		SSLOG(_DEBUG, "\nSS CDC: HIRQ=%04x STAT=%02x  %s\n", HIRQ, cdb.status, cmd_str(cmd));
 
 	cmd = (cdb.cr1>>8)&0xff;
 	switch(cmd){
