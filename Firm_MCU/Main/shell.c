@@ -339,8 +339,8 @@ void simple_shell(void)
 			play_i2s(sp);
 		}
 		CMD(lscue){
-			int list_disc(int show);
-			list_disc(1);
+			int list_disc(int cid, int show);
+			list_disc(arg[0], 1);
 		}
 		CMD(load){
 			int load_disc(int index);

@@ -167,6 +167,26 @@ int config_wrmem(char *lbuf)
 	return 0;
 }
 
+static char catbuf[32];
+int category_num = 0;
+
+int config_category(char *lbuf)
+{
+	char *category = (char*)(SYSINFO_ADDR+0x0e80); // 610a3e80
+
+	if(category_num<12){
+		memcpy(category+category_num*32, catbuf, 31);
+		category_num += 1;
+		*(u8*)(SYSINFO_ADDR+0x0c) = category_num;
+	}
+	return 0;
+}
+
+char *get_category(int id)
+{
+	return (char*)(SYSINFO_ADDR + 0x0e80 + id*32); // 610a3e80
+}
+
 
 /******************************************************************************/
 
@@ -176,24 +196,31 @@ int config_wrmem(char *lbuf)
 #define ARG_DEC  2
 #define ARG_STR  3
 
+#define GA       0x0100
+
 
 typedef struct {
 	char *name;
 	int type;
 	void *action;
+	void *action_ex;
 }CFGARG;
 
 
 CFGARG arg_list [] = {
-	{"sector_delay", ARG_DEC, &sector_delay},
-	{"play_delay",   ARG_DEC, &play_delay},
-	{"auto_update",  ARG_DEC, &auto_update},
-	{"exmem_",       ARG_NON, config_exmem},
-	{"M_",           ARG_NON, config_wrmem},
-	{"lang_id",      ARG_DEC, &lang_id},
-	{"debug",        ARG_HEX, &debug_flags},
-	{"log_mask",     ARG_HEX, &log_mask},
-	{"multi_disc",   ARG_STR, &mdisc_str},
+	{"lang_id",      GA|ARG_DEC, &lang_id,},
+	{"debug",        GA|ARG_HEX, &debug_flags,},
+	{"log_mask",     GA|ARG_HEX, &log_mask,},
+	{"auto_update",  GA|ARG_DEC, &auto_update,},
+	{"category",     GA|ARG_STR, &catbuf, config_category},
+	{"sector_delay",    ARG_DEC, &sector_delay,},
+	{"play_delay",      ARG_DEC, &play_delay,},
+	{"pend_delay",      ARG_DEC, &pend_delay,},
+	{"exmem_",          ARG_NON, config_exmem,},
+	{"M_",              ARG_NON, config_wrmem,},
+	{"multi_disc",      ARG_STR, &mdisc_str,},
+	{"sort_mode",    GA|ARG_DEC, &sort_mode,},
+
 	{NULL},
 };
 
@@ -265,11 +292,18 @@ _next_section:
 			CFGARG *arg = arg_list;
 			while(arg->name){
 				int nlen = strlen(arg->name);
+				int type = arg->type;
+				int global = (type&GA);
+				type &= 0xff;
+				if(global && (gameid || g_sec!=1) ){
+					arg += 1;
+					continue;
+				}
 				if(strncmp(lbuf, arg->name, nlen)==0){
-					if(arg->type==ARG_NON){
+					if(type==ARG_NON){
 						int (*action)(char*) = arg->action;
 						retv = action(lbuf+nlen);
-					}else if(arg->type==ARG_STR){
+					}else if(type==ARG_STR){
 						p = strchr(lbuf+nlen, '"');
 						if(p){
 							char *st = p+1;
@@ -286,7 +320,7 @@ _next_section:
 							retv = -1;
 						}
 					}else{
-						int base = (arg->type==ARG_DEC)? 10 : 16;
+						int base = (type==ARG_DEC)? 10 : 16;
 						p = strchr(lbuf+nlen, '=');
 						if(p){
 							int value = strtoul(p+1, NULL, base);
@@ -304,6 +338,11 @@ _next_section:
 					if(retv){
 						printk("Invalid config line: {%s}\n", lbuf);
 						led_event(LEDEV_SCFG_ERROR);
+					}else{
+						if(arg->action_ex){
+							void (*action_ex)(void) = arg->action_ex;
+							action_ex();
+						}
 					}
 				}
 				arg += 1;

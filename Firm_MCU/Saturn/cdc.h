@@ -295,6 +295,9 @@ extern int play_delay;
 extern int play_delay_force;
 extern char mdisc_str[];
 extern int next_disc;
+extern int sort_mode;
+extern int category_num;
+extern int category_current;
 
 
 /******************************************************************************/
@@ -357,8 +360,10 @@ int fad_to_track(u32 fad);
 u32 bswap32(u32 d);
 void init_toc(void);
 
+
+char *get_category(int id);
 int list_bins(int show);
-int list_disc(int show);
+int list_disc(int cid, int show);
 int load_disc(int index);
 int load_pcm(char *fname);
 int unload_disc(void);

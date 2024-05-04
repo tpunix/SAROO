@@ -246,7 +246,6 @@ void disk_task(void *arg)
 
 	cdb.status = STAT_NODISC;
 	set_status(cdb.status);
-	list_disc(0);
 
 	int wait_ticks = 10;
 	int play_wait_count = 0;
@@ -497,7 +496,7 @@ void ss_cmd_handle(void)
 		break;
 	case SSCMD_LISTDISC:
 		// 列出镜像信息
-		retv = list_disc(0);
+		retv = list_disc(SS_ARG, 0);
 		SS_ARG = retv;
 		SS_CMD = 0;
 		break;

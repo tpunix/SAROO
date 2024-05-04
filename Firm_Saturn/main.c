@@ -444,15 +444,14 @@ static void fill_selmenu(void)
 			break;
 
 		char *path = path_str + LE32(&disc_path[index]);
-		snprintf(tmp, 128, "%2d: %s", index, path+11);
+		snprintf(tmp, 128, "%2d: %s", index, path);
 		tmp[127] = 0;
 		if(sel_mode==0){
-			// /SAROO/ISO/xxxx/xxxx.cue
+			// xxxx/xxxx.cue
 			char *p = strchr(tmp, '/');
 			if(p) *p = 0;
 		}else{
-			// /SAROO/ISO/xxxx
-			// /SAROO/ISO/xxxx@xxxx
+			// xxxx@xxxx
 			char *p = strchr(tmp, '@');
 			if(p) *p = 0;
 		}
@@ -460,10 +459,11 @@ static void fill_selmenu(void)
 		add_menu_item(&sel_menu, tmp);
 	}
 
+	int disp_page = (total_page)? page+1 : 0;
 	if(sel_mode==0){
-		sprintf(sel_menu.title, TT("选择游戏(%d/%d)"), page+1, total_page);
+		sprintf(sel_menu.title, TT("选择游戏(%d/%d)"), disp_page, total_page);
 	}else{
-		sprintf(sel_menu.title, TT("选择文件(%d/%d)"), page+1, total_page);
+		sprintf(sel_menu.title, TT("选择文件(%d/%d)"), disp_page, total_page);
 	}
 }
 
@@ -484,9 +484,10 @@ int run_binary(int index, int run)
 {
 	int *disc_path = (int *)(IMGINFO_ADDR+0x04);
 	char *path_str = (char*)(IMGINFO_ADDR);
-	char *bin_name = path_str + LE32(&disc_path[index]);
+	char bin_name[128];
 	int load_addr = 0x06004000;
 
+	sprintf(bin_name, "/SAROO/BIN/%s", path_str + LE32(&disc_path[index]));
 	char *p = strchr(bin_name, '@');
 	if(p){
 		load_addr = strtoul(p+1, NULL, 16, NULL);
@@ -527,7 +528,7 @@ static int sel_handle(int ctrl)
 		}else if(page>0){
 			page -= 1;
 			page_update(1);
-		}else{
+		}else if(total_page>0){
 			page = total_page-1;
 			page_update(1);
 		}
@@ -543,18 +544,22 @@ static int sel_handle(int ctrl)
 			page_update(0);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_LT)){
-		page -= 1;
-		if(page<0){
-			page = total_page-1;
+		if(total_page>0){
+			page -= 1;
+			if(page<0){
+				page = total_page-1;
+			}
+			page_update(0);
 		}
-		page_update(0);
 	}else if(BUTTON_DOWN(ctrl, PAD_RT)){
-		page += 1;
-		if(page>=total_page){
-			page = 0;
+		if(total_page>0){
+			page += 1;
+			if(page>=total_page){
+				page = 0;
+			}
+			page_update(0);
 		}
-		page_update(0);
-	}else if(BUTTON_DOWN(ctrl, PAD_A)){
+	}else if(BUTTON_DOWN(ctrl, PAD_A) && (total_page>0)){
 		int index = page*MENU_ITEMS + menu->current;
 		int retv;
 
@@ -580,7 +585,7 @@ static int sel_handle(int ctrl)
 				menu_status(menu, buf);
 			}
 		}
-	}else if(BUTTON_DOWN(ctrl, PAD_Z)){
+	}else if(BUTTON_DOWN(ctrl, PAD_Z) && (sel_mode==0)){
 		int index = page*MENU_ITEMS + menu->current;
 
 		SS_ARG = index;
@@ -621,9 +626,61 @@ void select_bins(void)
 
 	select_game();
 
+	SS_ARG = 0;
 	SS_CMD = SSCMD_LISTDISC;
 	while(SS_CMD);
 }
+
+
+/**********************************************************/
+
+
+MENU_DESC category_menu;
+
+
+static int category_handle(int ctrl)
+{
+	MENU_DESC *menu = &category_menu;
+
+	if(menu_default(menu, ctrl))
+		return 0;
+
+	if(BUTTON_DOWN(ctrl, PAD_A)){
+		int index = menu->current;
+
+		SS_ARG = index;
+		SS_CMD = SSCMD_LISTDISC;
+		while(SS_CMD);
+
+		select_game();
+		return MENU_RESTART;
+	}else if(BUTTON_DOWN(ctrl, PAD_C)){
+		return MENU_EXIT;
+	}
+
+	return 0;
+}
+
+
+void select_category(void)
+{
+	int category_num = *(u8*)(SYSINFO_ADDR+0x0c);
+	if(category_num==0)
+		return select_game();
+
+	memset(&category_menu, 0, sizeof(category_menu));
+	category_menu.handle = category_handle;
+
+	int i;
+	for(i=0; i<category_num; i++){
+		char *cat_name = (char*)(SYSINFO_ADDR+0x0e80+i*32);
+		add_menu_item(&category_menu, cat_name);
+	}
+
+	strcpy(category_menu.title, TT("选择游戏分类") );
+	menu_run(&category_menu);
+}
+
 
 
 /**********************************************************/
@@ -660,7 +717,7 @@ int main_handle(int ctrl)
 
 	if(index==0){
 		sel_mode = 0;
-		select_game();
+		select_category();
 		return MENU_RESTART;
 	}else if(index==1){
 		write_file("/SAROO/SS_BUP.BIN", 0, 0x10000, (void*)0x20180000);

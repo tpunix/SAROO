@@ -246,6 +246,7 @@ int parse_cue(char *fname)
 
 /******************************************************************************/
 
+int category_current = 0;
 int total_disc;
 static int *disc_path = (int *)(IMGINFO_ADDR+4);
 static char *path_str = (char*)(IMGINFO_ADDR);
@@ -281,8 +282,8 @@ int list_bins(int show)
 
 		if(!(info->fattrib & AM_DIR)){
 			disc_path[total_disc] = pbptr;
-			sprintk(path_str+pbptr, "/SAROO/BIN/%s", info->fname);
-			pbptr += strlen(info->fname)+1+11;
+			strcpy(path_str+pbptr, info->fname);
+			pbptr += strlen(info->fname)+1;
 
 			total_disc += 1;
 			*(int*)(IMGINFO_ADDR) = total_disc;
@@ -322,6 +323,7 @@ int list_disc(int cid, int show)
 	FRESULT retv;
 	DIR dir;
 	FILINFO *info;
+	char cat_dir[48] = "/SAROO/ISO/";
 
 	total_disc = 0;
 	pbptr = 0x2800;
@@ -330,7 +332,13 @@ int list_disc(int cid, int show)
 
 	memset(&dir, 0, sizeof(dir));
 
-	retv = f_opendir(&dir, "/SAROO/ISO");
+	if(category_num>0){
+		strcat(cat_dir, get_category(cid));
+		category_current = cid;
+	}else{
+		category_current = 0;
+	}
+	retv = f_opendir(&dir, cat_dir);
 	if(retv)
 		return -1;
 
@@ -346,8 +354,8 @@ int list_disc(int cid, int show)
 
 		if(info->fattrib & AM_DIR){
 			disc_path[total_disc] = pbptr;
-			sprintk(path_str+pbptr, "/SAROO/ISO/%s", info->fname);
-			pbptr += strlen(info->fname)+1+11;
+			strcpy(path_str+pbptr, info->fname);
+			pbptr += strlen(info->fname)+1;
 
 			total_disc += 1;
 			*(int*)(IMGINFO_ADDR) = total_disc;
@@ -459,6 +467,7 @@ int load_disc(int index)
 {
 	int retv;
 	char *fname;
+	char cat_dir[128];
 
 	unload_disc();
 
@@ -467,8 +476,14 @@ int load_disc(int index)
 		return -1;
 	}
 
+	if(category_num){
+		sprintk(cat_dir, "/SAROO/ISO/%s/%s", get_category(category_current), path_str+disc_path[index]);
+	}else{
+		sprintk(cat_dir, "/SAROO/ISO/%s", path_str+disc_path[index]);
+	}
+
 	fname = malloc(256);
-	retv = find_cue_iso(path_str+disc_path[index], fname);
+	retv = find_cue_iso(cat_dir, fname);
 	if(retv<0)
 		goto _exit;
 
