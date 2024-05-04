@@ -8,6 +8,55 @@
 /******************************************************************************/
 
 
+static int max_depth;
+static int *qstack = (int*)0x2400a000;
+static int qtop;
+
+#define qs_push(lp, rp)  ( qstack[qtop++] = ((lp)<<16) | (rp))
+
+void qsort4(void *idata, int num, int (*cmp_func)(const void*, const void*))
+{
+	int *data = (int*)idata;
+	int ilp, irp, lp, rp, flag;
+
+	max_depth = 0;
+	qtop = 0;
+	qs_push(0, num-1);
+
+	while(qtop){
+		qtop -= 1;
+		ilp = qstack[qtop]>>16;
+		irp = qstack[qtop]&0xffff;
+
+		lp = ilp;
+		rp = irp;
+		flag = -1;
+		while(rp > lp){
+			if(cmp_func(data+lp, data+rp)>0){
+				int temp = data[rp];
+				data[rp] = data[lp];
+				data[lp] = temp;
+				flag = -flag;
+			}
+			if(flag<0){
+				rp -= 1;
+			}else{
+				lp += 1;
+			}
+		}
+		if(ilp<lp-1) qs_push(ilp, lp-1);
+		if(lp+1<irp) qs_push(lp+1, irp);
+		if(max_depth<qtop){
+			max_depth = qtop;
+		}
+	}
+	//printk("qsort4: max_depth=%d\n", max_depth);
+}
+
+
+/******************************************************************************/
+
+
 char *get_token(char **str_in)
 {
 	char *str, *start, match;

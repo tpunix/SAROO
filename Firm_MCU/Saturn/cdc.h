@@ -370,6 +370,7 @@ int flush_savefile(void);
 int load_smems(int id);
 int flush_smems(int flag);
 
+void qsort4(void *data, int num, int (*cmp_func)(const void*, const void*));
 
 
 void gif_decode_init(void);

@@ -9,6 +9,8 @@
 
 FIL track_fp[100];
 
+int sort_mode = 0;
+
 /******************************************************************************/
 
 
@@ -303,7 +305,19 @@ int list_bins(int show)
 }
 
 
-int list_disc(int show)
+int path_cmp(const void *a, const void *b)
+{
+	char *s1 = path_str + *(u32*)(a);
+	char *s2 = path_str + *(u32*)(b);
+	if(sort_mode == 1){
+		return strcmp(s1, s2);
+	}else{
+		return strcmp(s2, s1);
+	}
+}
+
+
+int list_disc(int cid, int show)
 {
 	FRESULT retv;
 	DIR dir;
@@ -342,6 +356,10 @@ int list_disc(int show)
 
 	f_closedir(&dir);
 	free(info);
+
+	if(sort_mode){
+		qsort4(disc_path, total_disc, path_cmp);
+	}
 
 	printk("Total discs: %d\n", total_disc);
 	if(show){
@@ -417,7 +435,7 @@ int find_cue_iso(char *dirname, char *outname)
 		if(info->fattrib & AM_DIR){
 		}else{
 			char *p = strrchr(info->fname, '.');
-			if(strcmp(p, ".cue")==0){
+			if(strcasecmp(p, ".cue")==0){
 				// 读到cue, 直接返回.
 				sprintk(outname, "%s/%s", dirname, info->fname);
 				type = 1;
