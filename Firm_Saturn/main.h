@@ -51,8 +51,9 @@ typedef unsigned long long u64;
 
 
 #define IMGINFO_ADDR   0x22080000
-#define SYSINFO_ADDR   0x220a0000
-#define TMPBUFF_ADDR   0x220c0000
+#define SYSINFO_ADDR   0x220a3000
+#define SAVINFO_ADDR   0x220a4000
+#define TMPBUFF_ADDR   0x220c7000
 
 
 /*****************************************************************************/
@@ -347,6 +348,7 @@ u32 crc32(u8 *buf, int len, u32 crc);
 
 u32 get_sr(void);
 void set_sr(u32 sr);
+void set_imask(u32 imask);
 void install_isr(int type);
 void break_in_game(int break_pc, void *handle);
 void break_in_game_next(int break_pc, void *handle);

@@ -151,6 +151,7 @@
 #define LSTA0L  (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xa2))
 #define LSTA1U  (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xa4))
 #define LSTA1L  (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xa6))
+#define LCTA    (*(volatile unsigned   int *)(VDP2_REGISTER_BASE+0xa8))
 #define LCTAU   (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xa8))
 #define LCTAL   (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0xaa))
 #define BKTA    (*(volatile unsigned   int *)(VDP2_REGISTER_BASE+0xac))
@@ -239,5 +240,22 @@
 #define COBR    (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0x11a))
 #define COBG    (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0x11c))
 #define COBB    (*(volatile unsigned short *)(VDP2_REGISTER_BASE+0x11e))
+
+
+// VDP1
+#define VDP1_RAM	0x25C00000
+
+#define VDP1_REG_TVMR	(*(volatile unsigned short *)0x25D00000)
+#define VDP1_REG_FBCR	(*(volatile unsigned short *)0x25D00002)
+#define VDP1_REG_PTMR	(*(volatile unsigned short *)0x25D00004)
+#define VDP1_REG_EWDR	(*(volatile unsigned short *)0x25D00006)
+#define VDP1_REG_EWLR	(*(volatile unsigned short *)0x25D00008)
+#define VDP1_REG_EWRR	(*(volatile unsigned short *)0x25D0000A)
+#define VDP1_REG_ENDR	(*(volatile unsigned short *)0x25D0000C)
+#define VDP1_REG_EDSR	(*(volatile unsigned short *)0x25D00010)
+#define VDP1_REG_LOPR	(*(volatile unsigned short *)0x25D00012)
+#define VDP1_REG_COPR	(*(volatile unsigned short *)0x25D00014)
+#define VDP1_REG_MODR	(*(volatile unsigned short *)0x25D00016)
+
 
 #endif/* VDP2_H_ */

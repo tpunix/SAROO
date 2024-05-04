@@ -7,11 +7,11 @@
 /******************************************************************************/
 
 #define BUP_WORK_ADDR 0x06000354
-#define BUP_MEM_ADDR  0x220b0000
+#define BUP_MEM_ADDR  (SAVINFO_ADDR)
 
-#define MEMS_HEADER   0x220c1000
-#define MEMS_TMP      0x220c3000
-#define MEMS_BUFFER   0x220c4000
+#define MEMS_HEADER   (SAVINFO_ADDR+0x10000)
+#define MEMS_TMP      (SAVINFO_ADDR+0x12000)
+#define MEMS_BUFFER   (SAVINFO_ADDR+0x13000)
 
 #define START_BLOCK   0x8000
 

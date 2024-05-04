@@ -190,8 +190,8 @@ void uart4_puts(char *str)
 		if(in_isr())
 			break;
 		if(retv){
-			while(get_free()<(BUF_SIZE/2)){
-				osDelay(10);
+			while(get_free()<(len)){
+				osDelay(1);
 			};
 		}
 	}while(retv);

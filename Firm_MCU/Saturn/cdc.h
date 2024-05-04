@@ -11,8 +11,9 @@
 
 #define FIRM_ADDR 0x61000000
 #define IMGINFO_ADDR 0x61080000
-#define SYSINFO_ADDR 0x610a0000
-#define TMPBUFF_ADDR 0x610c0000
+#define SYSINFO_ADDR 0x610a3000
+#define SAVINFO_ADDR 0x610a4000
+#define TMPBUFF_ADDR 0x610c7000
 
 
 #define STIRQ_CDC  0x0001
@@ -312,7 +313,7 @@ extern int next_disc;
 
 extern int log_mask;
 
-#define SSLOG(mask, fmt, ...)  {if(log_mask&mask) { printk(fmt, ##__VA_ARGS__);}}
+#define SSLOG(mask, fmt, ...)  {if(log_mask&mask) {printk(fmt, ##__VA_ARGS__);}}
 
 
 /******************************************************************************/

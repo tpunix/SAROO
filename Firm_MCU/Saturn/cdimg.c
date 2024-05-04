@@ -257,8 +257,8 @@ int list_bins(int show)
 	FILINFO *info;
 
 	total_disc = 0;
-	pbptr = 0x1000;
-	memset(disc_path, 0x00, 0x20000-4);
+	pbptr = 0x2800;
+	memset(disc_path, 0x00, 0x23000-4);
 	*(int*)(IMGINFO_ADDR) = 0;
 
 	memset(&dir, 0, sizeof(dir));
@@ -310,8 +310,8 @@ int list_disc(int show)
 	FILINFO *info;
 
 	total_disc = 0;
-	pbptr = 0x1000;
-	memset(disc_path, 0x00, 0x20000-4);
+	pbptr = 0x2800;
+	memset(disc_path, 0x00, 0x23000-4);
 	*(int*)(IMGINFO_ADDR) = 0;
 
 	memset(&dir, 0, sizeof(dir));

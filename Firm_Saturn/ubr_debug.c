@@ -41,7 +41,7 @@ inline void set_sr(u32 sr)
 	__asm volatile ( "ldc\t%0,sr":: "r" (sr) );
 }
 
-static inline void set_imask(u32 imask)
+inline void set_imask(u32 imask)
 {
 	u32 sr = get_sr();
 	sr &= 0xffffff0f;

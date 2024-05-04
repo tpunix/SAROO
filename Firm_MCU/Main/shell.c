@@ -334,9 +334,9 @@ void simple_shell(void)
 		}
 
 #ifndef BOOT
-		CMD(spt){
-			void play_i2s(void);
-			play_i2s();
+		CMD(aplay){
+			void play_i2s(char *audio_file);
+			play_i2s(sp);
 		}
 		CMD(lscue){
 			int list_disc(int show);

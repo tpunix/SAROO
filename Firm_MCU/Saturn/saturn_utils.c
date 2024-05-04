@@ -270,15 +270,15 @@ _next_section:
 /******************************************************************************/
 
 #define SSAVE_FILE "/SAROO/SS_SAVE.BIN"
-#define SSAVE_ADDR (SYSINFO_ADDR+0x10000)
+#define SSAVE_ADDR (SAVINFO_ADDR+0x00000)
 
 static FIL ss_fp;
 static int ss_index;
 
 
 #define SMEMS_FILE "/SAROO/SS_MEMS.BIN"
-#define SMEMS_HDR  (TMPBUFF_ADDR+0x1000)
-#define SMEMS_BUF  (TMPBUFF_ADDR+0x4000)
+#define SMEMS_HDR  (SAVINFO_ADDR+0x10000)
+#define SMEMS_BUF  (SAVINFO_ADDR+0x13000)
 
 static FIL sm_fp;
 static int sm_index0;

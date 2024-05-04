@@ -159,12 +159,12 @@ int get_sector(int fad, BLOCK *wblk)
 
 	if(fad>=buf_fad_start && fad<buf_fad_end){
 		// 在内部缓存中找到了要play的扇区
-		//printk(" fad_%08x found at buffer!\n", fad);
+		//SSLOG(_DTASK, " fad_%08x found at buffer!\n", fad);
 		dp = buf_fad_offset+(fad-buf_fad_start)*buf_fad_size;
 		wblk->data = sector_buffer+dp;
 	}else{
 		// 内部缓存中没有要play的扇区. 从文件重新读取.
-		//printk(" fad_%08x not found. need read from file.\n", fad);
+		//SSLOG(_DTASK, " fad_%08x not found. need read from file.\n", fad);
 
 		cdb.ctrladdr = cdb.play_track->ctrl_addr;
 		cdb.index = 1;
@@ -721,6 +721,7 @@ void tim6_init(void)
 	NVIC_EnableIRQ(TIM6_DAC_IRQn);
 }
 
+
 void ss_hw_init(void)
 {
 	// Release FPGA_NRESET
@@ -798,8 +799,9 @@ void saturn_config(void)
 	int retv;
 	u32 rv;
 
+	memset((u8*)SYSINFO_ADDR, 0, 0x1000);
 	parse_config("/SAROO/saroocfg.txt", NULL);
-	
+
 	if(auto_update){
 		int fp, fl;
 
