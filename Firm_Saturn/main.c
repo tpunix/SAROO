@@ -45,8 +45,9 @@ void LE32W(void *ptr, u32 val)
 
 /**********************************************************/
 
+static int pad_state;
 
-u32 pad_read(void)
+int pad_read(void)
 {
 	u32 bits = 0;
 
@@ -57,17 +58,24 @@ u32 pad_read(void)
 	PDR1 = 0x00; bits |= (PDR1 & 0xf) << 4;
     bits ^= 0xfFF8;
 #else
-	while(SF&0x01);
-	SF = 0x01;
-	IREG0 = 0x00;
-	IREG1 = 0x08;
-	IREG2 = 0xf0;
-	COMREG = 0x10;
-	while(SF&0x01);
-
-	bits = (OREG2<<8) | (OREG3);
-	IREG0 = 0x40;
-	bits ^= 0xFFFF;
+	if(pad_state==0){
+		while(SF&0x01);
+		SF = 0x01;
+		IREG0 = 0x00;
+		IREG1 = 0x08;
+		IREG2 = 0xf0;
+		COMREG = 0x10;
+		pad_state = 1;
+		return -1;
+	}else{
+		if(SF&1){
+			return -1;
+		}
+		bits = (OREG2<<8) | (OREG3);
+		IREG0 = 0x40;
+		bits ^= 0xFFFF;
+		pad_state = 0;
+	}
 #endif
 
 	//printk("pad_read: %04x\n", bits);
@@ -77,6 +85,8 @@ u32 pad_read(void)
 
 void pad_init(void)
 {
+	pad_state = 0;
+
 #ifdef PADMODE_DIRECT
     PDR1 = 0;
     DDR1 = 0x60;
@@ -129,6 +139,7 @@ void stm32_puts(char *str)
 
 /**********************************************************/
 
+#if 0
 const int HZ = 1000000;
 
 void reset_timer(void)
@@ -141,13 +152,50 @@ u32 get_timer(void)
 	return SS_TIMER;
 }
 
+#else
+
+const int HZ = 208496; /* for NTSC: 320 lines mode */
+static int timer_base;
+
+void reset_timer(void)
+{
+	timer_base = 0;
+	TCR = 0x02;
+	FRCH = 0;
+	FRCL = 0;
+}
+
+u32 get_timer(void)
+{
+	int s1, s2, th, tl;
+	while(1){
+		s1 = FTCSR&0x02;
+		th = FRCH;
+		tl = FRCL;
+		s2 = FTCSR&0x02;
+		if(s1==s2)
+			break;
+	}
+
+	th = (th<<8) | tl;
+	if(s2&0x02){
+		timer_base += 65536;
+		FTCSR = 0;
+	}
+
+	return timer_base+th;
+}
+
+#endif
+
+
 void usleep(u32 us)
 {
 	u32 now, end;
 
 	if(us==0)
 		us = 1;
-	end = us*(HZ/1000000);
+	end = (us*HZ)/1000000;
 
 	reset_timer();
 	while(1){
@@ -163,7 +211,7 @@ void msleep(u32 ms)
 
 	if(ms==0)
 		ms = 1;
-	end = ms*(HZ/1000);
+	end = (ms*HZ)/1000;
 
 	reset_timer();
 	while(1){
@@ -653,6 +701,7 @@ void menu_init(void)
 	sprintf(ver_buf, "MCU:%06x        SS:%06x        FPGA:%02x", mcu_ver&0xffffff, get_build_date()&0xffffff, SS_VER&0xff);
 	main_menu.version = ver_buf;
 
+	reset_timer();
 	menu_run(&main_menu);
 }
 

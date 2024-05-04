@@ -216,7 +216,7 @@ void msleep(u32 ms);
 #define PAD_Z       (1<<4)
 #define PAD_LT      (1<<3)
 
-u32 pad_read(void);
+int pad_read(void);
 
 int smpc_cmd(int cmd);
 

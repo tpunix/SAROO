@@ -191,10 +191,9 @@ static u8 *find_font(int ucs)
 }
 
 
-int fb_draw_font(int x, int y, int color, u8 *font_data, int lb, int rb)
+int fb_draw_font_buf(u8 *bmp, int x, int color, u8 *font_data, int lb, int rb)
 {
 	int r, c, bx;
-	u8 *bmp;
 	u8 fg = (color >> 4) & 0x0F;
 	u8 bg = (color >> 0) & 0x0F;
 
@@ -210,7 +209,7 @@ int fb_draw_font(int x, int y, int color, u8 *font_data, int lb, int rb)
 		return ft_adv;
 
 	bx = x + ft_bx;
-	bmp = fbptr + (y+ft_by)*llen + bx;
+	bmp += ft_by*llen + bx;
 
 	for (r=0; r<ft_bh; r++) {
 		int b, mask;
@@ -231,6 +230,13 @@ int fb_draw_font(int x, int y, int color, u8 *font_data, int lb, int rb)
 	}
 
 	return ft_adv;
+}
+
+
+int fb_draw_font(int x, int y, int color, u8 *font_data, int lb, int rb)
+{
+	u8 *bmp = fbptr + y*llen;
+	return fb_draw_font_buf(bmp, x, color, font_data, lb, rb);
 }
 
 
@@ -411,7 +417,9 @@ static int pdat_wait;
 
 u32 conio_getc(void)
 {
-	u32 pdat = pad_read();
+	int pdat = pad_read();
+	if(pdat==-1)
+		return 0;
 
 	switch(pdat_state){
 	case 0:
@@ -480,6 +488,7 @@ static int sel_state;
 static int sel_cnt;
 static int sel_offset;
 static u8 *sel_fdat[96];
+static u8 *sel_pbuf = (u8*)0x060f8000;
 
 int menu_draw_string(int x, int y, int color, char *str, int lb, int rb)
 {
@@ -503,7 +512,7 @@ static void draw_menu_item(int index, char *item, int select)
 	int color = text_color;
 
 	if(select){
-		color = 0x0f;
+		color = 0x8f;
 	}
 	put_box(MENU_LB, y, MENU_RB, y+16-1, (color&0x0f));
 	menu_draw_string(MENU_LB, y, color, item, MENU_LB, MENU_RB);
@@ -513,17 +522,18 @@ static void draw_menu_item(int index, char *item, int select)
 static int draw_menu_item_select(int index, char *item)
 {
 	int x, y = 24+index*16;
-	int color = 0x0f;
+	int color = 0x8f;
 	int i, adv;
 
-	put_box(MENU_LB, y, MENU_RB, y+16-1, color);
+	//put_box(MENU_LB, y, MENU_RB, y+16-1, (color&0x0f));
+	memset(sel_pbuf, (color&0x0f), llen*16);
 
 	x = MENU_LB-sel_offset;
 	i = 0;
 	while(sel_fdat[i]){
 		adv = (sel_fdat[i])[0];
 		if(x+adv>=MENU_LB){
-			fb_draw_font(x, y, color, sel_fdat[i], MENU_LB, MENU_RB);
+			fb_draw_font_buf(sel_pbuf, x, color, sel_fdat[i], MENU_LB, MENU_RB);
 		}
 		i += 1;
 		x += adv;
@@ -536,7 +546,23 @@ static int draw_menu_item_select(int index, char *item)
 }
 
 
-#define SEL_IDLE_TIME 1280
+static void put_select_item(int index)
+{
+	int i, y = 24+index*16;
+	u8 *dst = fbptr + y*llen + MENU_LB;
+	u8 *src = sel_pbuf+MENU_LB;
+
+	for(i=0; i<16; i++){
+		memcpy(dst, src, (MENU_RB-MENU_LB+1));
+		dst += llen;
+		src += llen;
+	}
+}
+
+
+#define SEL_IDLE_TIME 1000
+static int scroll_oob;
+static int stimer_end;
 
 void menu_timer(MENU_DESC *menu)
 {
@@ -544,33 +570,50 @@ void menu_timer(MENU_DESC *menu)
 	if(sel_state==0){
 		if(sel_oob==0)
 			return;
-		sel_cnt += 1;
-		if(sel_cnt==SEL_IDLE_TIME){
-			sel_state = 1;
+
+		int now = get_timer();
+		stimer_end = now + MS2TICK(SEL_IDLE_TIME);
+		sel_state = 1;
+	}else if(sel_state==1){
+		int now = get_timer();
+		if(now>=stimer_end){
+			sel_state = 2;
 			sel_offset = 0;
 		}
-	}else if(sel_state==1){
+	}else if(sel_state==2){
 		sel_offset += 1;
 		int i = menu->current;
-		while((TVSTAT&0x0008)==0);
-		int oob = draw_menu_item_select(i, menu->items[i]);
-		if(oob==0){
-			sel_state = 2;
-			sel_cnt = 0;
-		}
-	}else if(sel_state==2){
-		sel_cnt += 1;
-		if(sel_cnt==SEL_IDLE_TIME){
-			sel_state = 3;
-		}
+		scroll_oob = draw_menu_item_select(i, menu->items[i]);
+		sel_state = 3;
 	}else if(sel_state==3){
+		if((TVSTAT&0x0008)==0)
+			return;
+		put_select_item(menu->current);
+		if(scroll_oob==0){
+			sel_state = 4;
+			int now = get_timer();
+			stimer_end = now + MS2TICK(SEL_IDLE_TIME);
+		}else{
+			sel_state = 2;
+		}
+	}else if(sel_state==4){
+		int now = get_timer();
+		if(now>=stimer_end){
+			sel_state = 5;
+		}
+	}else if(sel_state==5){
 		sel_offset -= 1;
 		int i = menu->current;
-		while((TVSTAT&0x0008)==0);
 		draw_menu_item_select(i, menu->items[i]);
+		sel_state = 6;
+	}else if(sel_state==6){
+		if((TVSTAT&0x0008)==0)
+			return;
+		put_select_item(menu->current);
 		if(sel_offset==0){
 			sel_state = 0;
-			sel_cnt = 0;
+		}else{
+			sel_state = 5;
 		}
 	}
 
