@@ -12,12 +12,45 @@ static int sk0, sk1;
 static int bios_ver;
 static int force_no_bup = 0;
 
+
+static void (*orig_func)(void);
+
+static void cdp_hook(void)
+{
+	sk0 = *(u16*)0x06020232;
+	sk1 = *(u16*)0x06020236;
+	orig_func();
+}
+
+
+static void hook_getkey(void)
+{
+	if(bios_ver==0){
+		if(*(u32*)(0x0604cd18) == 0x0604406c){
+			orig_func = (void*)0x0604406c;
+			*(u32*)(0x0604cd18) = (u32)cdp_hook;
+		}
+	}else if(bios_ver==1){
+		if(*(u32*)(0x0604d8e0) == 0x06044204){
+			orig_func = (void*)0x06044204;
+			*(u32*)(0x0604d8e0) = (u32)cdp_hook;
+		}
+	}else{
+		printk("Unkonw BIOS ver!\n");
+	}
+}
+
+
 static int cdp_boot(void)
 {
 	//set_imask(0x0f);
 
 	int pad = (sk0)? sk0 : sk1;
 	printk("cdp_boot! PAD=%04x\n", pad);
+
+	hook_getkey();
+
+	force_no_bup = 0;
 
 	if(pad & PAD_START){
 		void (*go)(void) = (void*)(0x02000f00);
@@ -28,21 +61,10 @@ static int cdp_boot(void)
 		bios_cd_cmd(0);
 	}else if(pad & PAD_A){
 		// SAROO启动
-		force_no_bup = 0;
 		bios_cd_cmd(0);
 	}
 
 	return 0;
-}
-
-
-static void (*orig_func)(void);
-
-static void cdp_hook(void)
-{
-	sk0 = *(u16*)0x06020232;
-	sk1 = *(u16*)0x06020236;
-	orig_func();
 }
 
 
@@ -58,19 +80,7 @@ static int cdp_read_ip(void)
 
 	printk("\ncdp_read_ip: %d\n", ip_size);
 
-	if(bios_ver==0){
-		if(*(u32*)(0x0604cd18) == 0x0604406c){
-			orig_func = (void*)0x0604406c;
-			*(u32*)(0x0604cd18) = (u32)cdp_hook;
-		}
-	}else if(bios_ver==1){
-		if(*(u32*)(0x0604d8e0) == 0x06044204){
-			orig_func = (void*)0x06044204;
-			*(u32*)(0x0604d8e0) = (u32)cdp_hook;
-		}
-	}else{
-		printk("Unkonw BIOS ver!\n");
-	}
+	hook_getkey();
 
 	return ip_size;
 }
@@ -277,6 +287,8 @@ static void read_1st(void)
 	patch_game((char*)0x06002020);
 	if(force_no_bup==0 && need_bup){
 		*(u32*)(0x06000358) = (u32)bup_init;
+	}
+	if(need_bup){
 		*(u32*)(0x0600026c) = (u32)my_cdplayer;
 	}
 	force_no_bup = 0;
