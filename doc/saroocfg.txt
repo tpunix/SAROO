@@ -8,6 +8,8 @@
 #     MCU自动升级固件
 #   play_delay=xxxx
 #     PLAY开始前的延时。十进制us单位。
+#   pend_delay=xxxx
+#     PLAY结束前的延时。十进制us单位。
 #   sector_delay=xxxx
 #     每读一个扇区后的延时。十进制us单位。
 #   exmem_1M
@@ -20,6 +22,10 @@
 #     写16位内存
 #   M_xxxxxxxx=xx
 #     写8位内存
+#   multi_disc="xxxx"
+#     多盘游戏识别
+#   category="xxxx"
+#     新增一个游戏分类
 #
 
 [global]
@@ -134,3 +140,31 @@ sector_delay=500
 # Fixes black screen when leaving options
 [T-4804H   V1.000]
 sector_delay=1000
+
+
+# Riglord Saga 2
+[GS-9084   V1.100]
+play_delay = 50000
+sector_delay = 5000
+
+
+# Hop Step Idol
+[T-20507G  V1.002]
+play_delay = 5000
+pend_delay = 5000
+
+
+# Thunderhawk II
+[T-6006G   V1.001]
+sector_delay = 8000
+
+
+# Thunderhawk 2 Firestorm
+[T-11501H00V1.000]
+sector_delay = 8000
+
+
+# Thunderstrike 2
+[T-7902H   V3.000]
+sector_delay = 8000
+
