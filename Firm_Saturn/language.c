@@ -6,8 +6,8 @@
 
 int lang_id = 0;
 
-#define LANG_STR_NR 19
-#define LANG_NR 8
+#define LANG_STR_NR 20
+#define LANG_NR 9
 
 typedef struct _str_entry
 {
@@ -44,6 +44,7 @@ char *lang_zhcn[LANG_STR_NR] = {
 	"检查光盘中......",
 	"未发现光盘!",
 	"不是游戏光盘!",
+	"选择游戏分类",
 };
 
 
@@ -67,6 +68,7 @@ char *lang_en[LANG_STR_NR] = {
 	"Checking Disc ......",
 	"No Disc Found!",
 	"Not a Game Disc!",
+	"Select Game Category",
 };
 
 
@@ -90,6 +92,7 @@ char *lang_ptbr[LANG_STR_NR] = {
 	"Verificando o disco ......",
 	"Sem CD!",
 	"Não é um disco de jogo!",
+	"Selecionar categoria de jogo",
 };
 
 
@@ -113,6 +116,7 @@ char *lang_ja[LANG_STR_NR] = {
 	"ディスクを確認しています......",
 	"ディスクが入っていません",
 	"ゲームディスクではありません",
+	"ジャンル選択",
 };
 
 
@@ -135,7 +139,8 @@ char *lang_fr[LANG_STR_NR] = {
 	"SAROO Menu de démarrage",
 	"Vérification du disque...",
 	"Aucun disque trouvé !",
-	"Disque de jeu non détecté !"
+	"Disque de jeu non détecté !",
+	"Sélectionnez la catégorie de jeu",
 };
 
 
@@ -159,6 +164,7 @@ char *lang_ru[LANG_STR_NR] = {
 	"Проверка диска ...",
 	"Диск не найден!",
 	"Не игровой диск!",
+	"Выберите категорию игры",
 };
 
 
@@ -182,6 +188,7 @@ char *lang_zhtw[LANG_STR_NR] = {
 	"檢查光碟中......",
 	"未發現光碟!",
 	"不是遊戲光碟!",
+	"選擇遊戲分類",
 };
 
 
@@ -205,6 +212,7 @@ char *lang_de[LANG_STR_NR] = {
 	"Prüfe CD ......",
 	"Keine CD gefunden!",
 	"Keine Spiele-CD!",
+	"Spielkategorie auswählen",
 };
 
 char *lang_es[LANG_STR_NR] = {
@@ -227,6 +235,7 @@ char *lang_es[LANG_STR_NR] = {
 	"Comprobando Disco .....",
 	"¡Disco no Encontrado!",
 	"¡No es un disco de Juego!",
+	"Seleccionar categoría de juego",
 };
 
 char **lang_cur;
@@ -313,7 +322,7 @@ void lang_init(void)
 void lang_next(void)
 {
 	lang_id += 1;
-	if(lang_id>8)
+	if(lang_id==LANG_NR)
 		lang_id = 0;
 
 	lang_init();
