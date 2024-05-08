@@ -19,6 +19,9 @@ void qsort4(void *idata, int num, int (*cmp_func)(const void*, const void*))
 	int *data = (int*)idata;
 	int ilp, irp, lp, rp, flag;
 
+	if(num<2)
+		return;
+
 	max_depth = 0;
 	qtop = 0;
 	qs_push(0, num-1);
