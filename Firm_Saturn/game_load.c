@@ -34,6 +34,18 @@ static void hook_getkey(void)
 		if(*(u32*)(0x0604d8e0) == 0x06044204){
 			orig_func = (void*)0x06044204;
 			*(u32*)(0x0604d8e0) = (u32)cdp_hook;
+		}else if(*(u32*)(0x0604d8b0) == 0x06044204){
+			// V-Saturn 1.01
+			orig_func = (void*)0x06044204;
+			*(u32*)(0x0604d8b0) = (u32)cdp_hook;
+		}else if(*(u32*)(0x0604ecec) == 0x06044ae0){
+			// 1.00a(U)
+			orig_func = (void*)0x06044ae0;
+			*(u32*)(0x0604ecec) = (u32)cdp_hook;
+		}else if(*(u32*)(0x0604ed0c) == 0x06044ae0){
+			// 1.01a(U)
+			orig_func = (void*)0x06044ae0;
+			*(u32*)(0x0604ed0c) = (u32)cdp_hook;
 		}
 	}else{
 		printk("Unkonw BIOS ver!\n");
@@ -43,8 +55,6 @@ static void hook_getkey(void)
 
 static int cdp_boot(void)
 {
-	//set_imask(0x0f);
-
 	int pad = (sk0)? sk0 : sk1;
 	printk("cdp_boot! PAD=%04x\n", pad);
 
@@ -83,6 +93,15 @@ static int cdp_read_ip(void)
 	hook_getkey();
 
 	return ip_size;
+}
+
+
+static void (*orig_0344)(int, int);
+
+static void my_0344(int and, int or)
+{
+	hook_getkey();
+	orig_0344(and, or);
 }
 
 
@@ -174,6 +193,8 @@ void my_cdplayer(void)
 		*(u32*)(0x060013dc) = (u32)cdp_read_ip;
 	}
 
+	orig_0344 = (void*)*(u32*)(0x06000344);
+	*(u32*)(0x06000344) = (u32)my_0344;
 
 	*(u32*)(0x06000234) = 0x02ac;
 	*(u32*)(0x06000238) = 0x02bc;
