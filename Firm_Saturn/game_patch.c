@@ -473,6 +473,7 @@ void FINAL_FIGHT_REVENGE_patch(void)
 
 /**********************************************************/
 // Amagi_Shien_Japan_patch
+// 游戏会检测PAUSE状态从而导致死循环 
 
 void Amagi_Shien_patch(void)
 {
@@ -527,7 +528,181 @@ void FIGHTERS_MEGAMIX_USA_patch(void)
 
 
 /**********************************************************/
+// Fighting Vipers (Japan) (Rev C) patch
 
+// JAP 1m 2m
+void Fighting_Vipers_JAP_patch(void)
+{
+	*(u16*)(0x06022A60) = 0x9;
+}
+
+// USA PAL Korea
+void Fighting_Vipers_USA_patch(void)
+{
+	if(*(u16*)(0x060229AC)==0x400b)
+		*(u16*)(0x060229AC) = 0x9;        // 欧版
+	else if(*(u16*)(0x06022990)==0x400b)
+		*(u16*)(0x06022990) = 0x9;        // 美版
+	else if(*(u16*)(0x06022980)==0x400b)
+		*(u16*)(0x06022980) = 0x9;        // 韩版
+}
+
+/**********************************************************/
+// Gotha
+
+void Gotha_patch(void)
+{
+	*(u16*)(0x0604E3CC) = 0x9;
+	*(u8*) (0x0604E3D2) = 0x2;
+}
+
+
+/**********************************************************/
+// Terra_Cresta_3D (神鹰一号3D)  关闭光驱
+
+void Terra_Cresta_3D_patch(void)
+{
+	*(u8*) (0x0603AB64) = 0x9;
+}
+
+
+/**********************************************************/
+// 虎胆龙威 关闭加速卡
+
+void Die_Hard_Trilogy_patch(void)
+{
+	if(*(u8*)(0x060523B4)==0x60)
+		*(u16*)(0x060523BA) = 0x9;        // 日版
+	else if(*(u8*)(0x06050CA8)==0x60)
+		*(u16*)(0x06050CAE) = 0x9;        // 美版
+	else if(*(u8*)(0x060523B0)==0x60)
+		*(u16*)(0x060523B6) = 0x9;        // 欧版
+}
+
+
+/**********************************************************/
+// <Habitat II> and <Pad Nifty>  modem 补丁
+
+void  HABITAT2_handle(void)
+{
+	if(*(u8*)(0x0602A15d)==0x11)
+		*(u16*)(0x0602A15E) = 0x9;// Pad Nifty (Japan)
+	else if(*(u8*)(0x0602B52D)==0x11)
+		*(u16*)(0x0602B52E) = 0x9;// Habitat II (Japan)
+	
+	__asm volatile("jmp @%0"::"r"(0x6020000)); 
+	__asm volatile ("nop" :: );		
+}
+
+
+void HABITAT2_patch(void)
+{
+	*(u32*)(0x060105B4) = (u32)HABITAT2_handle;
+}
+
+
+/**********************************************************/
+//Dragon's Dream (Japan)  modem 补丁 
+
+void Dragons_Dream_patch(void)
+{
+	*(u8*)(0x06040691) = 1;
+}
+
+
+/**********************************************************/
+// Hebereke's Popoitto (Japan) (Europe) ???
+// 游戏会检测PAUSE状态从而导致死循环
+
+void Hebereke_Popoitto_patch(void)
+{
+	if(*(u8*)(0x0601D379)==0x01)
+		*(u8*)(0x0601D379) = 0x56;        // (Japan)
+	else  if(*(u8*)(0x0601D399)==0x01)
+		*(u8*)(0x0601D399) = 0x78;        // (Europe)
+
+}
+
+
+/**********************************************************/
+//Hissatsu Pachinko Collection (Japan) (Rev A) ???
+// 游戏会检测PAUSE状态从而导致死循环
+
+void Hissatsu_Pachinko_Collection_patch(void)
+{
+	if(*(u8*)(0x0601085D)==0x01)
+		*(u8*)(0x0601085D) = 0x56;        // (Rev A)
+	else if(*(u8*)(0x0601088D)==0x01)
+		*(u8*)(0x0601088D) = 0x78;        //
+}
+
+
+/**********************************************************/
+//Heart of Darkness (Japan) (Proto) 补丁 
+
+void Heart_of_Darkness_patch(void)
+{
+	*(u16*)(0x060106C4) = 9;
+	*(u8*) (0x060108C0) = 2;
+	*(u8*) (0x060108C1) = 0x40;
+}
+
+
+/**********************************************************/
+// VANDAL_HEARTS_CN
+
+void VANDAL_HEARTS_CN_patch(void)
+{
+	if(REG16(0x06002F70)==0x4C2B){     // 1.0 正式版
+		REG16(0x06002F70)=0xaf48;
+		REG32(0x06002E04)=0xE00961C3;
+		REG32(0x06002E08)=0x71547170;
+		REG32(0x06002E0C)=0x4C2B2101;
+	}
+}		
+
+
+/**********************************************************/
+//WHIZZ (Japan) (Europe) 补丁 
+// 游戏自身问题，没初始化VDP1
+
+void WHIZZ_patch(void)
+{
+	*(u8*)(0x06003193) = 0x8;
+}
+
+
+/**********************************************************/
+// Kidou Senshi Z Gundam - Zenpen Zeta no Kodou (Japan)
+// 游戏自身问题，没初始化VDP1
+
+void Gundam_Zenpen_Zeta_no_Kodou_patch(void)
+{
+	*(u8*)(0x060030A1) = 0x8;
+}
+
+
+/**********************************************************/
+// RMENU2_patch  菜单补丁
+
+void RMENU2_patch(void)
+{
+	*(u32*)(0x06014774) = (u32)bios_cd_cmd;
+}
+
+
+/**********************************************************/
+// Fenrir_patch  菜单补丁
+
+void Fenrir_patch(void)
+{
+	*(u16*)(0x0600DCCA) = 0x9;
+	*(u8*) (0x0600DCCC) = 0x41;
+	*(u32*)(0x0600DD18) = (u32)bios_cd_cmd;
+}
+
+
+/**********************************************************/
 
 int skip_patch = 0;
 int need_bup = 1;
@@ -554,6 +729,7 @@ GAME_DB game_dbs[] = {
 
 	{"T-3111G   V1.002",   "Metal_Slug",         Metal_Slug_patch},
 	{"T-3111G   V1.005",   "Metal_Slug_A",       Metal_Slug_A_patch},
+	{"MK-81088",           "KOF95",              kof95_patch},
 	{"T-3101G",            "KOF95",              kof95_patch},
 	{"T-3108G",            "KOF96",              kof96_patch},
 	{"T-3121G",            "KOF97",              kof97_patch},
@@ -570,21 +746,52 @@ GAME_DB game_dbs[] = {
 	{"T-16510G",           "SRMP7SP",            srmp7_patch},
 
 	{"T-1515G",            "WAKU7",              WAKU7_patch},
-	{"GS-9107",            "FIGHTERS",           FIGHTERS_HISTORY_patch},
+	{"GS-9107",            "FIGHTERS_HISTORY",   FIGHTERS_HISTORY_patch},
 	{"T-1248G",            "FINAL_FIGHT_REVENGE",FINAL_FIGHT_REVENGE_patch},
-	{"T-1226G",            "XMENVSSF",           xmvsf_patch},
+	{"T-1226G",            "XMEN_VS_SF",         xmvsf_patch},
 	{"T-1215G",            "MARVEL_SUPER",       MARVEL_SUPER_patch},
 	{"T-1238G   V1.000",   "MSH_VS_SF",          mshvssf_patch},
 
-	{"T-1513G",            "asj",                Amagi_Shien_patch},
-	{"T-13325G",           "jidang",             Tamagotchi_Park_patch},
+	{"T-1513G",            "Amagi_Shien",        Amagi_Shien_patch},
+	{"T-13325G",           "Tamagotchi_Park",    Tamagotchi_Park_patch},
 	{"T-1217G",            "CYBER_BOTS",         CYBER_BOTS_patch},
-	{"GS-9126",            "F_M_J",              FIGHTERS_MEGAMIX_JAP_patch},//包含3个日版地址相同
-	{"MK-81073",           "F_M_U",              FIGHTERS_MEGAMIX_USA_patch},//包含美版 欧版
+	{"GS-9126",            "FIGHTERS_MEGAMIX",   FIGHTERS_MEGAMIX_JAP_patch},
+	{"MK-81073",           "FIGHTERS_MEGAMIX",   FIGHTERS_MEGAMIX_USA_patch},
+
+	{"GS-9101",            "Fighting_Vipers",    Fighting_Vipers_JAP_patch},
+	{"MK-81041",           "Fighting_Vipers",    Fighting_Vipers_USA_patch},
+	{"GS-9009   V1.000",   "Gotha",              Gotha_patch},
+	{"T-7102G",            "Terra_Cresta_3D",    Terra_Cresta_3D_patch},
+
+	{"GS-9123",            "Die_Hard_Trilogy",   Die_Hard_Trilogy_patch},
+	{"T-16103H",           "Die_Hard_Trilogy",   Die_Hard_Trilogy_patch},
+	{"GS-7101",            "HABITAT2",           HABITAT2_patch},
+	{"GS-7105",            "HABITAT2",           HABITAT2_patch},
+	{"GS-7114",            "Dragons_Dream",      Dragons_Dream_patch},
+
+	{"T-1502H",            "Hebereke_Popoitto",  Hebereke_Popoitto_patch},
+	{"T-1503G",            "Hissatsu_Pachinko",  Hissatsu_Pachinko_Collection_patch},
+	{"T-1504G",            "Hebereke_Popoitto",  Hebereke_Popoitto_patch},
+
+	{"999999999 V1.000",   "Heart_of_Darkness",  Heart_of_Darkness_patch},
+//	{"T-2001G",            "Houma_Hunter_Lime_Perfect_Collection",
+//	                                             Houma_Hunter_Lime_Perfect_Collection_patch},
+	{"T-1219G",            "VANDAL_HEARTS_CN",   VANDAL_HEARTS_CN_patch},
+	{"T-9515H",            "WHIZZ",              WHIZZ_patch},
+	{"T-36102G",           "WHIZZ",              WHIZZ_patch},
+	{"T-13315G",           "Gundam_Zenpen_Zeta", Gundam_Zenpen_Zeta_no_Kodou_patch},
+
+	{"T-000001  V0.2.0",   "RMENU2",             RMENU2_patch},
+	{"CD0000001 V1.000",   "Fenrir",             Fenrir_patch},
+
 
 	{NULL,},
 };
 
+// Marvel Super Heroes (Europe)	T-7032H-50
+// Pia Carrot e Youkoso!! 2 (Japan)	T-20114G
+//
+//
 
 void patch_game(char *id)
 {
