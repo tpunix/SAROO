@@ -238,6 +238,29 @@ char *lang_es[LANG_STR_NR] = {
 	"Seleccionar categoría de juego",
 };
 
+char *lang_it[LANG_STR_NR] = {
+	"Seleziona gioco(%d/%d)",
+	"Seleziona file(%d/%d)",
+	"Caricamento gioco ......",
+	"Caricamento gioco fallito! %d",
+	"Caricamento file ......",
+	"Caricamento file fallito! %d",
+	"Seleziona gioco",
+	"Lettore CD di sistema",
+	"Carica disco di gioco",
+	"Shell di debug UART",
+	"Carica file binario",
+	"Aggiornamento firmware",
+	"Aggiornamento... Non spegnere la console!",
+	"Aggiornamento fallito!",
+	"Aggiornamento finito! Riavvia il sistema!",
+	"Menu di avvio SAROO",
+	"Controllo disco ......",
+	"Nessun disco trovato!",
+	"Nessun disco di gioco trovato!",
+	"Seleziona categoria di gioco",
+};
+
 char **lang_cur;
 
 
@@ -315,6 +338,8 @@ void lang_init(void)
 		lang_cur = lang_de;
 	}else if(lang_id==8){
 		lang_cur = lang_es;
+	}else if(lang_id==9){
+		lang_cur = lang_it;
 	}
 }
 
