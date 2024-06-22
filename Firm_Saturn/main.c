@@ -275,40 +275,58 @@ int sci_getc(int timeout)
 
 int read_file (char *name, int offset, int size, void *buf)
 {
-	int retv;
-
-	LE32W((void*)(TMPBUFF_ADDR), offset);
+	LE32W((void*)(TMPBUFF_ADDR+0x00), offset);
 	LE32W((void*)(TMPBUFF_ADDR+0x04), size);
 	strcpy((void*)(TMPBUFF_ADDR+0x10), name);
+
+	u32 bus_addr = (u32)buf & 0x0fffffff;
+	if(bus_addr>=0x02000000 && bus_addr<0x03000000){
+		// buf位于MCU和SS可以直接访问的空间内。
+		LE32W((void*)(TMPBUFF_ADDR+0x08), bus_addr);
+	}else{
+		// buf不可直接访问，必须中转。
+		LE32W((void*)(TMPBUFF_ADDR+0x08), TMPBUFF_ADDR+0x0100);
+	}
+
 
 	SS_ARG = 0;
 	SS_CMD = SSCMD_FILERD;
 	while(SS_CMD);
 
-	retv = (signed short)SS_ARG;
+	int retv = (signed short)SS_ARG;
 	if(retv<0)
 		return retv;
 
+	if(bus_addr<0x02000000 || bus_addr>=0x03000000){
+		memcpy(buf, (void*)(TMPBUFF_ADDR+0x0100), size);
+	}
 	size = LE32((void*)(TMPBUFF_ADDR+0x04));
-	memcpy(buf, (void*)(TMPBUFF_ADDR+0x0100), size);
 	return size;
 }
 
 
 int write_file(char *name, int offset, int size, void *buf)
 {
-	int retv;
-
 	LE32W((void*)(TMPBUFF_ADDR), offset);
 	LE32W((void*)(TMPBUFF_ADDR+0x04), size);
 	strcpy((void*)(TMPBUFF_ADDR+0x10), name);
-	memcpy((void*)(TMPBUFF_ADDR+0x0100), buf, size);
+
+	u32 bus_addr = (u32)buf & 0x0fffffff;
+	if(bus_addr>=0x02000000 && bus_addr<0x03000000){
+		// buf位于MCU和SS可以直接访问的空间内。
+		LE32W((void*)(TMPBUFF_ADDR+0x08), bus_addr);
+	}else{
+		// buf不可直接访问，必须中转。
+		LE32W((void*)(TMPBUFF_ADDR+0x08), TMPBUFF_ADDR+0x0100);
+		memcpy((void*)(TMPBUFF_ADDR+0x0100), buf, size);
+	}
+
 
 	SS_ARG = 0;
 	SS_CMD = SSCMD_FILEWR;
 	while(SS_CMD);
 
-	retv = (signed short)SS_ARG;
+	int retv = (signed short)SS_ARG;
 	if(retv<0)
 		return retv;
 
@@ -837,10 +855,11 @@ int _main(void)
 
 	// restore bios_loadcd_init1
 	*(u32*)(0x060002dc) = *(u32*)(0x2000111c);
-	*(u32*)(0x02000f04) =  (u32)cdc_read_sector;	
+	*(u32*)(0x02000f04) =  (u32)cdc_read_sector;
 	*(u32*)(0x02000f08) =  (u32)read_file;
 	*(u32*)(0x02000f0c) =  (u32)write_file;
 	*(u32*)(0x02000f30) =  (u32)bios_cd_cmd;
+	*(u32*)(0x02000f34) =  (u32)page_update;
 	*(u32*)(0x02000f38) =  (u32)sci_init;
 	*(u32*)(0x02000f3c) =  (u32)printk;
 

@@ -559,7 +559,8 @@ void ss_cmd_handle(void)
 	{
 		FIL fp;
 		int offset = *(u32*)(TMPBUFF_ADDR+0x00);
-		int size = *(u32*)(TMPBUFF_ADDR+0x04);
+		int size   = *(u32*)(TMPBUFF_ADDR+0x04);
+		int baddr  = *(u32*)(TMPBUFF_ADDR+0x08);
 		char *name = (char*)(TMPBUFF_ADDR+0x10);
 		int retv = f_open(&fp, name, FA_READ);
 		if(retv==FR_OK){
@@ -567,7 +568,8 @@ void ss_cmd_handle(void)
 			f_lseek(&fp, offset);
 			if(size==0)
 				size = f_size(&fp);
-			retv = f_read(&fp, (void*)(TMPBUFF_ADDR+0x0100), size, &rsize);
+			u8 *rbuf = (u8*)((baddr&0x00ffffff)|0x61000000);
+			retv = f_read(&fp, rbuf, size, &rsize);
 			*(u32*)(TMPBUFF_ADDR+0x04) = rsize;
 			f_close(&fp);
 			SSLOG(_INFO, "\nSSCMD_FILERD: retv=%d rsize=%08x  %s\n", retv, rsize, name);
@@ -581,13 +583,17 @@ void ss_cmd_handle(void)
 		FIL fp;
 		int offset = *(u32*)(TMPBUFF_ADDR);
 		int size = *(u32*)(TMPBUFF_ADDR+0x04);
+		int baddr  = *(u32*)(TMPBUFF_ADDR+0x08);
 		char *name = (char*)(TMPBUFF_ADDR+0x10);
 		int flags = (offset==-1)? FA_CREATE_ALWAYS : FA_OPEN_ALWAYS;
 		int retv = f_open(&fp, name, flags|FA_WRITE);
 		if(retv==FR_OK){
 			u32 wsize = 0;
+			u8 *wbuf = (u8*)((baddr&0x00ffffff)|0x61000000);
+			if(offset<0)
+				offset = 0;
 			f_lseek(&fp, offset);
-			retv = f_write(&fp, (void*)(TMPBUFF_ADDR+0x0100), size, &wsize);
+			retv = f_write(&fp, wbuf, size, &wsize);
 			*(u32*)(TMPBUFF_ADDR+0x04) = wsize;
 			f_close(&fp);
 			SSLOG(_INFO, "\nSSCMD_FILEWR: retv=%d wsize=%08x  %s\n", retv, wsize, name);
