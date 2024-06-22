@@ -783,7 +783,7 @@ int play_cd(void)
 	if((mode&0x7f)!=0x7f)
 		cdb.max_repeat = mode&0x0f;
 
-	cdb.options = 0x04;
+	cdb.options = 0x08;
 	cdb.repcnt = 0;
 	cdb.pause_request = 0;
 	cdb.play_type = PLAYTYPE_SECTOR;

@@ -343,6 +343,7 @@ _restart_nowait:
 			}
 		}
 
+		int old_status = cdb.status;
 		if(play_delay){
 			// SEEK向PLAY状态转换，有一定的延迟。
 			if(lazy_play_state==1){
@@ -353,6 +354,11 @@ _restart_nowait:
 			}
 		}else{
 			cdb.status = STAT_PLAY;
+		}
+		if(old_status!=cdb.status){
+			if(cdb.play_track->mode==3){
+				cdb.options = 0x00;
+			}
 		}
 
 		while(cdb.fad<cdb.play_fad_end){
