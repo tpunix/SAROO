@@ -471,7 +471,9 @@ int load_savefile(char *gameid)
 	f_lseek(&ss_fp, i*0x10000);
 	f_write(&ss_fp, (u8*)SSAVE_ADDR, 0x10000, &rv);
 
+	fs_lock();
 	f_sync(&ss_fp);
+	fs_unlock();
 
 	return 0;
 }
@@ -484,10 +486,15 @@ int flush_savefile(void)
 	if(ss_index==0)
 		return -1;
 
+	fs_lock();
 	printk("Flush savefile at %08x\n", ss_index*0x10000);
+
 	f_lseek(&ss_fp, ss_index*0x10000);
 	f_write(&ss_fp, (u8*)SSAVE_ADDR, 0x10000, &rv);
 	f_sync(&ss_fp);
+
+	printk("Flush done.\n\n");
+	fs_unlock();
 
 	return 0;
 }
@@ -528,6 +535,7 @@ int flush_smems(int flag)
 		memcpy32((u8*)SMEMS_BUF+d*1024, (u8*)SMEMS_HDR+8192, 1024);
 	}
 	printk("\nflush_smems: flag=%02x s0=%04x s1=%04x d=%d\n", flag, sm_index0, sm_index1, d);
+	fs_lock();
 
 	if(flag&1){
 		printk("Flush SMEMS header.\n");
@@ -546,7 +554,11 @@ int flush_smems(int flag)
 		f_lseek(&sm_fp, sm_index1*1024);
 		f_write(&sm_fp, (u8*)SMEMS_BUF, 64*1024, &rv);
 	}
+
 	f_sync(&sm_fp);
+
+	printk("Flush done.\n\n");
+	fs_unlock();
 
 	return 0;
 }

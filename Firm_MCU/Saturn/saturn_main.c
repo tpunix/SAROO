@@ -8,6 +8,7 @@
 osSemaphoreId_t sem_wait_irq;
 osSemaphoreId_t sem_wait_disc;
 osSemaphoreId_t sem_wait_pause;
+osMutexId_t mutex_fs;
 
 int lang_id = 0;
 int debug_flags = 0;
@@ -178,9 +179,11 @@ int get_sector(int fad, BLOCK *wblk)
 		buf_fad_offset = dp&0x1ff;
 		dp &= ~0x1ff;
 
+		fs_lock();
 		//printk("  seek at %08x\n", dp);
-		retv = f_lseek(cdb.play_track->fp, dp);
+		f_lseek(cdb.play_track->fp, dp);
 		retv = f_read(cdb.play_track->fp, sector_buffer, 0x8000, (u32*)&nread);
+		fs_unlock();
 		if(retv==0){
 			int num_fad = (nread-buf_fad_offset)/buf_fad_size;
 			buf_fad_end = buf_fad_start+num_fad;
@@ -812,6 +815,19 @@ void ss_sw_init(void)
 	cdb.cddev_filter = 0xff;
 }
 
+
+void fs_lock(void)
+{
+	osMutexAcquire(mutex_fs, osWaitForever);
+}
+
+
+void fs_unlock(void)
+{
+	osMutexRelease(mutex_fs);
+}
+
+
 void saturn_config(void)
 {
 	FIL fp;
@@ -871,11 +887,12 @@ void saturn_config(void)
 		led_event(LEDEV_NOFIRM);
 		return;
 	}
+	int fsize = f_size(&fp);
 	printk("Found Saturn bootrom file.\n");
-	printk("    Size %08x\n", f_size(&fp));
+	printk("    Size %08x\n", fsize);
 
 	rv = 0;
-	retv = f_read(&fp, (void*)FIRM_ADDR, f_size(&fp), &rv);
+	retv = f_read(&fp, (void*)FIRM_ADDR, fsize, &rv);
 	printk("    f_read: retv=%d rv=%08x\n", retv, rv);
 	f_close(&fp);
 
@@ -899,6 +916,7 @@ void saturn_config(void)
 	sem_wait_irq   = osSemaphoreNew(1, 0, NULL);
 	sem_wait_disc  = osSemaphoreNew(1, 0, NULL);
 	sem_wait_pause = osSemaphoreNew(1, 0, NULL);
+	mutex_fs = osMutexNew(NULL);
 
 	osThreadAttr_t attr;
 	memset(&attr, 0, sizeof(attr));

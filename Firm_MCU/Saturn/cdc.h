@@ -349,6 +349,10 @@ void free_block(BLOCK *block);
 int filter_sector(TRACK_INFO *track, BLOCK *wblk);
 
 
+void fs_lock(void);
+void fs_unlock(void);
+
+
 /******************************************************************************/
 
 
