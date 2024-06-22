@@ -8,6 +8,62 @@
 /******************************************************************************/
 
 
+// 将gameid分解为id与ver
+static char *gameid_split(char *gid)
+{
+	int len1, len2;
+	char *ver, *p;
+
+	len2 = 0;
+	ver = strchr(gid, ' ');
+	if(ver){
+		*ver++ = 0;
+		while(*ver==' ') ver++;
+		p = strchr(ver, ' ');
+		if(p) *p = 0;
+		len2 = strlen(ver);
+	}
+	len1 = strlen(gid);
+	if(len1+len2==16 && ver){
+		strcpy(gid+len1, ver);
+		ver = NULL;
+	}
+
+	return ver;
+}
+
+
+int gameid_match(char *gid1, char *gid2)
+{
+	char id1[24], id2[24];
+	char *ver1, *ver2;
+
+	strcpy(id1, gid1);
+	strcpy(id2, gid2);
+
+	ver1 = gameid_split(id1);
+	ver2 = gameid_split(id2);
+
+	if(strcmp(id1, id2)){
+		return 0;
+	}
+
+	if(ver1 && ver1){
+		if(strcmp(ver1, ver2)){
+			return 0;
+		}
+	}else if(ver1==NULL && ver2==NULL){
+	}else{
+		return 0;
+	}
+
+	return 1;
+}
+
+
+/******************************************************************************/
+
+
 static int max_depth;
 static int *qstack = (int*)0x2400a000;
 static int qtop;
@@ -273,7 +329,7 @@ _next_section:
 					g_sec = 1;
 					in_sec = 1;
 					printk("Global config:\n");
-				}else if(gameid && strcmp(lbuf+1, gameid)==0){
+				}else if(gameid && gameid_match(lbuf+1, gameid)){
 					// 找到了与game_id匹配的section
 					in_sec = 1;
 					printk("Game config:\n");

@@ -35,14 +35,6 @@ int get_gameid(char *gameid)
 	memcpy(gameid, fbuf+i, 16);
 	gameid[16] = 0;
 
-	for(i=15; i>=0; i--){
-		if(gameid[i]==0x20){
-			gameid[i] = 0;
-		}else{
-			break;
-		}
-	}
-
 	return 0;
 }
 
