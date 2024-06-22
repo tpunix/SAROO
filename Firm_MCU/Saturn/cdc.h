@@ -159,6 +159,8 @@ typedef struct
 	FIL *fp;
 	u32 fad_0;
 	u32 fad_start;
+	int *index;
+	int max_index;
 	u32 fad_end;
 	u32 file_offset;
 	u16 sector_size;

@@ -748,6 +748,8 @@ int play_cd(void)
 		cdb.index = start_pos&0xff;
 		play_tno = 1;
 	}
+	cdb.play_track = &cdb.tracks[cdb.track-1];
+
 
 	if(end_pos==0xffffff){
 		// PTYPE_NOCHG
@@ -756,10 +758,13 @@ int play_cd(void)
 		cdb.play_fad_end = cdb.play_fad_start+end_pos&0x0fffff;
 	}else if(end_pos){
 		// PTYPE_TNO
-		if((end_pos&0xff)>1)
-			cdb.play_fad_end = track_to_fad(end_pos);
-		else
+		int index = end_pos&0xff;
+		if(start_pos==end_pos && index>0){
+			cdb.play_fad_end = track_to_fad((end_pos&0xff00)|(index+1)) - 1;
+		}else{
 			cdb.play_fad_end = track_to_fad((end_pos&0xff00)|0x63);
+		}
+
 		if(play_tno){
 			// STEAM-HEART'S fixup
 			// 明确指定start与stop的情况下,强制更新fad.

@@ -8,6 +8,8 @@
 /******************************************************************************/
 
 FIL track_fp[100];
+int index_table[2048];
+int current_index;
 
 int sort_mode = 0;
 
@@ -107,7 +109,7 @@ int parse_iso(char *fname)
 int parse_cue(char *fname)
 {
 	FIL fp;
-	u8 *fbuf = (u8*)0x24002000;
+	u8 *fbuf = (u8*)0x2400b000;
 	char *dir_name  = (char*)0x2400a000;
 	char *full_path = (char*)0x2400a200;
 	int i, retv;
@@ -213,13 +215,18 @@ int parse_cue(char *fname)
 			tk = &cdb.tracks[tno];
 			if(idx==0){
 				tk->fad_0 = fad_offset + fad;
-			}
-			if(idx==1){
+			}else if(idx==1){
 				tk->fad_start = fad_offset + fad;
 				if(tk->fad_0==0)
 					tk->fad_0 = tk->fad_start;
 				tk->file_offset = fad*tk->sector_size;
 				tk->ctrl_addr = (tk->mode==3)? 0x01 : 0x41;
+				tk->index = &index_table[current_index];
+				tk->max_index = 1;
+			}else{
+				index_table[current_index] = fad_offset + fad;
+				current_index += 1;
+				tk->max_index += 1;
 			}
 		}else if(strcmp(token, "PREGAP")==0){
 		}else if(strcmp(token, "CATALOG")==0){
@@ -470,6 +477,7 @@ int load_disc(int index)
 	char cat_dir[128];
 
 	unload_disc();
+	current_index = 0;
 
 	if(disc_path[index]==0){
 		printk("Invalid disc index %d\n", index);

@@ -79,15 +79,15 @@ u32 track_to_fad(u16 track_index)
 
 	t     = (track_index>>8)-1;
 	index = track_index&0xff;
+	TRACK_INFO *tk = &cdb.tracks[t];
 
-	if(index==0x01){
-		return cdb.tracks[t].fad_start;
-	//} else if(index==0x63){
-	} else if(index>1){
-		return cdb.tracks[t].fad_end;
+	if(index<=0x01){
+		return tk->fad_start;
+	} else if(index > tk->max_index){
+		return tk->fad_end;
+	} else{
+		return tk->index[index-2];
 	}
-
-	return cdb.tracks[t].fad_start;
 }
 
 int fad_to_track(u32 fad)
@@ -434,6 +434,7 @@ _restart_nowait:
 					}
 					HIRQ = HIRQ_PEND;
 					cdb.play_type = 0;
+					cdb.index = 0;
 				}else{
 					if(cdb.repcnt<14)
 						cdb.repcnt += 1;
