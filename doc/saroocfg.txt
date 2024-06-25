@@ -1,7 +1,7 @@
 # SAROO config file
 # 可用配置:
 #   lang_id=x
-#     选择菜单语言:  0:中文  1:EN  2:PTBR  3:JA  4:FR  5:RU  6:繁中  7:de  8:es 9:IT
+#     选择菜单语言:  0:中文  1:EN  2:PTBR  3:JA  4:FR  5:RU  6:繁中  7:DE  8:ES 9:IT 10:EL
 #   debug=xxxxxxxx
 #     各种调试选项
 #   auto_update:
