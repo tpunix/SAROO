@@ -221,6 +221,7 @@ int parse_cue(char *fname)
 				tk->max_index += 1;
 			}
 		}else if(strcmp(token, "PREGAP")==0){
+		}else if(strcmp(token, "POSTGAP")==0){
 		}else if(strcmp(token, "CATALOG")==0){
 		}else if(strcmp(token, "REM")==0){
 		}else if(strcmp(token, "FLAGS")==0){
@@ -466,7 +467,7 @@ int load_disc(int index)
 {
 	int retv;
 	char *fname;
-	char cat_dir[128];
+	char cat_dir[256];
 
 	unload_disc();
 	current_index = 0;
