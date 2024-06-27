@@ -159,6 +159,8 @@ typedef struct
 	FIL *fp;
 	u32 fad_0;
 	u32 fad_start;
+	int *index;
+	int max_index;
 	u32 fad_end;
 	u32 file_offset;
 	u16 sector_size;
@@ -345,6 +347,10 @@ BLOCK *alloc_block(void);
 void free_block(BLOCK *block);
 
 int filter_sector(TRACK_INFO *track, BLOCK *wblk);
+
+
+void fs_lock(void);
+void fs_unlock(void);
 
 
 /******************************************************************************/

@@ -8,6 +8,62 @@
 /******************************************************************************/
 
 
+// 将gameid分解为id与ver
+static char *gameid_split(char *gid)
+{
+	int len1, len2;
+	char *ver, *p;
+
+	len2 = 0;
+	ver = strchr(gid, ' ');
+	if(ver){
+		*ver++ = 0;
+		while(*ver==' ') ver++;
+		p = strchr(ver, ' ');
+		if(p) *p = 0;
+		len2 = strlen(ver);
+	}
+	len1 = strlen(gid);
+	if(len1+len2==16 && ver){
+		strcpy(gid+len1, ver);
+		ver = NULL;
+	}
+
+	return ver;
+}
+
+
+int gameid_match(char *gid1, char *gid2)
+{
+	char id1[24], id2[24];
+	char *ver1, *ver2;
+
+	strcpy(id1, gid1);
+	strcpy(id2, gid2);
+
+	ver1 = gameid_split(id1);
+	ver2 = gameid_split(id2);
+
+	if(strcmp(id1, id2)){
+		return 0;
+	}
+
+	if(ver1 && ver1){
+		if(strcmp(ver1, ver2)){
+			return 0;
+		}
+	}else if(ver1==NULL && ver2==NULL){
+	}else{
+		return 0;
+	}
+
+	return 1;
+}
+
+
+/******************************************************************************/
+
+
 static int max_depth;
 static int *qstack = (int*)0x2400a000;
 static int qtop;
@@ -273,7 +329,7 @@ _next_section:
 					g_sec = 1;
 					in_sec = 1;
 					printk("Global config:\n");
-				}else if(gameid && strcmp(lbuf+1, gameid)==0){
+				}else if(gameid && gameid_match(lbuf+1, gameid)){
 					// 找到了与game_id匹配的section
 					in_sec = 1;
 					printk("Game config:\n");
@@ -471,7 +527,9 @@ int load_savefile(char *gameid)
 	f_lseek(&ss_fp, i*0x10000);
 	f_write(&ss_fp, (u8*)SSAVE_ADDR, 0x10000, &rv);
 
+	fs_lock();
 	f_sync(&ss_fp);
+	fs_unlock();
 
 	return 0;
 }
@@ -484,10 +542,15 @@ int flush_savefile(void)
 	if(ss_index==0)
 		return -1;
 
+	fs_lock();
 	printk("Flush savefile at %08x\n", ss_index*0x10000);
+
 	f_lseek(&ss_fp, ss_index*0x10000);
 	f_write(&ss_fp, (u8*)SSAVE_ADDR, 0x10000, &rv);
 	f_sync(&ss_fp);
+
+	printk("Flush done.\n\n");
+	fs_unlock();
 
 	return 0;
 }
@@ -528,6 +591,7 @@ int flush_smems(int flag)
 		memcpy32((u8*)SMEMS_BUF+d*1024, (u8*)SMEMS_HDR+8192, 1024);
 	}
 	printk("\nflush_smems: flag=%02x s0=%04x s1=%04x d=%d\n", flag, sm_index0, sm_index1, d);
+	fs_lock();
 
 	if(flag&1){
 		printk("Flush SMEMS header.\n");
@@ -546,7 +610,11 @@ int flush_smems(int flag)
 		f_lseek(&sm_fp, sm_index1*1024);
 		f_write(&sm_fp, (u8*)SMEMS_BUF, 64*1024, &rv);
 	}
+
 	f_sync(&sm_fp);
+
+	printk("Flush done.\n\n");
+	fs_unlock();
 
 	return 0;
 }

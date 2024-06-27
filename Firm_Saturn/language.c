@@ -261,6 +261,7 @@ char *lang_it[LANG_STR_NR] = {
 	"Seleziona categoria di gioco",
 };
 
+
 char *lang_el[LANG_STR_NR] = {
 	"Επίλεξε Παιχνίδι(%d/%d)",
 	"Επίλεξε Αρχείο(%d/%d)",
@@ -282,6 +283,30 @@ char *lang_el[LANG_STR_NR] = {
 	"Δεν Βρέθηκε Δίσκος!",
 	"Δεν Είναι Δίσκος Παιχνιδιού!",
 	"Επίλεξε Κατηγορία Παιχνιδιού",
+}；
+
+
+char *lang_ro[LANG_STR_NR] = {
+	"Selectați jocul(%d/%d)",
+	"Selectați fişierul(%d/%d)",
+	"Jocul porneşte ......",
+	"Pornirea jocului a eşuat! %d",
+	"Se încarcă fișierul ......",
+	"Încărcarea fişierului a eşuat! %d",
+	"Selectați jocul",
+	"Interfață optică interactivă pentru sistem",
+	"Încărcați discul jocului",
+	"Depanați prin interfața serială",
+	"Încărcați cod binar",
+	"Actualizarea firmware-ului",
+	"Se actualizează...Nu opriți alimentarea cu energie a aparatului!",
+	"Actualizarea a eşuat!",
+	"Actualizarea s-a încheiat! Vă rugăm să reporniți aparatul!",
+	"Meniul SAROO de pornire",
+	"Se verifică discul ......",
+	"Nu s-a detectat nici nu disc!",
+	"Nu s-a detectat un disc cu jocuri compatibil!",
+	"Selectați categoria de jocuri",
 };
 
 char **lang_cur;
@@ -365,6 +390,8 @@ void lang_init(void)
 		lang_cur = lang_it;
 	}else if(lang_id==10){
 		lang_cur = lang_el;
+	}else if(lang_id==11){
+		lang_cur = lang_ro;
 	}
 }
 

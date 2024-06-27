@@ -8,6 +8,7 @@
 osSemaphoreId_t sem_wait_irq;
 osSemaphoreId_t sem_wait_disc;
 osSemaphoreId_t sem_wait_pause;
+osMutexId_t mutex_fs;
 
 int lang_id = 0;
 int debug_flags = 0;
@@ -79,15 +80,15 @@ u32 track_to_fad(u16 track_index)
 
 	t     = (track_index>>8)-1;
 	index = track_index&0xff;
+	TRACK_INFO *tk = &cdb.tracks[t];
 
-	if(index==0x01){
-		return cdb.tracks[t].fad_start;
-	//} else if(index==0x63){
-	} else if(index>1){
-		return cdb.tracks[t].fad_end;
+	if(index<=0x01){
+		return tk->fad_start;
+	} else if(index > tk->max_index){
+		return tk->fad_end;
+	} else{
+		return tk->index[index-2];
 	}
-
-	return cdb.tracks[t].fad_start;
 }
 
 int fad_to_track(u32 fad)
@@ -178,9 +179,11 @@ int get_sector(int fad, BLOCK *wblk)
 		buf_fad_offset = dp&0x1ff;
 		dp &= ~0x1ff;
 
+		fs_lock();
 		//printk("  seek at %08x\n", dp);
-		retv = f_lseek(cdb.play_track->fp, dp);
+		f_lseek(cdb.play_track->fp, dp);
 		retv = f_read(cdb.play_track->fp, sector_buffer, 0x8000, (u32*)&nread);
+		fs_unlock();
 		if(retv==0){
 			int num_fad = (nread-buf_fad_offset)/buf_fad_size;
 			buf_fad_end = buf_fad_start+num_fad;
@@ -340,6 +343,7 @@ _restart_nowait:
 			}
 		}
 
+		int old_status = cdb.status;
 		if(play_delay){
 			// SEEK向PLAY状态转换，有一定的延迟。
 			if(lazy_play_state==1){
@@ -350,6 +354,11 @@ _restart_nowait:
 			}
 		}else{
 			cdb.status = STAT_PLAY;
+		}
+		if(old_status!=cdb.status){
+			if(cdb.play_track->mode==3){
+				cdb.options = 0x00;
+			}
 		}
 
 		while(cdb.fad<cdb.play_fad_end){
@@ -434,6 +443,7 @@ _restart_nowait:
 					}
 					HIRQ = HIRQ_PEND;
 					cdb.play_type = 0;
+					cdb.index = 0;
 				}else{
 					if(cdb.repcnt<14)
 						cdb.repcnt += 1;
@@ -549,7 +559,8 @@ void ss_cmd_handle(void)
 	{
 		FIL fp;
 		int offset = *(u32*)(TMPBUFF_ADDR+0x00);
-		int size = *(u32*)(TMPBUFF_ADDR+0x04);
+		int size   = *(u32*)(TMPBUFF_ADDR+0x04);
+		int baddr  = *(u32*)(TMPBUFF_ADDR+0x08);
 		char *name = (char*)(TMPBUFF_ADDR+0x10);
 		int retv = f_open(&fp, name, FA_READ);
 		if(retv==FR_OK){
@@ -557,7 +568,8 @@ void ss_cmd_handle(void)
 			f_lseek(&fp, offset);
 			if(size==0)
 				size = f_size(&fp);
-			retv = f_read(&fp, (void*)(TMPBUFF_ADDR+0x0100), size, &rsize);
+			u8 *rbuf = (u8*)((baddr&0x00ffffff)|0x61000000);
+			retv = f_read(&fp, rbuf, size, &rsize);
 			*(u32*)(TMPBUFF_ADDR+0x04) = rsize;
 			f_close(&fp);
 			SSLOG(_INFO, "\nSSCMD_FILERD: retv=%d rsize=%08x  %s\n", retv, rsize, name);
@@ -571,13 +583,17 @@ void ss_cmd_handle(void)
 		FIL fp;
 		int offset = *(u32*)(TMPBUFF_ADDR);
 		int size = *(u32*)(TMPBUFF_ADDR+0x04);
+		int baddr  = *(u32*)(TMPBUFF_ADDR+0x08);
 		char *name = (char*)(TMPBUFF_ADDR+0x10);
 		int flags = (offset==-1)? FA_CREATE_ALWAYS : FA_OPEN_ALWAYS;
 		int retv = f_open(&fp, name, flags|FA_WRITE);
 		if(retv==FR_OK){
 			u32 wsize = 0;
+			u8 *wbuf = (u8*)((baddr&0x00ffffff)|0x61000000);
+			if(offset<0)
+				offset = 0;
 			f_lseek(&fp, offset);
-			retv = f_write(&fp, (void*)(TMPBUFF_ADDR+0x0100), size, &wsize);
+			retv = f_write(&fp, wbuf, size, &wsize);
 			*(u32*)(TMPBUFF_ADDR+0x04) = wsize;
 			f_close(&fp);
 			SSLOG(_INFO, "\nSSCMD_FILEWR: retv=%d wsize=%08x  %s\n", retv, wsize, name);
@@ -811,6 +827,19 @@ void ss_sw_init(void)
 	cdb.cddev_filter = 0xff;
 }
 
+
+void fs_lock(void)
+{
+	osMutexAcquire(mutex_fs, osWaitForever);
+}
+
+
+void fs_unlock(void)
+{
+	osMutexRelease(mutex_fs);
+}
+
+
 void saturn_config(void)
 {
 	FIL fp;
@@ -870,11 +899,12 @@ void saturn_config(void)
 		led_event(LEDEV_NOFIRM);
 		return;
 	}
+	int fsize = f_size(&fp);
 	printk("Found Saturn bootrom file.\n");
-	printk("    Size %08x\n", f_size(&fp));
+	printk("    Size %08x\n", fsize);
 
 	rv = 0;
-	retv = f_read(&fp, (void*)FIRM_ADDR, f_size(&fp), &rv);
+	retv = f_read(&fp, (void*)FIRM_ADDR, fsize, &rv);
 	printk("    f_read: retv=%d rv=%08x\n", retv, rv);
 	f_close(&fp);
 
@@ -898,6 +928,7 @@ void saturn_config(void)
 	sem_wait_irq   = osSemaphoreNew(1, 0, NULL);
 	sem_wait_disc  = osSemaphoreNew(1, 0, NULL);
 	sem_wait_pause = osSemaphoreNew(1, 0, NULL);
+	mutex_fs = osMutexNew(NULL);
 
 	osThreadAttr_t attr;
 	memset(&attr, 0, sizeof(attr));
