@@ -1,7 +1,7 @@
 # SAROO config file
 # 可用配置:
 #   lang_id=x
-#     选择菜单语言:  0:中文  1:EN  2:PT-BR  3:JA  4:FR  5:RU  6:繁中  7:DE  8:ES  9:IT  10:EL  11：RO
+#     选择菜单语言:  0:中文  1:EN  2:PTBR  3:JA  4:FR  5:RU  6:繁中  7:de  8:es  9:IT
 #   debug=xxxxxxxx
 #     各种调试选项
 #   auto_update:
@@ -167,4 +167,22 @@ sector_delay = 8000
 # Thunderstrike 2
 [T-7902H   V3.000]
 sector_delay = 8000
+
+
+# Virtual Fighter (US)
+[MK-81005  V1.000]
+sector_delay = 1000
+
+# Virtual Fighter (EU)
+[MK_8100550V1.000]
+sector_delay = 1000
+
+# Virtual Fighter (JP)
+[GS-9001  V1.000]
+sector_delay = 1000
+
+
+# Magical Drop III - Toretate Zoukan-gou! (Japan) (2M)
+[T-1313G   V1.005]
+play_delay = 8000
 
