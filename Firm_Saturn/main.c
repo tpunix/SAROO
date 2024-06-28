@@ -297,10 +297,11 @@ int read_file (char *name, int offset, int size, void *buf)
 	if(retv<0)
 		return retv;
 
+	size = LE32((void*)(TMPBUFF_ADDR+0x04));
 	if(bus_addr<0x02000000 || bus_addr>=0x03000000){
 		memcpy(buf, (void*)(TMPBUFF_ADDR+0x0100), size);
 	}
-	size = LE32((void*)(TMPBUFF_ADDR+0x04));
+
 	return size;
 }
 
