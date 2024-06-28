@@ -59,6 +59,7 @@ void CHEAT_patch(void)
 
 /**********************************************************/
 // KAITEI_DAISENSOU (Japan) 海底大战争日版 第一关后半部分会有音乐丢失情况
+
 void KAITEI_DAISENSOU_handle1(void)
 {
 	cdc_read_sector(2462+150, 0x54f00, (void*)0x22400000);
@@ -80,50 +81,64 @@ void KAITEI_DAISENSOU_patch(void)
 
 /**********************************************************/
 // Dungeons & Dragons Collection (Japan) (Disc 2) 龙与地下城2
+
 void DND2_patch(void)
 {
-	*(u32*)(0x06015228) = 0x34403440;
+	//*(u32*)(0x06015228) = 0x34403440;
+	*(u16*)(0x060151A6) = 0x09;
+	*(u16*)(0x060151AE) = 0x09;
 }
 
 
 /**********************************************************/
 // NOEL3 (Japan)
+
 void NOEL3_patch(void)
 {
-	*(u32*)(0x0603525C) = 0x34403440;
+	//*(u32*)(0x0603525C) = 0x34403440;
+	*(u16*)(0x06035104) = 0x09;
 }
 
 
 /**********************************************************/
 // FRIENDS (Japan)
+
 void FRIENDS_patch(void)
 {
-	*(u32*)(0x06042928) = 0x34403440;
-	*(u32*)(0x060429B4) = 0x34403440;
+	//*(u32*)(0x06042928) = 0x34403440;
+	//*(u32*)(0x060429B4) = 0x34403440;
+	*(u16*)(0x060428E8) = 0x09;
+	*(u16*)(0x0604298A) = 0x09;
 }
 
 
 /**********************************************************/
 // Astra Superstars (Japan)
+
 void ASTRA_SUPERSTARS_patch(void)
 {
-	*(u32*)(0x060289E4) = 0x34403440;
+	//*(u32*)(0x060289E4) = 0x34403440;
+	*(u16*)(0x06028974) = 0x09;
 }
 
 
 /**********************************************************/
 // Magical Night Dreams - Cotton 1 (Japan)棉花小魔女1
+
 void cotton1_patch(void)
 {
-	*(u32*)(0x06018DA8) = 0x34403440;
+	//*(u32*)(0x06018DA8) = 0x34403440;
+	*(u16*)(0x06018D80) = 0x09;
 }
 
 
 /**********************************************************/
 // Magical Night Dreams - Cotton 2 (Japan)棉花小魔女2
+
 void cotton2_patch(void)
 {
-	*(u32*)(0x060041BC) = 0x34403440;
+	//*(u32*)(0x060041BC) = 0x34403440;
+	*(u16*)(0x06004194) = 0x09;
 }
 
 
@@ -131,40 +146,53 @@ void cotton2_patch(void)
 // Pocket Fighter (Japan) 口袋战士 
 void POCKET_FIGHTER_patch(void)
 {
-	*(u32*)(0x06014080) = 0x34403440;
+	//*(u32*)(0x06014080) = 0x34403440;
+	*(u32*)(0x06013F48) = 0xd44ae001;
+	*(u32*)(0x06013F4c) = 0x2400e05c;
+	*(u32*)(0x06013F50) = 0x000b8041;
+	//*(u8*)(0x06037C2A) = 0x11;//修正开头音频被错误的播放？？
+	*(u16*)(0x0602DD68) = 0x09;
 }
 
 
 /**********************************************************/
 // Street Fighter Zero 3 (Japan) 街霸ZERO3
+
 void SF_ZERO3_patch(void)
 {
-	*(u32*)(0x0602B8AC) = 0x34403440;
+	//*(u32*)(0x0602B8AC) = 0x34403440;
+	*(u16*)(0x0602B7FA) = 0x09;
 }
 
 
 /**********************************************************/
 // Metal_Slug  合金弹头
+
 void Metal_Slug_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)(0x06079E18) = 0x34403440;
-
+	//*(u32*)(0x06079E18) = 0x34403440;
+	*(u16*)(0x06079DEC) = 0x09;
+	//*(u16*)(0x06079DF2) = 0x09;
 }
 
 
 /*********************************************************/
- //Metal_Slug A 合金弹头1.005版
+// Metal_Slug A 合金弹头1.005版
+
 void Metal_Slug_A_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)(0x06079FBC) = 0x34403440;
+	//*(u32*)(0x06079FBC) = 0x34403440;
+	*(u16*)(0x06079F90) = 0x09;
+	//*(u16*)(0x06079F96) = 0x09;
 }
 
 
 /*********************************************************/
 // ULTRAMAN
 // 2MB ROM cart
+
 void jump_06b0(void)
 {
 	void (*go)(void) = (void*)(0x04c8);
@@ -218,15 +246,16 @@ void ULTRAMAN_patch(void)
 /*********************************************************/
 // KOF95
 // 2MB ROM cart
+
 void kof95_handle(void)
 {
-	if(*(u32*)(0x6002234)== 0x14401FF0) *(u32*)(0x6002234) = 0x34403440;
-	if(*(u32*)(0x600230c)== 0x14401FF0) *(u32*)(0x600230c) = 0x34403440;
-	if(*(u32*)(0x6002300)== 0x1FF01FF0) *(u32*)(0x6002300) = 0x34403440;
+	*(u16*)(0x60020c2) = 0x0009;
+	*(u16*)(0x600217E) = 0x0009;
+	*(u16*)(0x6002180) = 0x0009;
 
 	read_file("/SAROO/ISO/KOF95.BIN", 0, 0x200000, (void*)0x22400000);
 	card_init();
-	
+
 	void (*go)(int);
 	go = (void*)0x200000;
 	go(0x6002048);	
@@ -237,37 +266,45 @@ void kof95_patch(void)
 {
 	need_bup = 0;
 
-	if(*(u32*)(0x6002e28)==0x0607CD80)
-		*(u32*)(0x607CDC4) = (u32)kof95_handle;
+	if(*(u32*)(0x6002e28)==0x0607CD80){
+		if(*(u32*)(0x607CDC4) == 0x6002048)
+			*(u32*)(0x607CDC4) = (u32)kof95_handle;
+		else if(*(u32*)(0x607CDC8) == 0x6002048)
+			*(u32*)(0x607CDC8) = (u32)kof95_handle;
+	}
 }
-
 
 /**********************************************************/
 // KOF96
 // 1MB RAM cart only
+
 void kof96_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)(0x06058248) = 0x34403440;
+	//*(u32*)(0x06058248) = 0x34403440;
+	*(u16*)(0x0605821C) = 0x09;
 }
 
 
 /**********************************************************/
 // KOF97
+
 void kof97_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)(0x06066FC0) = 0x34403440;
+	*(u16*)(0x06066F80) = 0x0009;//34403440
 }
 
 
 /**********************************************************/
 // Samurai Spirits - Amakusa Kourin 侍魂4
 // 1MB RAM cart only
+
 void smrsp4_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)(0x6067E60) = 0x34403440;
+	//*(u32*)(0x6067E60) = 0x34403440;
+	*(u16*)(0x06067E34) = 0x0009;
 }
 
 
@@ -275,11 +312,14 @@ void smrsp4_patch(void)
 // Samurai Spirits - Zankuro Musouken   侍魂3
 // 0x0600d1d0: 23301ff0
 // 0x0605ad90: 23301ff0
+
 void smrsp3_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)0x0600d1d0 = 0x34403440;
-	*(u32*)0x0605ad90 = 0x34403440;
+	*(u16*)(0x0600D198) = 0x0009;
+	*(u16*)(0x0605AD36) = 0x0009;
+	//*(u32*)0x0600d1d0 = 0x34403440;
+	//*(u32*)0x0605ad90 = 0x34403440;
 }
 
 
@@ -287,21 +327,26 @@ void smrsp3_patch(void)
 // Real Bout Garou Densetsu (Japan) (2M) RB饿狼传说
 // 0x0602F6FC: 23301ff0
 // 0x0607C36C: 23301ff0
+
 void REAL_BOUT_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)0x0602F6FC = 0x34403440;
-	*(u32*)0x0607C36C = 0x34403440;
+	*(u16*)(0x0602F5EC) = 0x0009;
+	*(u16*)(0x0607C340) = 0x0009;
+	//*(u32*)0x0602F6FC = 0x34403440;
+	//*(u32*)0x0607C36C = 0x34403440;
 }
 
 
 /**********************************************************/
 // Real Bout Garou Densetsu Special (Japan) (Rev A)   RB饿狼传说SP V2
 // 0x060913C4: 23301ff0
+
 void REAL_BOUT_SP_v2_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)0x060913C4 = 0x34403440;
+	//*(u32*)0x060913C4 = 0x34403440;
+	*(u16*)(0x06091398) = 0x0009;
 }
 
 
@@ -309,10 +354,12 @@ void REAL_BOUT_SP_v2_patch(void)
 // Real Bout Garou Densetsu Special (Japan)  v1 RB饿狼传说SP V1
 // 0x060913C4: 23301ff0
 // 0x06091230: 23301ff0
+
 void REAL_BOUT_SP_v1_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)0x06091230 = 0x34403440;
+	*(u16*)(0x06091204) = 0x0009;
+	//*(u32*)0x06091230 = 0x34403440;
 }
 
 
@@ -320,18 +367,23 @@ void REAL_BOUT_SP_v1_patch(void)
 // SRMP7
 // 0x06011204:  mov.l #0x23301ff0, r3
 // need change to 0x34403440
+
 void srmp7_patch(void)
 {
-	*(u32*)(0x0601121C) = 0x34403440;
+	//*(u32*)(0x0601121C) = 0x34403440;
+	*(u16*)(0x06011208) = 0x0009;
 }
 
 
 /**********************************************************/
 // Gouketsuji Ichizoku 3 - Groove on Fight (Japan)豪血寺一族3
+
 void GROOVE_ON_FIGHT_handle(void)
 {
-	*(u32*)0x06099ABC=0x34403440;
-	*(u32*)0x060083B0=0x34403440;
+	//*(u32*)0x06099ABC=0x34403440;
+	//*(u32*)0x060083B0=0x34403440;
+	*(u16*)(0x6008338) = 0x0009;
+	*(u16*)(0x6099A84) = 0x0009;
 	*(u32*)0x00280008=0x06004000;
 	__asm volatile("jmp @%0"::"r"(0x06004000)); 
 	__asm volatile( "nop" :: );	
@@ -339,17 +391,21 @@ void GROOVE_ON_FIGHT_handle(void)
 
 void GROOVE_ON_FIGHT_patch(void)
 {
-	*(u32*)(0x200AA4) = 0x34403440;
-	*(u32*)(0x202EF0) = 0x34403440;
+	//*(u32*)(0x200AA4) = 0x34403440;
+	//*(u32*)(0x202EF0) = 0x34403440;
+	*(u16*)(0x200A44) = 0x0009;
+	*(u16*)(0x202EB8) = 0x0009;
 	*(u32*)(0x200460) = (u32)GROOVE_ON_FIGHT_handle;
 }
 
 
 /**********************************************************/
 // Vampire Savior (Japan) 恶魔战士3 救世主
+
 void VAMPIRE_SAVIOR_handle(void)
 {
-	*(u32*)0x06014A64=0x34403440;
+	//*(u32*)0x06014A64=0x34403440;
+	*(u16*)(0x6014A52) = 0x0009;
 	__asm volatile("jmp @%0"::"r"(0x600D000)); 
 	__asm volatile ( "nop" :: );
 }
@@ -365,12 +421,15 @@ void VAMPIRE_SAVIOR_patch(void)
 
 /**********************************************************/
 // XMarvel Super Heroes (Japan)
+
 void MARVEL_SUPER_handle(void)
 {	
 	void (*go)(void) = (void(*)(void))0x60D0FF4;
 	go();	
-	*(u32*)0x0600B0FC = 0x34403440;
-	*(u32*)0x0600B2D8 = 0x34403440;		
+	*(u16*)(0x0600B0AC) = 0x0009;
+	*(u16*)(0x0600B1D4) = 0x0009;
+	//*(u32*)0x0600B0FC = 0x34403440;
+	//*(u32*)0x0600B2D8 = 0x34403440;
 }
 
 void MARVEL_SUPER_patch(void)
@@ -381,16 +440,17 @@ void MARVEL_SUPER_patch(void)
 
 /**********************************************************/
 // X-Men vs. Street Fighter (Japan) (3M)
+
 void xmvsf_handle2(void)
 {
-	*(u32*)(0x06014158) = 0x34403440;
+	//*(u32*)(0x06014158) = 0x34403440;
+	*(u16*)(0x0601409C) = 0x0009;
 	__asm volatile("jmp @%0"::"r"(0x6014000)); 
 	__asm volatile ( "nop" :: );		
 }
 
 void xmvsf_handle1(void)
 {
-	
 	*(u16*)(0x60228E0) = 0xe000;
 	*(u16*)(0x60228f4) = 0xe000;
 	*(u8*)0x060801FE = 0x5c;
@@ -410,6 +470,7 @@ void xmvsf_patch(void)
 
 /**********************************************************/
 // Marvel Super Heroes vs. Street Fighter (Japan)
+
 void mshvssf_handle1(void)
 {
 	if(*(u16*)(0x600286e)== 0x2012)
@@ -430,10 +491,11 @@ void mshvssf_patch(void)
 
 /**********************************************************/
 // WAKUWAKU7                火热火热7
+
 void WAKU7_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)(0x0601C19C) = 0x34403440;
+	*(u16*)(0x0601C164) = 0x9;
 	*(u16*)(0x0601C16C) = 0x9;
 	*(u8*) (0x0601244d) = 0xa;
 
@@ -452,13 +514,18 @@ void WAKU7_patch(void)
 
 /**********************************************************/
 // FIGHTERS_HISTORY   斗士的历史
+
 void FIGHTERS_HISTORY_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u32*)0x060500C8 = 0x34403440;
-	*(u32*)0x06057000 = 0x34403440;
-	*(u32*)0x0605707C = 0x34403440;
-	*(u32*)0x060570E0 = 0x34403440;
+	*(u16*)(0x0605002E) = 0x9;
+	*(u16*)(0x06056FEC) = 0x9;
+	*(u16*)(0x06057028) = 0x9;
+	*(u16*)(0x060570BA) = 0x9;
+	//*(u32*)0x060500C8 = 0x34403440;
+	//*(u32*)0x06057000 = 0x34403440;
+	//*(u32*)0x0605707C = 0x34403440;
+	//*(u32*)0x060570E0 = 0x34403440;
 }
 
 
@@ -467,7 +534,8 @@ void FIGHTERS_HISTORY_patch(void)
 
 void FINAL_FIGHT_REVENGE_patch(void)
 {
-	*(u32*)(0x06011A6C) = 0x34403440;
+	//*(u32*)(0x06011A6C) = 0x34403440;
+	*(u16*)(0x0601199C) = 0x9;
 }
 
 
@@ -567,16 +635,12 @@ void Terra_Cresta_3D_patch(void)
 
 
 /**********************************************************/
-// 虎胆龙威 关闭加速卡
+// 虎胆龙威
+// 游戏程序员手滑，将0x25E7FFFF写成0x25E7FFF了，从VRAM到CS0了。
 
 void Die_Hard_Trilogy_patch(void)
 {
-	if(*(u8*)(0x060523B4)==0x60)
-		*(u16*)(0x060523BA) = 0x9;        // 日版
-	else if(*(u8*)(0x06050CA8)==0x60)
-		*(u16*)(0x06050CAE) = 0x9;        // 美版
-	else if(*(u8*)(0x060523B0)==0x60)
-		*(u16*)(0x060523B6) = 0x9;        // 欧版
+	*(u8*)(0x025E7FFF) = 0xff;
 }
 
 
@@ -616,11 +680,12 @@ void Dragons_Dream_patch(void)
 
 void Hebereke_Popoitto_patch(void)
 {
-	if(*(u8*)(0x0601D379)==0x01)
+	if(*(u8*)(0x0601D379)==0x01){
 		*(u8*)(0x0601D379) = 0x56;        // (Japan)
-	else  if(*(u8*)(0x0601D399)==0x01)
+		*(u8*)(0x0601D2F5) = 0x56;
+	}else  if(*(u8*)(0x0601D399)==0x01){
 		*(u8*)(0x0601D399) = 0x78;        // (Europe)
-
+	}
 }
 
 
@@ -642,9 +707,10 @@ void Hissatsu_Pachinko_Collection_patch(void)
 
 void Heart_of_Darkness_patch(void)
 {
-	*(u16*)(0x060106C4) = 9;
-	*(u8*) (0x060108C0) = 2;
-	*(u8*) (0x060108C1) = 0x40;
+	if(*(u32*)(0x060108c0)==0x04000000){
+		*(u16*)(0x060108C0) = 0x0240;
+		*(u16*)(0x060106C4) = 0x0009;
+	}
 }
 
 
@@ -653,13 +719,21 @@ void Heart_of_Darkness_patch(void)
 
 void VANDAL_HEARTS_CN_patch(void)
 {
-	if(REG16(0x06002F70)==0x4C2B){     // 1.0 正式版
-		REG16(0x06002F70)=0xaf48;
+	int addres=0;
+
+	if(REG16(0x06002F70)==0x4C2B)         // B2
+		addres=0x48;
+	else if(REG16(0x06002F5e)==0x4C2B)    // B1
+		addres=0x51;
+
+	if(addres){
+		REG8(0x06002F5e) =0xaf;
+		REG8(0x06002F5f) =addres;
 		REG32(0x06002E04)=0xE00961C3;
 		REG32(0x06002E08)=0x71547170;
 		REG32(0x06002E0C)=0x4C2B2101;
 	}
-}		
+}
 
 
 /**********************************************************/
@@ -699,6 +773,31 @@ void Fenrir_patch(void)
 	*(u16*)(0x0600DCCA) = 0x9;
 	*(u8*) (0x0600DCCC) = 0x41;
 	*(u32*)(0x0600DD18) = (u32)bios_cd_cmd;
+}
+
+
+/**********************************************************/
+
+
+void MANX_TT_SUPER_BIKE_patch(void)
+{
+	if(*(u8*)(0x60219B1)==0x01){
+		//日版和欧版相同
+		*(u8*)(0x60219B3)= 0x03;
+		*(u8*)(0x60219E7)= 0x03;
+		*(u8*)(0x602037D)= 0x43;
+		*(u8*)(0x60203FD)= 0x43;
+		*(u8*)(0x60204D9)= 0x43;
+		*(u8*)(0x6020619)= 0x13;
+	}else if(*(u8*)(0x6021A11)==0x01){
+		//美版
+		*(u8*)(0x6021A13)= 0x03;
+		*(u8*)(0x6021A47)= 0x03;
+		*(u8*)(0x60203DD)= 0x43;
+		*(u8*)(0x602045D)= 0x43;
+		*(u8*)(0x6020539)= 0x43;
+		*(u8*)(0x6020679)= 0x13;
+	}
 }
 
 
@@ -784,9 +883,13 @@ GAME_DB game_dbs[] = {
 	{"T-000001  V0.2.0",   "RMENU2",             RMENU2_patch},
 	{"CD0000001 V1.000",   "Fenrir",             Fenrir_patch},
 
+	{"GS-9102   V1.001",   "ManX_TT_Super_Bike", MANX_TT_SUPER_BIKE_patch},
+	{"MK-81210  V1.001",   "ManX_TT_Super_Bike", MANX_TT_SUPER_BIKE_patch},
+	{"MK-81210  V1.000",   "ManX_TT_Super_Bike", MANX_TT_SUPER_BIKE_patch},
 
 	{NULL,},
 };
+
 
 // Marvel Super Heroes (Europe)	T-7032H-50
 // Pia Carrot e Youkoso!! 2 (Japan)	T-20114G
