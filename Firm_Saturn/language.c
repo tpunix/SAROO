@@ -261,6 +261,29 @@ static char *lang_it[LANG_STR_NR] = {
 	"Seleziona categoria di gioco",
 };
 
+static char *lang_swe[LANG_STR_NR] = {
+	"Välj spel(%d/%d)",
+	"Välj fil(%d/%d)",
+	"Laddar spel ......",
+	"Gick inte att starta spelet! %d",
+	"Laddar fil ......",
+	"Gick inte att ladda fil! %d",
+	"Välj spel",
+	"System CD-spelare",
+	"Ladda spelskiva",
+	"Seriellt felsökningsshell",
+	"Ladda binär",
+	"Uppdatera programvaran",
+	"Uppdaterar... Stäng inte av maskinen.",
+	"Uppdatering misslyckades!",
+	"Uppdatering klar! Var god starta om maskinen.",
+	"SAROO Boot Menu",
+	"Kontrollerar skivan ......",
+	"Hittade ingen skiva!",
+	"Inte en giltig spel skiva!",
+	"Välj spelkategori",
+};
+
 #if 0
 static char *lang_el[LANG_STR_NR] = {
 	"Επίλεξε Παιχνίδι(%d/%d)",
@@ -321,6 +344,7 @@ static char **lang_list[] = {
 	lang_de,
 	lang_es,
 	lang_it,
+	lang_swe,
 //	lang_el,
 //	lang_ro,    // TODO: Need new font
 };
