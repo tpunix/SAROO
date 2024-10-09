@@ -261,6 +261,29 @@ static char *lang_it[LANG_STR_NR] = {
 	"Seleziona categoria di gioco",
 };
 
+static char *lang_pl[LANG_STR_NR] = {
+	"Wybierz grę(%d/%d)",
+	"Wybierz plik(%d/%d)",
+	"Uruchamianie gry ......",
+	"Błąd uruchamiania gry! %d",
+	"Wczytywanie pliku ......",
+	"Błąd wczytywania pliku! %d",
+	"Wybierz grę",
+	"Systemowy CDPlayer",
+	"Wczytaj dysk z grą",
+	"Powłoka debugująca po UART",
+	"Wczytaj dane binarne",
+	"Aktualizacja Firmware",
+	"Aktualizacja trwa... Nie wyłączaj konsoli!",
+	"Błąd aktualizacji!",
+	"Aktualizacja ukończona! Uruchom ponownie!",
+	"Menu rozruchowe SAROO",
+	"Sprawdzanie dysku ......",
+	"Nie znaleziono dysku!",
+	"Nie znaleziono płyty z grą!",
+	"Wybierz kategorię gry",
+};
+
 #if 0
 static char *lang_el[LANG_STR_NR] = {
 	"Επίλεξε Παιχνίδι(%d/%d)",
@@ -321,6 +344,7 @@ static char **lang_list[] = {
 	lang_de,
 	lang_es,
 	lang_it,
+	lang_pl,
 //	lang_el,
 //	lang_ro,    // TODO: Need new font
 };
