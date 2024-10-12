@@ -310,7 +310,6 @@ static char *lang_swe[LANG_STR_NR] = {
 };
 
 
-#if 0
 static char *lang_el[LANG_STR_NR] = {
 	"Επίλεξε Παιχνίδι(%d/%d)",
 	"Επίλεξε Αρχείο(%d/%d)",
@@ -357,7 +356,7 @@ static char *lang_ro[LANG_STR_NR] = {
 	"Nu s-a detectat un disc cu jocuri compatibil!",
 	"Selectați categoria de jocuri",
 };
-#endif
+
 
 static char **lang_list[] = {
 	lang_zhcn,
@@ -372,8 +371,8 @@ static char **lang_list[] = {
 	lang_it,
 	lang_pl,
 	lang_swe,
-//	lang_el,
-//	lang_ro,    // TODO: Need new font
+	lang_el,
+	lang_ro,
 };
 
 static const int lang_nr = sizeof(lang_list)/4;

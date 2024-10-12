@@ -176,9 +176,6 @@ static u8 *find_font(int ucs)
 {
 	u8 *fdat;
 
-	if(ucs==0x30fc)
-		ucs = 0x2014; // gb2312没有'ー'这个符号，用A1AA(U2014)代替。
-
 	fdat = find_ucs(font_latin, ucs);
 	if(fdat==NULL){
 		fdat = find_ucs((u8*)font_cjk, ucs);
