@@ -405,6 +405,10 @@ void put_box(int x1, int y1, int x2, int y2, int c)
 
 /******************************************************************************/
 
+
+#define PAD_REPEAT_TIME  500
+#define PAD_REPEAT_RATE  100
+
 static u32 last_pdat = 0;
 static u32 last_value;
 static u32 curr_pdat = 0;
@@ -445,24 +449,19 @@ u32 conio_getc(void)
 		if(curr_pdat){
 			// 转入重复状态
 			pdat_state = 3;
-			pdat_count = 0;
-			pdat_wait  = 500;
+			pdat_wait  = get_timer() + MS2TICK(PAD_REPEAT_TIME);
 		}else{
 			pdat_state = 0;
 		}
 		last_value = (pdat<<16) | curr_pdat;
-		//printk("key0: %08x\n", last_value);
 		return last_value;
 	case 3:
 		// 重复状态
 		if(pdat != curr_pdat){
 			pdat_state = 0;
 		}else{
-			pdat_count += 1;
-			if(pdat_count==pdat_wait){
-				pdat_wait  = 30;
-				pdat_count = 0;
-				//printk("keyr: %08x\n", last_value);
+			if(get_timer()>=pdat_wait){
+				pdat_wait  = PAD_REPEAT_RATE;
 				return last_value;
 			}
 		}

@@ -52,6 +52,7 @@ void LE32W(void *ptr, u32 val)
 
 /**********************************************************/
 
+
 static int pad_state;
 
 int pad_read(void)
@@ -66,6 +67,8 @@ int pad_read(void)
     bits ^= 0xfFF8;
 #else
 	if(pad_state==0){
+		if((TVSTAT&0x0008)==0)
+			return -1;
 		while(SF&0x01);
 		SF = 0x01;
 		IREG0 = 0x00;
@@ -74,14 +77,19 @@ int pad_read(void)
 		COMREG = 0x10;
 		pad_state = 1;
 		return -1;
-	}else{
+	}else if(pad_state==1){
 		if(SF&1){
 			return -1;
 		}
 		bits = (OREG2<<8) | (OREG3);
 		IREG0 = 0x40;
 		bits ^= 0xFFFF;
-		pad_state = 0;
+		pad_state = 2;
+	}else if(pad_state==2){
+		if((TVSTAT&0x0008)==0){
+			pad_state = 0;
+		}
+		return -1;
 	}
 #endif
 
