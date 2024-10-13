@@ -609,7 +609,7 @@ static int sel_handle(int ctrl)
 	if(BUTTON_DOWN(ctrl, PAD_UP)){
 		if(menu->current>0){
 			menu->current -= 1;
-			menu_update(menu);
+			menu_update(menu, menu->current-1);
 		}else if(page>0){
 			page -= 1;
 			page_update(1);
@@ -620,16 +620,16 @@ static int sel_handle(int ctrl)
 	}else if(BUTTON_DOWN(ctrl, PAD_DOWN)){
 		if(menu->current<(menu->num-1)){
 			menu->current += 1;
-			menu_update(menu);
+			menu_update(menu, menu->current+1);
 		}else if((page+1)<total_page){
 			page += 1;
 			page_update(0);
-		}else{
+		}else if(total_page>1){
 			page = 0;
 			page_update(0);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_LT)){
-		if(total_page>0){
+		if(total_page>1){
 			page -= 1;
 			if(page<0){
 				page = total_page-1;
@@ -637,7 +637,7 @@ static int sel_handle(int ctrl)
 			page_update(0);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_RT)){
-		if(total_page>0){
+		if(total_page>1){
 			page += 1;
 			if(page>=total_page){
 				page = 0;
@@ -797,7 +797,9 @@ int main_handle(int ctrl)
 		return MENU_EXIT;
 	}
 
-	if(!BUTTON_DOWN(ctrl, PAD_A))
+	if(!BUTTON_DOWN(ctrl, PAD_A) && !BUTTON_DOWN(ctrl, PAD_C))
+		return 0;
+	if(BUTTON_DOWN(ctrl, PAD_C) && index!=2)
 		return 0;
 
 	if(index==0){

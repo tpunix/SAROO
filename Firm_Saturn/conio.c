@@ -568,10 +568,11 @@ static void draw_menu_item(int index, char *item, int select)
 
 static int draw_menu_item_select(int index, char *item)
 {
-	int x, y = 24+index*16;
+	int x;
 	int color = 0x8f;
 	int i, adv;
 
+	//int y = 24+index*16;
 	//put_box(MENU_LB, y, MENU_RB, y+16-1, (color&0x0f));
 	memset(sel_pbuf, (color&0x0f), llen*16);
 
@@ -693,13 +694,20 @@ static void sel_init(MENU_DESC *menu)
 }
 
 
-void menu_update(MENU_DESC *menu)
+void menu_update(MENU_DESC *menu, int new)
 {
 	int i, select;
 
-	for(i=0; i<menu->num; i++){
-		select = (i==menu->current)? 1: 0;
-		draw_menu_item(i, menu->items[i], select);
+	if(new>=0){
+		int old = menu->current;
+		menu->current = new;
+		draw_menu_item(old, menu->items[old], 0);
+		draw_menu_item(new, menu->items[new], 1);
+	}else{
+		for(i=0; i<menu->num; i++){
+			select = (i==menu->current)? 1: 0;
+			draw_menu_item(i, menu->items[i], select);
+		}
 	}
 
 	menu_status(menu, NULL);
@@ -716,7 +724,7 @@ void draw_menu_frame(MENU_DESC *menu)
 	put_hline( 22, 0, fbw-1, 0x0f);
 	put_hline(217, 0, fbw-1, 0x0f);
 
-	menu_update(menu);
+	menu_update(menu, -1);
 	if(menu->version){
 		menu_status(menu, menu->version);
 	}
@@ -747,14 +755,12 @@ int menu_default(MENU_DESC *menu, int ctrl)
 {
 	if(BUTTON_DOWN(ctrl, PAD_UP)){
 		if(menu->current>0){
-			menu->current -= 1;
-			menu_update(menu);
+			menu_update(menu, menu->current-1);
 		}
 		return 1;
 	}else if(BUTTON_DOWN(ctrl, PAD_DOWN)){
 		if(menu->current<(menu->num-1)){
-			menu->current += 1;
-			menu_update(menu);
+			menu_update(menu, menu->current+1);
 		}
 		return 1;
 	}else{
