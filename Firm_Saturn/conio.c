@@ -600,7 +600,12 @@ static void put_select_item(int index)
 	u8 *src = sel_pbuf+MENU_LB;
 
 	for(i=0; i<16; i++){
+#if 0
 		memcpy(dst, src, (MENU_RB-MENU_LB+1));
+#else
+		//cpu_dmemcpy(dst, src, (MENU_RB-MENU_LB+1), 0);
+		scu_dmemcpy(dst, src, (MENU_RB-MENU_LB+1), 0);
+#endif
 		dst += llen;
 		src += llen;
 	}

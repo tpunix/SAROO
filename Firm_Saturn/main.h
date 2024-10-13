@@ -204,6 +204,8 @@ void usleep(u32 us);
 void msleep(u32 ms);
 
 
+void cpu_dmemcpy(void *to, void *from, int size, int ch);
+void scu_dmemcpy(void *dst, void *src, int size, int ch);
 
 /*****************************************************************************/
 

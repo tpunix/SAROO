@@ -281,6 +281,64 @@ int sci_getc(int timeout)
 
 /**********************************************************/
 
+
+void cpu_dmemcpy(void *dst, void *src, int size, int ch)
+{
+	int chcr = 0x5a11;
+
+	if(((u32)src&0xfff8703f)==0x25800000){
+		// CDBLOCK的DATA_PORT
+		chcr &= 0xcfff;
+	}
+
+	while((CHCR0&0x03)==0x01);
+	CHCR0 = 0;
+	DMAOR = 1;
+
+	SAR0 = (u32)src;
+	DAR0 = (u32)dst;
+	TCR0 = (size+3)>>2;
+	CHCR0 = chcr;
+}
+
+#if 1
+void scu_dmemcpy(void *dst, void *src, int size, int ch)
+{
+	volatile SCUDMA_REG *sdma = (SCUDMA_REG *)(SCU_DMA_BASE+ch*0x20);
+	int mask  = 0x0030;
+	int maskh = 0x0001;
+
+	if(ch>0){ mask <<= 4; maskh <<= 1; }
+	if(ch>1){ mask <<= 4; maskh   = 0; }
+	mask |= maskh<<16;
+	while(SDSTAT&mask); // 等待传输结束
+
+	sdma->src = (u32)src;
+	sdma->dst = (u32)dst;
+	sdma->count = size;
+	sdma->addv = (((u32)dst&0x00f00000)==0) ? 0x102 : 0x101;
+	sdma->mode = 0x07;
+	sdma->enable = 0x101;
+}
+
+#else
+
+void scu_dmemcpy(void *dst, void *src, int size, int ch)
+{
+	while(SDSTAT&0x10030); // 等待传输结束
+
+	SD0R = (u32)src;
+	SD0W = (u32)dst;
+	SD0C = size;
+	SD0AD = (((u32)dst&0x00f00000)==0) ? 0x102 : 0x101;
+	SD0MD = 0x07;
+	SD0EN = 0x101;
+}
+
+#endif
+
+/**********************************************************/
+
 int read_file (char *name, int offset, int size, void *buf)
 {
 	LE32W((void*)(TMPBUFF_ADDR+0x00), offset);
