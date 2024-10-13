@@ -13,6 +13,7 @@
 #define SMPC_H_
 
 
+/******************************************************************************/
 
 #define SMPC_BASE   0x20100000
 
@@ -89,11 +90,54 @@
 #define RESDISA     0x1a
 
 
+/******************************************************************************/
+
 #define SCU_BASE 0x25FE0000
 
+/* SCU A-BUS */
 #define ASR0        REG(SCU_BASE+0xb0)
 #define ASR1        REG(SCU_BASE+0xb4)
 #define AREF        REG(SCU_BASE+0xb8)
+
+/* SCU DMA */
+#define SCU_DMA_BASE  (SCU_BASE+0x0000)
+
+#define SD0R        REG(SCU_BASE+0x00)
+#define SD0W        REG(SCU_BASE+0x04)
+#define SD0C        REG(SCU_BASE+0x08)
+#define SD0AD       REG(SCU_BASE+0x0c)
+#define SD0EN       REG(SCU_BASE+0x10)
+#define SD0MD       REG(SCU_BASE+0x14)
+#define SD1R        REG(SCU_BASE+0x20)
+#define SD1W        REG(SCU_BASE+0x24)
+#define SD1C        REG(SCU_BASE+0x28)
+#define SD1AD       REG(SCU_BASE+0x2c)
+#define SD1EN       REG(SCU_BASE+0x30)
+#define SD1MD       REG(SCU_BASE+0x34)
+#define SD2R        REG(SCU_BASE+0x40)
+#define SD2W        REG(SCU_BASE+0x44)
+#define SD2C        REG(SCU_BASE+0x48)
+#define SD2AD       REG(SCU_BASE+0x4c)
+#define SD2EN       REG(SCU_BASE+0x50)
+#define SD2MD       REG(SCU_BASE+0x54)
+#define SDSTOP      REG(SCU_BASE+0x60)
+#define SDSTAT      REG(SCU_BASE+0x7c)
+
+typedef struct {
+	u32 src;
+	u32 dst;
+	u32 count;
+	u32 addv;
+	u32 enable;
+	u32 mode;
+	u32 unk_18;
+	u32 unk_1c;
+}SCUDMA_REG;
+
+#define SCUDMA ((volatile SCUDMA_REG *)(SCU_DMA_BASE))
+
+
+/******************************************************************************/
 
 /* CPU SCI port */
 #define SMR         REG8(0xfffffe00)
@@ -129,6 +173,20 @@
 #define BDMRB       REG  (0xffffff74)
 #define BRCR        REG16(0xffffff78)
 
+/* CPU DMAC */
+#define SAR0        REG (0xffffff80)
+#define DAR0        REG (0xffffff84)
+#define TCR0        REG (0xffffff88)
+#define CHCR0       REG (0xffffff8c)
+#define VCRDMA0     REG (0xffffffa0)
+#define DRCR0       REG8(0xffffff71)
+#define SAR1        REG (0xffffff90)
+#define DAR1        REG (0xffffff94)
+#define TCR1        REG (0xffffff98)
+#define CHCR1       REG (0xffffff9c)
+#define VCRDMA1     REG (0xffffffa8)
+#define DRCR1       REG8(0xffffff72)
+#define DMAOR       REG (0xffffffb0)
 
 
 

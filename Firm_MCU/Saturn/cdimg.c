@@ -98,7 +98,7 @@ int parse_iso(char *fname)
 }
 
 
-int parse_cue(char *fname)
+int parse_cue(char *fname, u8 *ipbuf)
 {
 	FIL fp;
 	u8 *fbuf = (u8*)0x2400b000;
@@ -144,6 +144,19 @@ int parse_cue(char *fname)
 				return -5;
 
 			sprintk(full_path, "%s/%s", dir_name, tfile);
+
+			if(ipbuf){
+				// 如果ipbuf存在，则意味着只需读IP信息。在第一个FILE里面。
+				tk_fp = &track_fp[99];
+				retv = f_open(tk_fp, full_path, FA_READ);
+				if(retv){
+					return -6;
+				}
+				retv = f_read(tk_fp, ipbuf, 256, &nread);
+				f_close(tk_fp);
+				return retv;
+			}
+
 			if(tno!=-1){
 				// close last track
 				tk = &cdb.tracks[tno];
@@ -490,7 +503,7 @@ int load_disc(int index)
 
 	printk("Load disc: {%s}\n", fname);
 	if(retv==1){
-		retv = parse_cue(fname);
+		retv = parse_cue(fname, NULL);
 	}else{
 		retv = parse_iso(fname);
 	}
@@ -544,3 +557,42 @@ _exit:
 	return retv;
 }
 
+
+int get_disc_ip(int index, u8 *ipbuf)
+{
+	int retv;
+	char *fname;
+	char cat_dir[256];
+
+	if(disc_path[index]==0){
+		printk("Invalid disc index %d\n", index);
+		return -1;
+	}
+
+	if(category_num){
+		sprintk(cat_dir, "/SAROO/ISO/%s/%s", get_category(category_current), path_str+disc_path[index]);
+	}else{
+		sprintk(cat_dir, "/SAROO/ISO/%s", path_str+disc_path[index]);
+	}
+
+	fname = malloc(256);
+	retv = find_cue_iso(cat_dir, fname);
+	if(retv<0){
+		goto _exit;
+	}else if(retv==1){
+		retv = parse_cue(fname, ipbuf);
+	}else{
+		FIL *fp = &track_fp[99];
+		retv = f_open(fp, fname, FA_READ);
+		if(retv)
+			goto _exit;
+
+		u32 nread;
+		retv = f_read(fp, ipbuf, 256, &nread);
+		f_close(fp);
+	}
+
+_exit:
+	free(fname);
+	return retv;
+}

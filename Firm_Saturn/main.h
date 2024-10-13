@@ -48,6 +48,10 @@ typedef unsigned long long u64;
 #define SSCMD_LMEMS    0x000b
 #define SSCMD_SMEMS    0x000c
 #define SSCMD_STARTUP  0x000d
+#define SSCMD_SELECT   0x000e
+
+#define SELECT_ENTER   0x8000
+#define SELECT_EXIT    0x4000
 
 
 #define IMGINFO_ADDR   0x22080000
@@ -256,6 +260,7 @@ void nbg1_on(void);
 void nbg1_set_cram(int index, int r, int g, int b);
 void nbg1_put_pixel(int x, int y, int color);
 
+void vdp2_win0(int scr, int outside, int sx, int sy, int ex, int ey);
 
 /*****************************************************************************/
 

@@ -660,8 +660,27 @@ void ss_cmd_handle(void)
 			cdb.play_type = PLAYTYPE_SECTOR;
 			disk_task_wakeup();
 		}
-		
+
+		TIM6->CR1 = 0x0005;
 		gif_decode_init();
+		break;
+	}
+	case SSCMD_SELECT: {
+		int index = SS_ARG;
+		printk("\nSelect %04x\n", index);
+		
+		if(index&0x8000){
+			gif_decode_exit();
+		}
+
+		if(index&0x4000){
+			gif_decode_init();
+		}else{
+			index &= 0x3fff;
+
+			void load_cover(int index);
+			load_cover(index);
+		}
 		break;
 	}
 	default:

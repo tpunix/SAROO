@@ -469,6 +469,8 @@ int mem_test(int size)
 
 /**********************************************************/
 
+static int last_w, last_h, last_f;
+static int cover_top = 1;
 
 void gif_timer(void)
 {
@@ -476,23 +478,74 @@ void gif_timer(void)
 	if(gif_flag){
 		u8 *dst = (u8*)(VDP2_VRAM+0x20000);
 		u8 *src = (u8*)(0x22401000);
-		int w = LE16((u8*)0x22400004);
-		int h = LE16((u8*)0x22400006);
-		int x = (fbw-w)/2;
-		int y = (fbh-h)/2;
-		if(x<0){
-			src -= x;
-		}else{
-			dst += x;
+		int src_llen = (gif_flag>=3)? 128 : 512;
+
+		int img_w = LE16((u8*)0x22400004);
+		int img_h = LE16((u8*)0x22400006);
+		int img_x = (short)LE16((u8*)0x22400008);
+		int img_y = (short)LE16((u8*)0x2240000a);
+		int adj_x = (short)LE16((u8*)0x2240000c);
+		int adj_y = (short)LE16((u8*)0x2240000e);
+		//printk("img: (%d,%d) %dx%d\n", img_x, img_y, img_w, img_h);
+
+		//if( (last_f!=gif_flag) ){
+		//	printk("gflag: %d\n", gif_flag);
+		//}
+		if( (last_f!=gif_flag) || (gif_flag>=3 && (last_w!=img_w || last_h!=img_h)) ){
+			memset(dst, 0, 240*512);
 		}
-		if(y<0){
-			src -= y*512;
-			h = fbh;
-		}else{
-			dst += y*512;
+		last_f = gif_flag;
+		last_w = img_w;
+		last_h = img_h;
+
+		src += img_y*src_llen+img_x;
+
+		img_x += adj_x;
+		if(img_x<0){
+			src -= img_x;
+			img_w += img_x;
+			img_x = 0;
+		}
+		if(img_x+img_w>fbw){
+			img_w = fbw-img_x;
 		}
 
-		memcpy(dst, src, 512*h);
+		img_y += adj_y;
+		if(img_y<0){
+			src -= img_y*512;
+			img_h += img_y;
+			img_y = 0;
+		}
+		if(img_y+img_h>fbh){
+			img_h = fbh-img_y;
+		}
+
+#if 1
+		if(cover_top){
+			if(gif_flag==3){
+				PRINA = 0x0706;
+				CCCTL = 0x0000;
+				BGON  = 0x0203;
+				vdp2_win0(1, 1, img_x, img_y, img_x+img_w-1, img_y+img_h-1);
+			}else{
+				vdp2_win0(-1, 0, 0, 0, 0, 0);
+				PRINA = 0x0707;
+				CCCTL = 0x0002;
+				BGON  = 0x0003;
+			}
+		}
+#endif
+
+		dst += img_y*512+img_x;
+
+		//int start = get_timer();
+		for(int y=0; y<img_h; y++){
+			scu_dmemcpy(dst, src, img_w, 2);
+			dst += 512;
+			src += src_llen;
+		}
+		//int end = get_timer();
+		//printk("gt: %d ms\n", TICK2MS(end-start));
 		*(u8*)0x22400000 = 0;
 	}
 
@@ -508,6 +561,23 @@ void gif_timer(void)
 	}
 }
 
+
+static void change_cover_layer(void)
+{
+	if(cover_top==0){
+		vdp2_win0(-1, 0, 0, 0, 0, 0);
+		PRINA = 0x0707;
+		CCCTL = 0x0002;
+		BGON  = 0x0003;
+	}else if(last_f==3){
+		PRINA = 0x0706;
+		CCCTL = 0x0000;
+		BGON  = 0x0203;
+		int x = 176;
+		int y = (last_h>128)? 24 : 88;
+		vdp2_win0(1, 1, x, y, x+last_w-1, y+last_h-1);
+	}
+}
 
 /**********************************************************/
 
@@ -553,6 +623,15 @@ static void fill_selmenu(void)
 }
 
 
+static void select_notify(int index)
+{
+	if(sel_mode==0){
+		SS_ARG = page*MENU_ITEMS + index;
+		SS_CMD = SSCMD_SELECT;
+	}
+}
+
+
 static void page_update(int up)
 {
 	MENU_DESC *menu = &sel_menu;
@@ -561,6 +640,7 @@ static void page_update(int up)
 	fill_selmenu();
 
 	menu->current = (up)? menu->num-1: 0;
+	select_notify(menu->current);
 	draw_menu_frame(menu);
 }
 
@@ -608,18 +688,18 @@ static int sel_handle(int ctrl)
 
 	if(BUTTON_DOWN(ctrl, PAD_UP)){
 		if(menu->current>0){
-			menu->current -= 1;
+			select_notify(menu->current-1);
 			menu_update(menu, menu->current-1);
 		}else if(page>0){
 			page -= 1;
 			page_update(1);
-		}else if(total_page>0){
+		}else if(total_page>1){
 			page = total_page-1;
 			page_update(1);
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_DOWN)){
 		if(menu->current<(menu->num-1)){
-			menu->current += 1;
+			select_notify(menu->current+1);
 			menu_update(menu, menu->current+1);
 		}else if((page+1)<total_page){
 			page += 1;
@@ -679,6 +759,9 @@ static int sel_handle(int ctrl)
 
 		use_sys_load = 0;
 		my_cdplayer();
+	}else if(BUTTON_DOWN(ctrl, PAD_LEFT)){
+		cover_top ^= 1;
+		change_cover_layer();
 	}else if(BUTTON_DOWN(ctrl, PAD_C)){
 		return MENU_EXIT;
 	}
@@ -697,8 +780,11 @@ void select_game(void)
 	sel_menu.handle = sel_handle;
 
 	fill_selmenu();
+	select_notify(sel_menu.current | SELECT_ENTER);
 
 	menu_run(&sel_menu);
+
+	select_notify(SELECT_EXIT);
 }
 
 

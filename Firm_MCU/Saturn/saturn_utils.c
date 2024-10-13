@@ -8,6 +8,23 @@
 /******************************************************************************/
 
 
+u32 adler32(u8 *data, int len) 
+{
+	u32 a = 1, b = 0;
+	int i;
+
+	for(i=0; i<len; i++) {
+		a = (a + data[i]) % 65521;
+		b = (b + a) % 65521;
+	}
+
+	return (b<<16) | a;
+}
+
+
+/******************************************************************************/
+
+
 // 将gameid分解为id与ver
 static char *gameid_split(char *gid)
 {
@@ -622,4 +639,149 @@ int flush_smems(int flag)
 
 /******************************************************************************/
 
+
+static FIL cover_fp;
+static int cover_init = 0;
+static int *ip_cache_table[12];
+static int *ip_cache_ptr;
+
+static int find_cover(char *gid, int fsum)
+{
+	u8 *cover_buf = (u8*)0x614f0000;
+	int i;
+
+	for(i=0; i<2048; i++){
+		u8 *hdr = cover_buf+i*32;
+		if(hdr[0]==0)
+			break;
+
+		if(strcmp((char*)hdr, gid))
+			continue;
+		if(*(u32*)(hdr+12)!=fsum)
+			continue;
+
+		return (int)hdr;
+	}
+
+	return -1;
+}
+
+
+void load_cover(int index)
+{
+	int i, retv;
+	u32 nread;
+
+	// 初始化COVER数据
+	if(cover_init<0){
+		// 无cover.bin
+		return;
+	}else if(cover_init==0){
+		retv = f_open(&cover_fp, "/SAROO/cover.bin", FA_READ);
+		if(retv!=FR_OK){
+			// 打开cover.bin失败.
+			cover_init = -1;
+			return;
+		}
+		// 读cover.bin的头部到0x6140f000处。
+		f_read(&cover_fp, (u8*)0x614f0000, 0x10000, &nread);
+
+		// ip_cache，存放游戏index到cover的映射.
+		ip_cache_ptr = (int*)(0x614e0000);
+		memset((u8*)0x614e0000, 0, 2560*4);
+		// 每个类别有一个指向ip_cache的指针.
+		for(i=0; i<12; i++){
+			ip_cache_table[i] = NULL;
+		}
+
+		memset((u8*)0x61400100, 0, 324*240);
+		cover_init = 1;
+	}
+
+	// 取得当前类别的ip_cache指针.
+	int *ip_cache = ip_cache_table[category_current];
+	if(ip_cache==NULL){
+		// 初始化当前类别的指针
+		ip_cache_table[category_current] = ip_cache_ptr;
+		ip_cache = ip_cache_ptr;
+		ip_cache_ptr += total_disc;
+	}
+
+	// 获得cover头部指针
+	int chdr = ip_cache[index];
+	if(chdr==-1){
+		// 该游戏没有cover.
+		printk("  No Cover!\n");
+		goto _no_cover;
+	}else if(chdr==0){
+		// 第一次选择该游戏，建立cache
+		u8 ipbuf[256];
+		char gid[16];
+
+		retv = get_disc_ip(index, ipbuf);
+		if(retv<0){
+			printk("  get_disc_ip failed!\n");
+			ip_cache[index] = -1;
+			return;
+		}
+
+		u8 *ip = ipbuf;
+		if(strncmp((char*)ipbuf, "SEGA SEGASATURN ", 16)){
+			ip = ipbuf+0x10;
+		}
+
+		memcpy(gid, ip+0x20, 16);
+		char *p = strrchr(gid, 'V');
+		if(p)
+			*p = 0;
+		p = strchr(gid, ' ');
+		if(p)
+			*p = 0;
+
+		int fsum = adler32(ip+0x30, 32);
+		chdr = (int)find_cover(gid, fsum);
+		if(chdr<0){
+			printk("  No Cover Found! {%12s} {%08x}\n", gid, fsum);
+			ip_cache[index] = -1;
+			goto _no_cover;
+		}
+
+		ip_cache[index] = chdr;
+	}
+
+	int w = *(u16*)(chdr+0x14);
+	int h = *(u16*)(chdr+0x16);
+	int offset = *(int*)(chdr+0x10);
+
+	f_lseek(&cover_fp, offset);
+	f_read(&cover_fp, (u8*)0x61400c00, w*h+0x0400, &nread);
+	memcpy((u8*)0x61400100, (u8*)0x61400c00, 0x0400);
+
+	*(u16*)(0x61400004) = w;
+	*(u16*)(0x61400006) = h;
+	*(u16*)(0x61400008) = 0;
+	*(u16*)(0x6140000a) = 0;
+	*(u16*)(0x6140000c) = 176;
+	*(u16*)(0x6140000e) = (h>128)? 24 : 88;
+	
+	*(u8*)0x61400000 = 3;
+	*(u8*)0x61400002 = 1;
+	return;
+
+_no_cover:
+	*(u16*)(0x61400004) = 128;
+	*(u16*)(0x61400006) = 128;
+	*(u16*)(0x61400008) = 0;
+	*(u16*)(0x6140000a) = 0;
+	*(u16*)(0x6140000c) = 176;
+	*(u16*)(0x6140000e) = 88;
+
+	memset((u8*)0x61401000, 0, 128*192);
+	*(u8*)0x61400000 = 4;
+
+	return;
+}
+
+
+/******************************************************************************/
 

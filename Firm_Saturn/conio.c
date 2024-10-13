@@ -176,6 +176,26 @@ void nbg1_put_pixel(int x, int y, int color)
 }
 
 
+void vdp2_win0(int scr, int outside, int sx, int sy, int ex, int ey)
+{
+	if(scr==-1){
+		WCTLA = 0;
+		return;
+	}
+
+	WPSX0 = sx<<1;
+	WPSY0 = sy;
+	WPEX0 = ex<<1;
+	WPEY0 = ey;
+
+	if(scr==0){
+		WCTLA = 0x0002 | (outside);
+	}else{
+		WCTLA = 0x0200 | (outside<<8);
+	}
+}
+
+
 /******************************************************************************/
 
 

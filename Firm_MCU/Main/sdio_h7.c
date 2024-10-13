@@ -303,7 +303,7 @@ int sd_read_sector(u32 start, int size, u8 *buf)
 	if(sd_rca==0)
 		return -1;
 
-	if(type==0x24){
+	if(type==0x24 || type==0x61){
 		return sd_read_blocks(start, size, buf);
 	}
 
@@ -330,7 +330,7 @@ int sd_write_sector(u32 start, int size, u8 *buf)
 	if(sd_rca==0)
 		return -1;
 
-	if(type==0x24){
+	if(type==0x24 || type==0x61){
 		return sd_write_blocks(start, size, buf);
 	}
 

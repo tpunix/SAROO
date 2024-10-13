@@ -108,6 +108,12 @@ static u8 *gif_decode_clip(GIF_DECODER *gd)
 	gd->lflag = p[9];
 	//printk("lflag: %02x\n", gd->lflag);
 	//printk("lres: (%d,%d) %dx%d\n", gd->l_x, gd->l_y, gd->l_width, gd->l_height);
+
+	*(u16*)(0x61400004) = gd->l_width;
+	*(u16*)(0x61400006) = gd->l_height;
+	*(u16*)(0x61400008) = gd->l_x;
+	*(u16*)(0x6140000a) = gd->l_y;
+
 	if(gd->lflag&0x80){
 		// local palete
 		int pal_num = 1<<((gd->lflag&7)+1);
@@ -290,6 +296,9 @@ static void gifb_put_pixel(GIF_DECODER *gd, int x, int y, int val)
 }
 
 
+#define SCR_W  320
+#define SCR_H  240
+
 void gif_decode_init(void)
 {
 	FIL fp;
@@ -320,8 +329,19 @@ void gif_decode_init(void)
 	
 	*(u16*)(0x61400004) = gd->width;
 	*(u16*)(0x61400006) = gd->height;
+	*(u16*)(0x61400008) = 0;
+	*(u16*)(0x6140000a) = 0;
+	// gif图片居中放置
+	*(u16*)(0x6140000c) = (SCR_W - gd->width)/2;
+	*(u16*)(0x6140000e) = (SCR_H - gd->height)/2;
 
 	gd_state = 0;
+}
+
+
+static void change_gd_state(int oldval, int newval)
+{
+	__sync_val_compare_and_swap(&gd_state, oldval, newval);
 }
 
 
@@ -331,20 +351,21 @@ void gif_decode_timer(void)
 
 	if(gd_state==0){
 		// 解码一帧图像
-		//int start = osKernelGetTickCount();
+		//TIM6->CR1 = 0x0005;
+		//int start = TIM6->CNT;
 		int eof = gif_decode_frame(gd);
-		//start = osKernelGetTickCount()-start;
-		//printk("gif_decode_frame: %d\n", start);
+		//start = TIM6->CNT-start;
+		//printk("gif_decode_frame: %d us\n", start*10);
 		if(eof){
 			if(gd->frames>1){
 				gd->iptr = 0;
 				gd->frames = 0;
 			}else{
-				gd_state = -2;
+				change_gd_state(0, -2);
 			}
 		}else{
 			gd->frames += 1;
-			gd_state = 1;
+			change_gd_state(0, 1);
 			// 通知SS来取
 			*(u8*)0x61400000 = 1;
 		}
@@ -354,14 +375,14 @@ void gif_decode_timer(void)
 			gd_state = 2;
 			if(gd->delay){
 				gd->gtimer = osKernelGetTickCount() + gd->delay;
-				gd_state = 2;
+				change_gd_state(1, 2);
 			}else{
-				gd_state = 0;
+				change_gd_state(1, 0);
 			}
 		}
 	}else if(gd_state==2){
 		if(osKernelGetTickCount() >= gd->gtimer){
-			gd_state = 0;
+			change_gd_state(2, 0);
 		}
 	}
 }
@@ -369,13 +390,9 @@ void gif_decode_timer(void)
 
 void gif_decode_exit(void)
 {
-	gd_state = -1;
+	__sync_lock_test_and_set(&gd_state, -1);
 }
 
 
 /******************************************************************************/
-
-
-
-
 
