@@ -241,7 +241,7 @@ static void mbuf_mark(int id)
 	}
 }
 
-
+#ifdef BUP_CHECK
 static int chksum(u8 *data, int size)
 {
 	int sum = 0;
@@ -254,6 +254,7 @@ static int chksum(u8 *data, int size)
 
 	return sum;
 }
+#endif
 
 static int access_data(int block, u8 *data, int type)
 {
@@ -290,13 +291,17 @@ static int access_data(int block, u8 *data, int type)
 
 		if(type==0){ // read
 			memcpy(data, bp, asize);
-			//printk("  sum=%08x\n", chksum(data, asize));
+#ifdef BUP_CHECK
+			printk("  sum=%08x\n", chksum(data, asize));
+#endif
 		}else if(type==1){
 			if(memcmp(data, bp, asize)){
 				return BUP_NO_MATCH;
 			}
 		}else{       // write
-			//printk("  sum=%08x\n", chksum(data, asize));
+#ifdef BUP_CHECK
+			printk("  sum=%08x\n", chksum(data, asize));
+#endif
 			memcpy(bp, data, asize);
 			mbuf_mark(block);
 		}
@@ -369,19 +374,19 @@ static int find_save(char *file_name, int offset, int *last)
 /******************************************************************************/
 
 
-
-int bup_sel_part(int dev, int num)
+// 根据BIOS的BUP代码，只有dev为2时才检测num。
+int sro_bup_sel_part(int dev, int num)
 {
 	printk("bup_sel_part(%d): %d\n", dev, num);
 
-	if(dev>1 || num)
+	if(dev>=2)
 		return BUP_NON;
 
 	return 0;
 }
 
 
-int bup_format(int dev)
+int sro_bup_format(int dev)
 {
 	printk("bup_format(%d)\n", dev);
 
@@ -418,7 +423,7 @@ int bup_format(int dev)
 }
 
 
-int bup_stat(int dev, int dsize, BUPSTAT *stat)
+int sro_bup_stat(int dev, int dsize, BUPSTAT *stat)
 {
 	printk("bup_stat(%d): dsize=%d\n", dev, dsize);
 
@@ -451,7 +456,7 @@ int bup_stat(int dev, int dsize, BUPSTAT *stat)
 }
 
 
-int bup_write(int dev, BUPDIR *dir, u8 *data, int mode)
+int sro_bup_write(int dev, BUPDIR *dir, u8 *data, int mode)
 {
 	int block_need, block, hdr, last, i;
 	u8 *bp;
@@ -548,7 +553,7 @@ int bup_write(int dev, BUPDIR *dir, u8 *data, int mode)
 }
 
 
-int bup_read(int dev, char *file_name, u8 *data)
+int sro_bup_read(int dev, char *file_name, u8 *data)
 {
 	int block;
 	char nbuf[12];
@@ -573,7 +578,7 @@ int bup_read(int dev, char *file_name, u8 *data)
 }
 
 
-int bup_delete(int dev, char *file_name)
+int sro_bup_delete(int dev, char *file_name)
 {
 	int block, last, has_data;
 	u8 *bp;
@@ -649,7 +654,7 @@ int bup_delete(int dev, char *file_name)
 }
 
 
-int bup_dir(int dev, char *file_name, int tbsize, BUPDIR *dir)
+int sro_bup_dir(int dev, char *file_name, int tbsize, BUPDIR *dir)
 {
 	int block, fnum;
 	char nbuf[12];
@@ -693,7 +698,7 @@ int bup_dir(int dev, char *file_name, int tbsize, BUPDIR *dir)
 }
 
 
-int bup_verify(int dev, char *file_name, u8 *data)
+int sro_bup_verify(int dev, char *file_name, u8 *data)
 {
 	int block;
 	char nbuf[12];
@@ -718,7 +723,7 @@ int bup_verify(int dev, char *file_name, u8 *data)
 
 static char mdays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-void bup_get_date(u32 date, BUPDATE *bdt)
+void sro_bup_get_date(u32 date, BUPDATE *bdt)
 {
 	int y, d, h, m;
 	printk("bup_get_date: %08x\n", date);
@@ -758,7 +763,7 @@ void bup_get_date(u32 date, BUPDATE *bdt)
 }
 
 
-u32 bup_set_date(BUPDATE *bdt)
+u32 sro_bup_set_date(BUPDATE *bdt)
 {
 	u32 date;
 	int y, m ,rem;
@@ -793,6 +798,124 @@ u32 bup_set_date(BUPDATE *bdt)
 /******************************************************************************/
 
 
+int use_sys_bup = 0;
+
+
+int (*sys_bup_sel_part)(int dev, int num);
+int (*sys_bup_format)(int dev);
+int (*sys_bup_stat)(int dev, int dsize, BUPSTAT *stat);
+int (*sys_bup_write)(int dev, BUPDIR *dir, u8 *data, int mode);
+int (*sys_bup_read)(int dev, char *file_name, u8 *data);
+int (*sys_bup_delete)(int dev, char *file_name);
+int (*sys_bup_dir)(int dev, char *file_name, int tbsize, BUPDIR *dir);
+int (*sys_bup_verify)(int dev, char *file_name, u8 *data);
+void (*sys_bup_get_date)(u32 date, BUPDATE *bdt);
+u32 (*sys_bup_set_date)(BUPDATE *bdt);
+
+
+int bup_sel_part(int dev, int num)
+{
+	if(use_sys_bup && dev==0){
+		return sys_bup_sel_part(dev, num);
+	}else{
+		return sro_bup_sel_part(dev, num);
+	}
+}
+
+
+int bup_format(int dev)
+{
+	if(use_sys_bup && dev==0){
+		return sys_bup_format(dev);
+	}else{
+		return sro_bup_format(dev);
+	}
+}
+
+
+int bup_stat(int dev, int dsize, BUPSTAT *stat)
+{
+	if(use_sys_bup && dev==0){
+		return sys_bup_stat(dev, dsize, stat);
+	}else{
+		return sro_bup_stat(dev, dsize, stat);
+	}
+}
+
+
+int bup_write(int dev, BUPDIR *dir, u8 *data, int mode)
+{
+	if(use_sys_bup && dev==0){
+		return sys_bup_write(dev, dir, data, mode);
+	}else{
+		return sro_bup_write(dev, dir, data, mode);
+	}
+}
+
+
+int bup_read(int dev, char *file_name, u8 *data)
+{
+	if(use_sys_bup && dev==0){
+		return sys_bup_read(dev, file_name, data);
+	}else{
+		return sro_bup_read(dev, file_name, data);
+	}
+}
+
+
+int bup_delete(int dev, char *file_name)
+{
+	if(use_sys_bup && dev==0){
+		return sys_bup_delete(dev, file_name);
+	}else{
+		return sro_bup_delete(dev, file_name);
+	}
+}
+
+
+int bup_dir(int dev, char *file_name, int tbsize, BUPDIR *dir)
+{
+	if(use_sys_bup && dev==0){
+		return sys_bup_dir(dev, file_name, tbsize, dir);
+	}else{
+		return sro_bup_dir(dev, file_name, tbsize, dir);
+	}
+}
+
+
+int bup_verify(int dev, char *file_name, u8 *data)
+{
+	if(use_sys_bup && dev==0){
+		return sys_bup_verify(dev, file_name, data);
+	}else{
+		return sro_bup_verify(dev, file_name, data);
+	}
+}
+
+
+void bup_get_date(u32 date, BUPDATE *bdt)
+{
+	if(use_sys_bup){
+		return sys_bup_get_date(date, bdt);
+	}else{
+		return sro_bup_get_date(date, bdt);
+	}
+}
+
+
+u32 bup_set_date(BUPDATE *bdt)
+{
+	if(use_sys_bup){
+		return sys_bup_set_date(bdt);
+	}else{
+		return sro_bup_set_date(bdt);
+	}
+}
+
+
+/******************************************************************************/
+
+
 void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg_ptr)
 {
 	BUPCFG *cfg = (BUPCFG*)cfg_ptr;
@@ -802,12 +925,28 @@ void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg_ptr)
 
 	printk("bup_init: lib=%08x work=%08x\n", lib_addr, work_addr);
 
-	//memset(lib_addr, 0, 16384);
-	//memset(work_addr, 0, 8192);
+	if(use_sys_bup){
+		printk("sys_bup_init ... %08x\n", sys_bup_init);
+		sys_bup_init(lib_addr, work_addr, cfg_ptr);
+		printk("done.\n");
 
-	*(u32*)(BUP_WORK_ADDR) = (u32)work_addr;
+		sys_bup_sel_part = (void*)*(u32*)(work_addr+0x04);
+		sys_bup_format   = (void*)*(u32*)(work_addr+0x08);
+		sys_bup_stat     = (void*)*(u32*)(work_addr+0x0c);
+		sys_bup_write    = (void*)*(u32*)(work_addr+0x10);
+		sys_bup_read     = (void*)*(u32*)(work_addr+0x14);
+		sys_bup_delete   = (void*)*(u32*)(work_addr+0x18);
+		sys_bup_dir      = (void*)*(u32*)(work_addr+0x1c);
+		sys_bup_verify   = (void*)*(u32*)(work_addr+0x20);
+		sys_bup_get_date = (void*)*(u32*)(work_addr+0x24);
+		sys_bup_set_date = (void*)*(u32*)(work_addr+0x28);
+	}else{
+		*(u32*)(BUP_WORK_ADDR) = (u32)work_addr;
+		*(u32*)(work_addr+0x00) = (u32)lib_addr;
+		cfg[0].unit_id = 1;
+		cfg[0].partition = 1;
+	}
 
-	*(u32*)(work_addr+0x00) = (u32)lib_addr;
 	*(u32*)(work_addr+0x04) = (u32)bup_sel_part;
 	*(u32*)(work_addr+0x08) = (u32)bup_format;
 	*(u32*)(work_addr+0x0c) = (u32)bup_stat;
@@ -819,17 +958,17 @@ void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg_ptr)
 	*(u32*)(work_addr+0x24) = (u32)bup_get_date;
 	*(u32*)(work_addr+0x28) = (u32)bup_set_date;
 
-	cfg[0].unit_id = 1;
-	cfg[0].partition = 1;
 	cfg[1].unit_id = 2;
 	cfg[1].partition = 1;
 	cfg[2].unit_id = 0;
 	cfg[2].partition = 0;
 
-	// Check "SaroSave"
-	if(BUPMEM->magic0!=0x5361726f || BUPMEM->magic1!=0x53617665){
-		printk("  empty bup memory, need format.\n");
-		bup_format(0);
+	if(use_sys_bup==0){
+		// Check "SaroSave"
+		if(BUPMEM->magic0!=0x5361726f || BUPMEM->magic1!=0x53617665){
+			printk("  empty bup memory, need format.\n");
+			bup_format(0);
+		}
 	}
 
 	// Check "SaroMems"

@@ -677,6 +677,7 @@ static int sel_handle(int ctrl)
 		SS_CMD = SSCMD_LOADDISC;
 		while(SS_CMD);
 
+		use_sys_load = 0;
 		my_cdplayer();
 	}else if(BUTTON_DOWN(ctrl, PAD_C)){
 		return MENU_EXIT;
@@ -809,7 +810,9 @@ int main_handle(int ctrl)
 	}else if(index==1){
 		write_file("/SAROO/SS_BUP.BIN", 0, 0x10000, (void*)0x20180000);
 		cdblock_on(0);
-		bios_run_cd_player();
+		use_sys_bup = 1;
+		use_sys_load = 1;
+		my_cdplayer();
 		return MENU_RESTART;
 	}else if(index==2){
 		menu_status(&main_menu, TT("检查光盘中......"));
@@ -824,7 +827,11 @@ int main_handle(int ctrl)
 		}
 
 		menu_status(&main_menu, TT("游戏启动中......"));
-		retv = bios_cd_cmd(4);
+		int type = 4;
+		if(BUTTON_DOWN(ctrl, PAD_C)){
+			type |= 0x80;
+		}
+		retv = bios_cd_cmd(type);
 		if(retv){
 			char buf[40];
 			sprintf(buf, TT("游戏启动失败! %d"), retv);
@@ -932,6 +939,7 @@ int _main(void)
 	*(u32*)(0x02000f38) =  (u32)sci_init;
 	*(u32*)(0x02000f3c) =  (u32)printk;
 
+	sys_bup_init = (void*)*(u32*)(0x06000358);
 
 
 	if(debug_flag&0x0001){

@@ -188,7 +188,9 @@ int cdc_read_sector(int fad, int size, u8 *buf);
 void my_cdplayer(void);
 
 void bup_init(u8 *lib_addr, u8 *work_addr, void *cfg);
-
+extern void (*sys_bup_init)(u8*, u8*, void*);
+extern int use_sys_bup;
+extern int use_sys_load;
 
 
 /*****************************************************************************/
@@ -197,6 +199,7 @@ extern const int HZ;
 
 #define MS2TICK(ms)  ( (ms) * HZ / 1000)
 #define TICK2MS(tk)  ( (tk) * 1000 / HZ)
+#define TICK2US(tk)  ( (tk) * 1000*1000 / HZ)
 
 void reset_timer(void);
 u32 get_timer(void);
@@ -388,7 +391,7 @@ int menu_run(MENU_DESC *menu);
 
 void menu_status(MENU_DESC *menu, char *string);
 void draw_menu_frame(MENU_DESC *menu);
-void menu_update(MENU_DESC *menu);
+void menu_update(MENU_DESC *menu, int new);
 int menu_default(MENU_DESC *menu, int ctrl);
 
 

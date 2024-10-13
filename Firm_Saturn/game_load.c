@@ -10,8 +10,10 @@ static int my_bios_loadcd_boot(int r4, int r5);
 static int (*cdp_boot_game)(void);
 static int sk0, sk1;
 static int bios_ver;
-static int force_no_bup = 0;
 
+
+void (*sys_bup_init)(u8*, u8*, void*);
+int use_sys_load = 0;
 
 static void (*orig_func)(void);
 
@@ -60,15 +62,12 @@ static int cdp_boot(void)
 
 	hook_getkey();
 
-	force_no_bup = 0;
-
 	if(pad & PAD_START){
 		void (*go)(void) = (void*)(0x02000f00);
 		go();
 	}else if(pad & PAD_C){
 		// SAROO启动，但用系统存档
-		force_no_bup = 1;
-		bios_cd_cmd(0);
+		bios_cd_cmd(0x80);
 	}else if(pad & PAD_A){
 		// SAROO启动
 		bios_cd_cmd(0);
@@ -173,28 +172,30 @@ void my_cdplayer(void)
 
 	*(u32*)(0x06000358) = (u32)bup_init;
 
-	if(*(u32*)(0x06001340)==0x18a8){
-		// 1.00
-		bios_ver = 0;
-		cdp_boot_game = (void*)0x18a8;
-		*(u32*)(0x06001340) = (u32)cdp_boot;
-		*(u32*)(0x06001344) = (u32)cdp_read_ip;
-	}else if(*(u32*)(0x0600134c)==0x18a8){
-		// 1.01 1.02
-		bios_ver = 1;
-		cdp_boot_game = (void*)0x18a8;
-		*(u32*)(0x0600134c) = (u32)cdp_boot;
-		*(u32*)(0x06001350) = (u32)cdp_read_ip;
-	}else if(*(u32*)(0x060013d8)==0x19b8){
-		// 1.03
-		bios_ver = 2;
-		cdp_boot_game = (void*)0x19b8;
-		*(u32*)(0x060013d8) = (u32)cdp_boot;
-		*(u32*)(0x060013dc) = (u32)cdp_read_ip;
-	}
+	if(use_sys_load==0){
+		if(*(u32*)(0x06001340)==0x18a8){
+			// 1.00
+			bios_ver = 0;
+			cdp_boot_game = (void*)0x18a8;
+			*(u32*)(0x06001340) = (u32)cdp_boot;
+			*(u32*)(0x06001344) = (u32)cdp_read_ip;
+		}else if(*(u32*)(0x0600134c)==0x18a8){
+			// 1.01 1.02
+			bios_ver = 1;
+			cdp_boot_game = (void*)0x18a8;
+			*(u32*)(0x0600134c) = (u32)cdp_boot;
+			*(u32*)(0x06001350) = (u32)cdp_read_ip;
+		}else if(*(u32*)(0x060013d8)==0x19b8){
+			// 1.03
+			bios_ver = 2;
+			cdp_boot_game = (void*)0x19b8;
+			*(u32*)(0x060013d8) = (u32)cdp_boot;
+			*(u32*)(0x060013dc) = (u32)cdp_read_ip;
+		}
 
-	orig_0344 = (void*)*(u32*)(0x06000344);
-	*(u32*)(0x06000344) = (u32)my_0344;
+		orig_0344 = (void*)*(u32*)(0x06000344);
+		*(u32*)(0x06000344) = (u32)my_0344;
+	}
 
 	*(u32*)(0x06000234) = 0x02ac;
 	*(u32*)(0x06000238) = 0x02bc;
@@ -306,10 +307,8 @@ static void read_1st(void)
 	go();
 
 	patch_game((char*)0x06002020);
-	if(force_no_bup==0 && need_bup){
-		*(u32*)(0x06000358) = (u32)bup_init;
-	}
 	if(need_bup){
+		*(u32*)(0x06000358) = (u32)bup_init;
 		*(u32*)(0x0600026c) = (u32)my_cdplayer;
 	}
 	force_no_bup = 0;
@@ -346,6 +345,10 @@ int bios_cd_cmd(int type)
 {
 	int retv, ip_size;
 
+	use_sys_bup = (type&0x80)>>7;
+	use_sys_load = 0;
+	type &= 0x7f;
+
 	my_bios_loadcd_init();
 
 #if 1
@@ -377,7 +380,7 @@ int bios_cd_cmd(int type)
 	ip_size = bios_loadcd_read();//1912读取ip文件
 #endif
 
-	if(type>0){
+	if(type>0 && use_sys_bup==0){
 		// 光盘游戏。需要通知MCU加载SAVE。
 		memcpy((void*)(TMPBUFF_ADDR+0x10), (u8*)0x06002020, 16);
 		*(u8*)(TMPBUFF_ADDR+0x20) = 0;
