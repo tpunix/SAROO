@@ -33,10 +33,61 @@ int fbw = 320;
 int fbh = 240;
 u8 *fbptr = (u8*)VDP2_VRAM;
 
+#include "slogo.h"
+
+void logo_trans(void)
+{
+#if 1
+	int i, j;
+
+	if(*(u16*)(VDP2_VRAM+0x0848)!=0x000d || *(u16*)(VDP2_VRAM+0x084c)!=0x000d)
+		return;
+
+	for(i=0; i<16; i++){
+		MZCTL = (i<<12) | (i<<8) | 0x0001;
+		for(j=0; j<300000; j++){};
+	}
+
+	memcpy((void*)VDP2_VRAM+0x4000, logo_dat+32, size_logo_dat-32);
+	memcpy((void*)VDP2_CRAM, logo_dat, 32);
+	memset((void*)VDP2_VRAM+0x6000, 0, 64*64*2);
+
+	j = 9;
+	i = 11;
+	int cid = 0x0200;
+	u16 *pt = (u16*)(VDP2_VRAM+0x6000+(j*64+i)*2);
+	for(j=0; j<6; j++){
+		for(i=0; i<20; i++){
+			pt[i] = cid;
+			cid += 1;
+		}
+		pt += 64;
+	}
+
+	for(i=14; i>=0; i--){
+		MZCTL = (i<<12) | (i<<8) | 0x0001;
+		for(j=0; j<300000; j++){};
+	}
+	MZCTL = 0;
+
+	for(j=0; j<5000000; j++){};
+
+	CCCTL = 0x0001;
+	for(i=0; i<32; i++){
+		CCRNA = i;
+		for(j=0; j<300000; j++){};
+	}
+	CCCTL = 0x0000;
+
+#endif
+}
+
 void vdp_init(void)
 {
 	int i;
 	volatile unsigned int *vdp2_cram = (volatile unsigned int*)VDP2_CRAM;
+
+	logo_trans();
 
 	// Disable VDP1
 	VDP1_REG_PTMR = 0;
