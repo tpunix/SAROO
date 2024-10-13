@@ -31,6 +31,10 @@ static void hook_getkey(void)
 		if(*(u32*)(0x0604cd18) == 0x0604406c){
 			orig_func = (void*)0x0604406c;
 			*(u32*)(0x0604cd18) = (u32)cdp_hook;
+		}else if(*(u32*)(0x0604ccf4) == 0x0604406c){
+			// V-Saturn 1.00
+			orig_func = (void*)0x0604406c;
+			*(u32*)(0x0604ccf4) = (u32)cdp_hook;
 		}
 	}else if(bios_ver==1){
 		if(*(u32*)(0x0604d8e0) == 0x06044204){
