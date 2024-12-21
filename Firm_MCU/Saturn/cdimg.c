@@ -485,6 +485,10 @@ int load_disc(int index)
 	unload_disc();
 	current_index = 0;
 
+	if((index&0xffff)==0xffff){
+		return -1;
+	}
+
 	if(disc_path[index]==0){
 		printk("Invalid disc index %d\n", index);
 		return -1;
@@ -498,7 +502,7 @@ int load_disc(int index)
 
 	fname = malloc(256);
 	retv = find_cue_iso(cat_dir, fname);
-	if(retv<0)
+	if(retv<=0)
 		goto _exit;
 
 	printk("Load disc: {%s}\n", fname);
@@ -577,7 +581,7 @@ int get_disc_ip(int index, u8 *ipbuf)
 
 	fname = malloc(256);
 	retv = find_cue_iso(cat_dir, fname);
-	if(retv<0){
+	if(retv<=0){
 		goto _exit;
 	}else if(retv==1){
 		retv = parse_cue(fname, ipbuf);
