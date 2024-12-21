@@ -5,17 +5,93 @@
 
 /**********************************************************/
 
-static int my_bios_loadcd_boot(int r4, int r5);
-
 static int (*cdp_boot_game)(void);
 static int sk0, sk1;
 static int bios_ver;
+static int disc_type;
 
 
 void (*sys_bup_init)(u8*, u8*, void*);
 int use_sys_load = 0;
 
 static void (*orig_func)(void);
+
+int my_bios_loadcd_read(void);
+int my_bios_loadcd_init(void);
+
+
+/**********************************************************/
+
+
+static int ipstat = -1;
+
+
+static int cdp_auth(void)
+{
+	if(ipstat<0){
+		ipstat = 0;
+	}
+
+	int cdstat = (CR1>>8)&0x0f;
+	printk("cdp_auth: ipstat=%d  cdstat=%02x\n", ipstat, cdstat);
+
+	if(cdstat==STATUS_OPEN || cdstat==STATUS_NODISC){
+		// 开盖了
+		return -2;
+	}
+	if(cdstat>=STATUS_RETRY){
+		// 发生错误，复位重试
+		ipstat = 0;
+	}
+
+	if(ipstat==0){
+		// 复位cdblock
+		cdblock_off();
+		cdblock_on(0);
+		ipstat = 1;
+	}else if(ipstat==1){
+		// 等待cdblock进入工作状态
+		if(cdstat==STATUS_PAUSE){
+			my_bios_loadcd_init();
+			ipstat = 2;
+		}
+	}else if(ipstat==2){
+		// 等待reset_selector完成
+		if(cdstat==STATUS_PAUSE){
+			ipstat = 3;
+		}
+	}else if(ipstat>=3 && ipstat<11){
+		// 执行伪认证，重试8次
+		int retv = jhl_auth_hack(100000);
+		if(retv==2){
+			ipstat = 12;
+		}else{
+			ipstat += 1;
+		}
+	}else if(ipstat==11){
+		// 认证失败
+		ipstat = 0;
+		return -1;
+	}else if(ipstat>=12 && ipstat<16){
+		// 读IP，重试4次
+		int retv = my_bios_loadcd_read();
+		if(retv==0){
+			ipstat = 0;
+			return 0;
+		}
+		ipstat += 1;
+	}else{
+		// 读IP失败
+		ipstat = 0;
+		return -2;
+	}
+
+	return 1;
+}
+
+
+/**********************************************************/
+
 
 static void cdp_hook(void)
 {
@@ -62,41 +138,71 @@ static void hook_getkey(void)
 static int cdp_boot(void)
 {
 	int pad = (sk0)? sk0 : sk1;
-	printk("cdp_boot! PAD=%04x\n", pad);
+	printk("\ncdp_boot! PAD=%04x\n", pad);
 
 	hook_getkey();
 
 	if(pad & PAD_START){
 		void (*go)(void) = (void*)(0x02000f00);
 		go();
-	}else if(pad & PAD_C){
+	}
+
+	if(pad & PAD_C){
 		// SAROO启动，但用系统存档
-		bios_cd_cmd(0x80);
+		bios_cd_cmd(disc_type|0x80);
 	}else if(pad & PAD_A){
 		// SAROO启动
-		bios_cd_cmd(0);
+		bios_cd_cmd(disc_type);
 	}
 
 	return 0;
 }
 
 
+
 static int cdp_read_ip(void)
 {
 	if(debug_flag&1)
 		sci_init();
-	
-	int ip_size = my_bios_loadcd_boot(0, 0x1876);
-	if((ip_size==-8)||(ip_size==-4)){
-		ip_size=0x0;
-	}
-
-	printk("\ncdp_read_ip: %d\n", ip_size);
-
 	hook_getkey();
 
-	return ip_size;
+	printk("\ncdp_read_ip!\n");
+
+	if(disc_type==0){
+		// SAROO ISO
+		int (*go)(void) = (void*)0x1874;
+		int status = go();
+		if((status==-8)||(status==-4)){
+			status = 0;
+		}
+		return status;
+	}else{
+		// 光盘
+		return cdp_auth();
+	}
 }
+
+
+static int cdp_init(void)
+{
+	printk("\ncdp_init! HIRQ=%04x STAT=%04x\n", HIRQ, CR1);
+
+	if(disc_type==0){
+		int (*go)() = (void*)0x1904;
+		return go();
+	}
+
+	if(HIRQ&HIRQ_DCHG){
+		ipstat = 0;
+	}else{
+		ipstat = 12;
+	}
+
+	return 0;
+}
+
+
+/**********************************************************/
 
 
 static void (*orig_0344)(int, int);
@@ -183,18 +289,21 @@ void my_cdplayer(void)
 			cdp_boot_game = (void*)0x18a8;
 			*(u32*)(0x06001340) = (u32)cdp_boot;
 			*(u32*)(0x06001344) = (u32)cdp_read_ip;
+			*(u32*)(0x06001348) = (u32)cdp_init;
 		}else if(*(u32*)(0x0600134c)==0x18a8){
 			// 1.01 1.02
 			bios_ver = 1;
 			cdp_boot_game = (void*)0x18a8;
 			*(u32*)(0x0600134c) = (u32)cdp_boot;
 			*(u32*)(0x06001350) = (u32)cdp_read_ip;
+			*(u32*)(0x06001354) = (u32)cdp_init;
 		}else if(*(u32*)(0x060013d8)==0x19b8){
 			// 1.03
 			bios_ver = 2;
 			cdp_boot_game = (void*)0x19b8;
 			*(u32*)(0x060013d8) = (u32)cdp_boot;
 			*(u32*)(0x060013dc) = (u32)cdp_read_ip;
+			*(u32*)(0x060013e0) = (u32)cdp_init;
 		}
 
 		orig_0344 = (void*)*(u32*)(0x06000344);
@@ -210,6 +319,9 @@ void my_cdplayer(void)
 	go = (void*)0x06000680;
 	go(0);
 }
+
+
+/**********************************************************/
 
 
 int my_bios_loadcd_init(void)
@@ -252,7 +364,8 @@ int my_bios_loadcd_read(void)
 		tm -= 1;
 	}
 	if(tm==0){
-		printk("  PLAY timeout!\n");
+		printk("  PLAY timeout! HIRQ=%04x CR1=%04x\n", HIRQ, CR1);
+		cdc_dump(10000000);
 		return -1;
 	}
 
@@ -305,9 +418,8 @@ static void my_06b0(void)
 static void read_1st(void)
 {
 	printk("Read main ...\n");
-	int retv;
-	retv = *(u32*)(0x06000284);
-	void (*go)(void) = (void(*)(void))retv;
+
+	void (*go)(void) = (void*) *(u32*)(0x06000284);
 	go();
 
 	patch_game((char*)0x06002020);
@@ -335,16 +447,6 @@ static void read_1st(void)
 }
 
 
-static int my_bios_loadcd_boot(int r4, int r5)
-{
-	__asm volatile ( "sts.l  pr, @-r15" :: );
-	__asm volatile ( "jmp  @%0":: "r" (r5) );
-	__asm volatile ( "mov  r4, r0" :: );
-	__asm volatile ( "nop" :: );
-	return 0;
-}
-
-
 int bios_cd_cmd(int type)
 {
 	int retv, ip_size;
@@ -352,37 +454,41 @@ int bios_cd_cmd(int type)
 	use_sys_bup = (type&0x80)>>7;
 	use_sys_load = 0;
 	type &= 0x7f;
+	disc_type = type;
 
-	my_bios_loadcd_init();
+	printk("bios_cd_cmd: type=%02x\n", type);
 
-#if 1
-	my_bios_loadcd_boot(0, 0x1904);
+#if 0
+	if(type!=2){
+		// 0:ISO, 4:光盘
+		bios_loadcd_init();
+		while(1){
+			ip_size = bios_loadcd_read();
+			if(ip_size==0x8000)
+				break;
+		}
 
-	while(1){
-		ip_size = bios_loadcd_read();
-		if(ip_size==0x8000)
-			break;
-	}
+		char ipstr[64];
 
-	char ipstr[64];
-
-	memcpy(ipstr, (u8*)0x06002020, 16);
-	ipstr[16] = 0;
-	printk("\nLoad game: %s\n", ipstr);
-	memcpy(ipstr, (u8*)0x06002060, 32);
-	ipstr[32] = 0;
-	printk("  %s\n\n", ipstr);
-
-
-#else
-	retv = my_bios_loadcd_read();
-	if(retv)
-		return retv;
-
-	// emulate bios_loadcd_boot
-	*(u32*)(0x06000290) = 3;
-	ip_size = bios_loadcd_read();//1912读取ip文件
+		memcpy(ipstr, (u8*)0x06002020, 16);
+		ipstr[16] = 0;
+		printk("\nLoad game: %s\n", ipstr);
+		memcpy(ipstr, (u8*)0x06002060, 32);
+		ipstr[32] = 0;
+		printk("  %s\n\n", ipstr);
+	}else
 #endif
+	{
+		// 2: 刻录游戏盘
+		my_bios_loadcd_init();
+		retv = my_bios_loadcd_read();
+		if(retv<0)
+			return retv;
+
+		// emulate bios_loadcd_boot
+		*(u32*)(0x06000290) = 3;
+		ip_size = bios_loadcd_read();//1912读取ip文件
+	}
 
 	if(type>0 && use_sys_bup==0){
 		// 光盘游戏。需要通知MCU加载SAVE。
@@ -394,15 +500,23 @@ int bios_cd_cmd(int type)
 		while(SS_CMD);
 	}
 
-	*(u32*)(0x06002270) = (u32)read_1st;	
+	// 模拟执行1A3c()
+	// 跳过各种验证
+	memcpy((u8*)0x060002a0, (u8*)0x060020e0, 32);
+	memcpy((u8*)0x06000c00, (u8*)0x06002000, 256);
+	*(u32*)(0x06000254) = 0x6002100;
+
+	// 模拟执行18fe()
+	cdc_change_dir(0, 0xffffff);
+	cdc_read_file(0, 2, 0);
+
+	*(u32*)(0x06002270) = (u32)read_1st;
 	*(u32*)(0x02000f04) = (u32)cdc_read_sector;
 	*(u16*)(0x0600220c) = 9;
 
-	retv = my_bios_loadcd_boot(ip_size, 0x18be);//跳到18be
-	if((retv==-8)||(retv==-4)){
-		*(u32*)(0x06000254) = 0x6002100;
-		retv = my_bios_loadcd_boot(0, 0x18c6);
-	}
+	int (*go)(void) = (void*)0x18d2;
+	retv = go();
+
 	printk("bios_loadcd_boot  retv=%d\n", retv);
 
 	return retv;

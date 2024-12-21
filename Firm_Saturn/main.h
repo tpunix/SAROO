@@ -121,9 +121,9 @@ typedef struct {
 
 #define bios_run_cd_player  INDIRECT_CALL(0x0600026C, void, void)
 #define bios_loadcd_init1   INDIRECT_CALL(0x060002dc, int,  int)  // 00002650
-#define bios_loadcd_init    INDIRECT_CALL(0x0600029c, int,  int)  // 00001904
+#define bios_loadcd_init    INDIRECT_CALL(0x0600029c, int,  void) // 00001904
 #define bios_loadcd_read    INDIRECT_CALL(0x060002cc, int,  void) // 00001912
-#define bios_loadcd_boot    INDIRECT_CALL(0x06000288, int,  void)  // 000018A8
+#define bios_loadcd_boot    INDIRECT_CALL(0x06000288, int,  void) // 000018A8
 
 //!< mode 0 -> check, 1 -> do auth
 #define bios_check_cd_auth  INDIRECT_CALL(0x06000270, int,  int mode)
@@ -166,6 +166,7 @@ void cdc_trans_data(u8 *buf, int length);
 
 int cdc_auth_status(int *status);
 int cdc_auth_device(void);
+int jhl_auth_hack(int delay);
 
 int cdc_change_dir(int selnum, int fid);
 int cdc_read_dir(int selnum, int fid);

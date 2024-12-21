@@ -901,19 +901,47 @@ int main_handle(int ctrl)
 		my_cdplayer();
 		return MENU_RESTART;
 	}else if(index==2){
+		int type = 4;
 		menu_status(&main_menu, TT("检查光盘中......"));
 		cdblock_on(1);
-		int retv = cdblock_check();
+		//int retv = cdblock_check();
+		int retv = jhl_auth_hack(100000);
 		if(retv<0){
 			menu_status(&main_menu, TT("未发现光盘!"));
+			cdblock_off();
 			return 0;
+		}else if(retv==1){
+			// 是Audio CD
+			use_sys_bup = 1;
+			use_sys_load = 1;
+			my_cdplayer();
+		}else if(retv==2){
+			type = 2;
+		}else if(retv==3){
+			// 是刻录游戏CD
+			retv = jhl_auth_hack(100000);
+			if(retv!=2){
+				char buf[64];
+				sprintf(buf, "%s%d", TT("不是游戏光盘!"), retv);
+				menu_status(&main_menu, buf);
+				cdblock_off();
+				return 0;
+			}
+			type = 2;
 		}else if(retv!=4){
-			menu_status(&main_menu, TT("不是游戏光盘!"));
+			// 是数据CD
+			char buf[64];
+			sprintf(buf, "%s%d", TT("不是游戏光盘!"), retv);
+			menu_status(&main_menu, buf);
+			cdblock_off();
 			return 0;
 		}
 
+		// 停止正在播放的背景音乐。
+		SS_ARG = 0xffff;
+		SS_CMD = SSCMD_LOADDISC;
+
 		menu_status(&main_menu, TT("游戏启动中......"));
-		int type = 4;
 		if(BUTTON_DOWN(ctrl, PAD_C)){
 			type |= 0x80;
 		}
@@ -922,9 +950,7 @@ int main_handle(int ctrl)
 			char buf[40];
 			sprintf(buf, TT("游戏启动失败! %d"), retv);
 			menu_status(&main_menu, buf);
-			// CDBlock Off, SAROOO On 
-			smpc_cmd(CDOFF);
-			SS_CTRL = SAROO_EN | CS0_RAM4M;
+			cdblock_off();
 		}
 		return 0;
 	}else if(index==3){
@@ -1015,11 +1041,16 @@ int _main(void)
 	lang_id = LE32((void*)(SYSINFO_ADDR+0x04));
 	debug_flag = LE32((void*)(SYSINFO_ADDR+0x08));
 
-	// restore bios_loadcd_init1
+	// restore bios function
+	*(u32*)(0x06000288) = 0x000018a8;  // bios_loadcd_boot
+	*(u32*)(0x0600028c) = 0x00001874;  // bios_loadcd_readip
+	*(u32*)(0x0600029c) = 0x00001904;  // bios_loadcd_init
 	*(u32*)(0x060002dc) = *(u32*)(0x2000111c);
+
 	*(u32*)(0x02000f04) =  (u32)cdc_read_sector;
 	*(u32*)(0x02000f08) =  (u32)read_file;
 	*(u32*)(0x02000f0c) =  (u32)write_file;
+	*(u32*)(0x02000f24) =  (u32)conio_getc;
 	*(u32*)(0x02000f30) =  (u32)bios_cd_cmd;
 	*(u32*)(0x02000f34) =  (u32)page_update;
 	*(u32*)(0x02000f38) =  (u32)sci_init;

@@ -84,17 +84,17 @@ int cdc_cmd(int wait, CDCMD *cmd, CDCMD *resp, char *cmdname)
 	resp->cr4 = CR4;
 
 	if((resp->cr1>>8)==0xff){
-		printk("CMD REJECT!\n");
+		//printk("CMD REJECT!\n");
 		return -5;
 	}
 	if((resp->cr1>>8)&0x80){
-		printk("CMD WAIT!\n");
+		printk("CMD WAIT! HIRQ=%04x CR1=%04x %s\n", HIRQ, resp->cr1, cmdname);
 		return -6;
 	}
 
 	if(wait){
 		if(wait_hirq(wait)){
-			printk("HIRQ TIMEOUT! HIRQ=%04x wait=%04x\n", HIRQ, wait);
+			printk("HIRQ TIMEOUT! HIRQ=%04x wait=%04x %s\n", HIRQ, wait, cmdname);
 		}
 	}
 	//clear_hirq(wait|HIRQ_CMOK);
@@ -484,6 +484,22 @@ int cdc_get_del_data(int bufnum, int spos, int snum)
 	return cdc_cmd(HIRQ_DRDY, &cmd, &resp, "cdc_get_del_data");
 }
 
+
+int cdc_put_data(int bufnum, int snum)
+{
+	CDCMD cmd, resp;
+
+	cmd.cr1 = 0x6400;
+	cmd.cr2 = 0x0000;
+	cmd.cr3 = bufnum<<8;
+	cmd.cr4 = snum;
+
+	return cdc_cmd(0, &cmd, &resp, "cdc_put_data");
+}
+
+
+
+
 void cdc_trans_data(u8 *buf, int length)
 {
 	int i;
@@ -521,7 +537,7 @@ int cdc_auth_device(void)
 	CDCMD cmd, resp;
 	int status;
 
-	printk("\n\nCD_AUTH ... HIRQ=%04x\n", HIRQ);
+	//printk("\n\nCD_AUTH ... HIRQ=%04x\n", HIRQ);
 
 	cmd.cr1 = 0xe000;
 	cmd.cr2 = 0x0000;
@@ -617,7 +633,8 @@ int cdc_read_file(int selnum, int fid, int offset)
 	cmd.cr3 = (selnum<<8) | ((fid>>16)&0xff);
 	cmd.cr4 = fid&0xffff;
 
-	return cdc_cmd(HIRQ_EFLS, &cmd, &resp, "cdc_read_file");
+	return cdc_cmd(0, &cmd, &resp, "cdc_read_file");
+//	return cdc_cmd(HIRQ_EFLS, &cmd, &resp, "cdc_read_file");
 }
 
 
@@ -637,6 +654,140 @@ int cdc_abort_file(void)
 /**********************************************************/
 
 
+void cdc_auth_hram(CDCMD *resp, int delay)
+{
+	int status;
+
+	// cdc_put_data(0, 150);
+	HIRQ = ~(HIRQ_CMOK|HIRQ_EHST);
+	CR1 = 0x6400;
+	CR2 = 0x0000;
+	CR3 = 0x0000;
+	CR4 = 150;
+	while(HIRQ&HIRQ_CMOK);
+	resp->cr1 = CR1;
+	resp->cr2 = CR2;
+	resp->cr3 = CR3;
+	resp->cr4 = CR4;
+	status = resp->cr1>>8;
+	if(status&0x80){
+		printk("CMD WAIT! HIRQ=%04x status=%02x cdc_put_data\n", HIRQ, status);
+	}
+
+	for(int i=0; i<2352*150; i+=4){
+		REG(0x25818000) = 0x00020002;
+	}
+
+	// cdc_end_trans
+	HIRQ = ~(HIRQ_CMOK|HIRQ_EHST);
+	CR1 = 0x0600;
+	CR2 = 0x0000;
+	CR3 = 0x0000;
+	CR4 = 0x0000;
+	while(HIRQ&HIRQ_CMOK);
+	resp->cr1 = CR1;
+	resp->cr2 = CR2;
+	resp->cr3 = CR3;
+	resp->cr4 = CR4;
+	status = resp->cr1>>8;
+	if(status&0x80){
+		printk("CMD WAIT! HIRQ=%04x status=%02x cdc_end_trans\n", HIRQ, status);
+	}
+	while(HIRQ&HIRQ_EHST);
+	HIRQ = ~(HIRQ_DRDY);
+
+	for(int i=0; i<delay; i++){
+		__asm volatile("":::"memory"); // 防止被gcc优化掉
+	}
+
+	// cdc_move_data(0,0,0,50);
+	HIRQ = ~(HIRQ_CMOK);
+	CR1 = 0x6600;
+	CR2 = 0x0000;
+	CR3 = 0x0000;
+	CR4 = 50;
+	while(HIRQ&HIRQ_CMOK);
+	resp->cr1 = CR1;
+	resp->cr2 = CR2;
+	resp->cr3 = CR3;
+	resp->cr4 = CR4;
+	status = resp->cr1>>8;
+	if(status&0x80){
+		printk("CMD WAIT! HIRQ=%04x status=%02x cdc_put_data\n", HIRQ, status);
+	}
+
+	// cdc_auth
+	HIRQ = ~(HIRQ_CMOK|HIRQ_DCHG|HIRQ_EFLS);
+	CR1 = 0xe000;
+	CR2 = 0x0000;
+	CR3 = 0x0000;
+	CR4 = 0x0000;
+	while(HIRQ&HIRQ_CMOK);
+	resp->cr1 = CR1;
+	resp->cr2 = CR2;
+	resp->cr3 = CR3;
+	resp->cr4 = CR4;
+	status = resp->cr1>>8;
+	if(status&0x80){
+		printk("CMD WAIT! HIRQ=%04x status=%02x cdc_auth\n", HIRQ, status);
+	}
+	while(HIRQ&HIRQ_EFLS);
+}
+
+
+int jhl_auth_hack(int delay)
+{
+	int status;
+	CDCMD resp;
+
+	memcpy((u8*)0x06080000, cdc_auth_hram, 0x400);
+	void (*go)(CDCMD*, int) = (void*)0x06080000;
+
+#if 1
+	while(1){
+		status = (CR1>>8)&0x0f;
+		if(status>=STATUS_OPEN){
+			printk("State error! %04x\n", status);
+			return status;
+		}
+		if(status==STATUS_PAUSE)
+			break;
+	}
+#endif
+
+	cdc_set_size(3);
+
+	go(&resp, delay);
+
+	int old = 0xffffffff;
+	while(1){
+		for(int i=0; i<100000; i++){ }
+		cdc_get_status(&status);
+		if(status!=old){
+			printk("stat: %04x\n", status);
+		}
+		old = status;
+		status &= 0x0f;
+		if(status==STATUS_FATAL)
+			break;
+		if(status==STATUS_PAUSE)
+			break;
+		if(status==STATUS_OPEN || status==STATUS_NODISC){
+			return -1;
+		}
+	}
+
+	cdc_auth_status(&status);
+	printk("AUTH: %02x\n\n", status);
+
+	cdc_set_size(0);
+	return status;
+}
+
+
+/**********************************************************/
+
+
 void cdc_init(void)
 {
 	cdc_abort_file();
@@ -644,7 +795,20 @@ void cdc_init(void)
 	cdc_end_trans(NULL);
 	cdc_reset_selector(0xfc, 0);
 
+#if 0
 	cdc_auth_device();
+
+	int status;
+	cdc_auth_status(&status);
+	if(status==3){
+		for(int i=0; i<8; i++){
+			status = jhl_auth_hack(10000);
+			if(status==2)
+				break;;
+		}
+	}
+#endif
+
 }
 
 
@@ -777,6 +941,9 @@ void cdc_file_test(void)
 	cdc_get_file_scope(&fid, &fnum, &drend);
 	printk("file scope: fid=%d fnum=%d drend=%d\n", fid, fnum, drend);
 	cdc_get_file_info(0xffffff, finfo);
+	if(fnum>254){
+		fnum = 254;
+	}
 	for(i=0; i<fnum; i++){
 		printk("file %4d: fad=%08x size=%08x %02x %02x %02x %02x\n", i,
 				finfo[i].fad, finfo[i].size,
@@ -789,15 +956,13 @@ void cdc_file_test(void)
 	do{
 		cdc_get_numsector(1, &free);
 		printk("cdc_get_numsector 1: %d HIRQ=%04x\n", free, HIRQ);
-	}while(free<200);
+	}while(free==0);
 
 	cdc_get_buffer_size(&total, &npart, &free);
 	printk("cdc_get_buffer_size: free=%d\n", free);
 
-	cdc_get_del_data(1, 0, 128);
-	cdc_get_numsector(1, &free);
-	printk("cdc_get_numsector 1: %d\n", free);
-	cdc_trans_data(sbuf, 2048*100);
+	cdc_get_del_data(1, 0, free);
+	cdc_trans_data(sbuf, 2048*free);
 	cdc_end_trans(NULL);
 
 	while(1){
@@ -805,7 +970,6 @@ void cdc_file_test(void)
 		if(free==200)
 			break;
 	}
-
 
 	cdc_get_numsector(1, &free);
 	printk("cdc_get_numsector 1: %d HIRQ=%04x\n", free, HIRQ);

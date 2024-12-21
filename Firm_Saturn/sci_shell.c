@@ -360,8 +360,13 @@ void sci_shell(void)
 		CMD(c) {
 			/* 打开系统光驱 */
 			cdblock_on(1);
+		}
+		CMD(auth){
 			int retv = cdblock_check();
 			printk("cdblock_check: %d\n", retv);
+		}
+		CMD(jhl){
+			jhl_auth_hack(arg[0]);
 		}
 		CMD(s) {
 			/* 关闭系统光驱, 打开sarooo */
