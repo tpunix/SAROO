@@ -676,8 +676,6 @@ void ss_cmd_handle(void)
 		if(index&0x4000){
 			gif_decode_init();
 		}else{
-			index &= 0x3fff;
-
 			void load_cover(int index);
 			load_cover(index);
 		}

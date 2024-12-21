@@ -667,10 +667,17 @@ static int find_cover(char *gid, int fsum)
 }
 
 
+static int last_chdr;
+
 void load_cover(int index)
 {
 	int i, retv;
 	u32 nread;
+
+	if(index&0x8000){
+		last_chdr = -1;
+	}
+	index &= 0x7fff;
 
 	// 初始化COVER数据
 	if(cover_init<0){
@@ -696,6 +703,7 @@ void load_cover(int index)
 
 		memset((u8*)0x61400100, 0, 324*240);
 		cover_init = 1;
+		last_chdr = -1;
 	}
 
 	// 取得当前类别的ip_cache指针.
@@ -749,6 +757,10 @@ void load_cover(int index)
 		ip_cache[index] = chdr;
 	}
 
+	if(chdr==last_chdr)
+		return;
+	last_chdr = chdr;
+
 	int w = *(u16*)(chdr+0x14);
 	int h = *(u16*)(chdr+0x16);
 	int offset = *(int*)(chdr+0x10);
@@ -769,6 +781,7 @@ void load_cover(int index)
 	return;
 
 _no_cover:
+	last_chdr = -1;
 	*(u16*)(0x61400004) = 128;
 	*(u16*)(0x61400006) = 128;
 	*(u16*)(0x61400008) = 0;

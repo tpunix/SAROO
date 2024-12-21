@@ -299,6 +299,8 @@ static void gifb_put_pixel(GIF_DECODER *gd, int x, int y, int val)
 #define SCR_W  320
 #define SCR_H  240
 
+static int in_decoding;
+
 void gif_decode_init(void)
 {
 	FIL fp;
@@ -308,10 +310,21 @@ void gif_decode_init(void)
 
 	*(u32*)(0x61400000) = 0;
 	memset(gd, 0, sizeof(GIF_DECODER));
+	in_decoding = 0;
 
 	retv = f_open(&fp, "/SAROO/mainmenu_bg.gif", FA_READ);
 	if(retv!=FR_OK){
 		gd_state = -1;
+
+		// 无背景时做一次清屏
+		*(u16*)(0x61400004) = 128;
+		*(u16*)(0x61400006) = 128;
+		*(u16*)(0x61400008) = 0;
+		*(u16*)(0x6140000a) = 0;
+		*(u16*)(0x6140000c) = 176;
+		*(u16*)(0x6140000e) = 88;
+		memset((u8*)0x61401000, 0, 128*192);
+		*(u8*)0x61400000 = 4;
 		return;
 	}
 
@@ -351,11 +364,17 @@ void gif_decode_timer(void)
 
 	if(gd_state==0){
 		// 解码一帧图像
+		in_decoding = 1;
 		//TIM6->CR1 = 0x0005;
 		//int start = TIM6->CNT;
 		int eof = gif_decode_frame(gd);
+		in_decoding = 0;
 		//start = TIM6->CNT-start;
 		//printk("gif_decode_frame: %d us\n", start*10);
+
+		if(gd_state<0)
+			return;
+
 		if(eof){
 			if(gd->frames>1){
 				gd->iptr = 0;
@@ -372,7 +391,6 @@ void gif_decode_timer(void)
 	}else if(gd_state==1){
 		if(*(u8*)0x61400000==0){
 			// SS显示完毕会清标志位
-			gd_state = 2;
 			if(gd->delay){
 				gd->gtimer = osKernelGetTickCount() + gd->delay;
 				change_gd_state(1, 2);
@@ -391,6 +409,10 @@ void gif_decode_timer(void)
 void gif_decode_exit(void)
 {
 	__sync_lock_test_and_set(&gd_state, -1);
+
+	while(in_decoding){
+		osDelay(1);
+	}
 }
 
 
