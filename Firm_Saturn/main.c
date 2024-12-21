@@ -756,13 +756,27 @@ static int sel_handle(int ctrl)
 		}
 	}else if(BUTTON_DOWN(ctrl, PAD_Z) && (sel_mode==0)){
 		int index = page*MENU_ITEMS + menu->current;
+		int retv;
 
-		SS_ARG = index;
-		SS_CMD = SSCMD_LOADDISC;
-		while(SS_CMD);
+		if(sel_mode==0){
+			int index = page*MENU_ITEMS + menu->current;
 
-		use_sys_load = 0;
-		my_cdplayer();
+			SS_ARG = index;
+			SS_CMD = SSCMD_LOADDISC;
+			while(SS_CMD);
+
+			use_sys_load = 0;
+			my_cdplayer();
+		}else{
+			menu_status(menu, TT("加载文件中......"));
+			cdblock_on(0);
+			retv = run_binary(index, 1);
+			if(retv){
+				char buf[40];
+				sprintf(buf, TT("文件加载失败! %d"), retv);
+				menu_status(menu, buf);
+			}
+		}
 	}else if(BUTTON_DOWN(ctrl, PAD_LEFT)){
 		cover_top ^= 1;
 		change_cover_layer();
