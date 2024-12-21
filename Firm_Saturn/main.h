@@ -197,6 +197,22 @@ extern void (*sys_bup_init)(u8*, u8*, void*);
 extern int use_sys_bup;
 extern int use_sys_load;
 
+enum{
+	BIOS_100J,
+	BIOS_100V,
+	BIOS_100A,
+	BIOS_101A,
+	BIOS_SAMS,
+	BIOS_101J,
+	BIOS_101V,
+	BIOS_101H,
+	BIOS_102H,
+	BIOS_103H,
+	BIOS_1003,
+	BIOS_UNKNOW,
+};
+
+extern int bios_type;
 
 /*****************************************************************************/
 

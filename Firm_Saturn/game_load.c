@@ -128,6 +128,10 @@ static void hook_getkey(void)
 			// 1.01a(U)
 			orig_func = (void*)0x06044ae0;
 			*(u32*)(0x0604ed0c) = (u32)cdp_hook;
+		}else if(*(u32*)(0x0604ed28) == 0x06044ae0){
+			// Samsung-Saturn
+			orig_func = (void*)0x06044ae0;
+			*(u32*)(0x0604ed28) = (u32)cdp_hook;
 		}
 	}else{
 		printk("Unkonw BIOS ver!\n");
@@ -373,7 +377,12 @@ int my_bios_loadcd_read(void)
 	cdc_trans_data(sbuf, 2048*16);
 	cdc_end_trans(&status);
 
-	*(u16*)(0x060003a0) = 1;
+	if(bios_type<=BIOS_100V){
+		// 1.00j and V-Saturn 1.00
+		*(u16*)(0x06000380) = 1;
+	}else{
+		*(u16*)(0x060003a0) = 1;
+	}
 
 	memcpy(ipstr, (u8*)0x06002020, 16);
 	ipstr[16] = 0;

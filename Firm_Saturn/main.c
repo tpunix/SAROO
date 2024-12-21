@@ -16,6 +16,7 @@
 
 u32 mcu_ver;
 u32 debug_flag;
+int bios_type;
 
 /**********************************************************/
 
@@ -474,6 +475,9 @@ static int cover_top = 1;
 
 void gif_timer(void)
 {
+	if((TVSTAT&0x0008)==0)
+		return;
+
 	int gif_flag = *(u8*)0x22400000;
 	if(gif_flag){
 		u8 *dst = (u8*)(VDP2_VRAM+0x20000);
@@ -491,7 +495,7 @@ void gif_timer(void)
 		//if( (last_f!=gif_flag) ){
 		//	printk("gflag: %d\n", gif_flag);
 		//}
-		if( (last_f!=gif_flag) || (gif_flag>=3 && (last_w!=img_w || last_h!=img_h)) ){
+		if( (last_f!=gif_flag) || (gif_flag>=3 && (last_w>img_w || last_h>img_h)) ){
 			memset(dst, 0, 240*512);
 		}
 		last_f = gif_flag;
@@ -894,7 +898,6 @@ int main_handle(int ctrl)
 		select_category();
 		return MENU_RESTART;
 	}else if(index==1){
-		write_file("/SAROO/SS_BUP.BIN", 0, 0x10000, (void*)0x20180000);
 		cdblock_on(0);
 		use_sys_bup = 1;
 		use_sys_load = 1;
@@ -1020,6 +1023,56 @@ void menu_init(void)
 }
 
 
+/**********************************************************/
+
+// Sega Saturn 1.00J : BTR_1.00D1940921  0
+// Victor Saturn 1.00: BTR_1.00DJ941018  1
+//
+// Sega Saturn 1.00a : BTR_1.000U941115  2  40417:f4
+// Sega Saturn 1.01a : BTR_1.000U941115  3  40417:54
+// Samsung Saturn    : BTR_1.000U941115  4  40417:84
+//
+// Sega Saturn 1.01J : BTR_1.0191941228  5
+// V-Saturn    1.01J : BTR_1.019J950703  6
+// HI-Saturn   1.01J : BTR_1.019H950130  7
+// HI-Saturn   1.02J : BTR_1.020H950519  8
+// HI-Saturn   1.03  : BTRF1.030H950720  9
+//
+// Sega Saturn 1.003 : BTRD1.0032941012  10
+//
+
+
+static char *bvstr[12] = {"0D1","0DJ","00U","00U","00U","191","19J","19H","20H","30H","032",};
+
+void detect_bios_type(void)
+{
+	int i;
+	char *bv = (char*)0x0807;
+
+	for(i=0; i<11; i++){
+		if(strncmp(bv, bvstr[i], 3)==0){
+			bios_type = i;
+			break;
+		}
+	}
+	if(i==11){
+		bios_type = BIOS_UNKNOW;
+		return;
+	}
+
+	if(bios_type==BIOS_100A){
+		if(*(u8*)(0x40417)==0x54){
+			bios_type = BIOS_101A;
+		}else if(*(u8*)(0x40417)==0x84){
+			bios_type = BIOS_SAMS;
+		}
+	}
+}
+
+
+/**********************************************************/
+
+
 int _main(void)
 {
 	// EFSDL/EFPAN for CDDA
@@ -1027,6 +1080,8 @@ int _main(void)
 	*(u8* )(0x25b00237) =  0xc0;
 	// Master Volume
 	*(u16*)(0x25b00400) =  0x020f;
+
+	detect_bios_type();
 
 	SS_ARG = 0;
 	SS_CMD = SSCMD_STARTUP;
@@ -1056,8 +1111,7 @@ int _main(void)
 	*(u32*)(0x02000f38) =  (u32)sci_init;
 	*(u32*)(0x02000f3c) =  (u32)printk;
 
-	sys_bup_init = (void*)*(u32*)(0x06000358);
-
+	sys_bup_init = (void*)*(u32*)(0x20000958);
 
 	if(debug_flag&0x0001){
 		// sci_putc
@@ -1067,6 +1121,7 @@ int _main(void)
 		printk("    SS ver: %08x\n", get_build_date());
 		printk("  FPGA ver: %08x\n", SS_VER);
 		printk("   lang_id: %d\n", lang_id);
+		printk(" bios_type: %d\n", bios_type);
 	}else if(debug_flag&0x0004){
 		// conio_putc
 	}else if(debug_flag&0x0008){
