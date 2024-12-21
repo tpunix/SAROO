@@ -239,7 +239,7 @@ int parse_cue(char *fname, u8 *ipbuf)
 		}else if(strcmp(token, "REM")==0){
 		}else if(strcmp(token, "FLAGS")==0){
 		}else{
-			return -10;
+			//return -10;
 		}
 	}
 
