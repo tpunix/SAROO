@@ -33,7 +33,10 @@ OBJ	=	obj/crt0.o  \
 		obj/tiny_xm.o \
 		obj/version.o
 
-all	: BUILD_VER $(EXE)
+all	: obj BUILD_VER $(EXE)
+
+obj:
+	mkdir obj
 
 BUILD_VER:
 	touch version.c
