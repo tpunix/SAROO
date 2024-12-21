@@ -409,7 +409,7 @@ void fpga_config(void)
 			break;
 		osDelay(1);
 	}
-	if(i==10){
+	if(i==100){
 		printk("FPGA config timeout!\n");
 		led_event(LEDEV_FPGA_ERROR);
 	}else{
