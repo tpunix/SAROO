@@ -426,15 +426,32 @@ void MARVEL_SUPER_handle(void)
 {	
 	void (*go)(void) = (void(*)(void))0x60D0FF4;
 	go();	
-	*(u16*)(0x0600B0AC) = 0x0009;
-	*(u16*)(0x0600B1D4) = 0x0009;
-	//*(u32*)0x0600B0FC = 0x34403440;
-	//*(u32*)0x0600B2D8 = 0x34403440;
+
+	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
+
+	if((REG32(0x600B0FC) == 0x23301FF0) && (REG32(0x600B2D8) == 0x23301FF0)){
+		//日版 欧版 美版地址相同
+		REG16(0x600B0AC) = 0x0009;
+		REG16(0x600B1D4) = 0x0009;
+	}else if((REG32(0x6005F5C) == 0x23301FF0)&&(REG32(0x6005D8C) == 0x23301FF0)){
+		//日版DEMO
+		REG16(0x6005D3C) = 0x0009;
+		REG16(0x6005E6A) = 0x0009;
+	}				
 }
 
 void MARVEL_SUPER_patch(void)
 {
-	*(u32*)(0x060D13F8) = (u32)MARVEL_SUPER_handle;
+	if(REG32(0x60D13F8) == 0X60D0FF4){
+		//日版和美版
+		REG32(0x60D13F8)=(u32)MARVEL_SUPER_handle;
+	}else if(REG32(0x60D1424) == 0X60D0FF4){
+		//日版DEMO
+		REG32(0x60D1424)=(u32)MARVEL_SUPER_handle;
+	}else if(REG32(0x60D15AC) == 0X60D0FF4){
+		//欧版
+		REG32(0x60D15AC)=(u32)MARVEL_SUPER_handle;
+	}
 }
 
 
@@ -779,6 +796,103 @@ void Fenrir_patch(void)
 /**********************************************************/
 
 
+void  Pia_Carrot_e_Youkoso_2_handle2(void)
+{
+	if((REG32(0x604677C)==0x23301FF0) && (REG16(0x604673C)==0x2122))
+		REG16(0x604673C) = 0x9;
+
+	if((REG32(0x6046808)==0x23301FF0) && (REG16(0x60467DE)==0x2122))
+		REG16(0x60467DE)=0x9;
+
+	if((REG32(0x6046784)==0x60468F8) && (REG16(0x0604674C)==0x490b))
+		REG16(0x0604674C)=0x9;
+
+	void (*go)(void) = (void*)0X6010000;
+	go();	
+}
+
+
+void  Pia_Carrot_e_Youkoso_2_handle1(void)
+{
+	if(REG32(0x2100C0)==0x6010000)
+		REG32(0x2100C0)= (u32)Pia_Carrot_e_Youkoso_2_handle2;
+
+	void (*go)(void) = (void*)0x6021FE4;
+	go();
+}
+
+
+void Pia_Carrot_e_Youkoso_2_patch(void)
+{
+	if((REG32(0x601068C)==0x210000) && (REG32(0x60106B0)==0x6021FE4))
+		REG32(0x60106B0)= (u32)Pia_Carrot_e_Youkoso_2_handle1;
+}
+
+
+/**********************************************************/
+// Ultimate Mortal Kombat 3 美版 欧版 欧版修正版
+
+void Ultimate_Mortal_Kombat_3_patch(void)
+{
+	int r0 = 0x0601875A;
+
+	if(REG16(r0)==0x480b)//美版 欧版
+	   REG16(r0)= 0x09;
+
+	if(REG16(r0+0x10)==0x480b)//欧版修正版
+		REG16(r0+0x10)= 0x09;		
+
+	if(REG16(r0+0x54)==0x480b)//美版 欧版
+		REG16(r0+0x54)= 0x09;
+
+	if(REG16(r0+0x64)==0x480b)//欧版修正版
+		REG16(r0+0x64)= 0x09;	
+}
+
+
+/**********************************************************/
+// Batman_Forever_The_Arcade_Game 美版 欧版  欧版修正版
+
+void Batman_Forever_The_Arcade_Game_handle1(void)
+{
+	int r0=0x06023E44;
+
+	if(REG32(r0)==0xD439490B){
+		//日版 美版 欧版相同
+		REG32(r0)   = 0xD23A6122;
+		REG32(r0+4) = 0x21188BFC;
+		REG32(r0+8) = 0xD437490B;
+		REG32(r0+12)= 0x6583EB00;
+	}
+
+	__asm volatile("jmp @%0"::"r"(0x600d000)); 
+	__asm volatile ("nop" :: );	
+}
+
+
+void Batman_Forever_The_Arcade_Game_patch(void)
+{
+	if(REG32(0x060043C4)==0x600AF9C){
+		//日版 美版 欧版 主程序相同
+		REG32(0x060043C4) = (u32)Batman_Forever_The_Arcade_Game_handle1;
+	}
+}
+
+
+/**********************************************************/
+//Game no Tatsujin 2 (Japan)补丁
+
+void Game_no_Tatsujin2_patch(void)
+{
+	if(*(u32*)(0x06011024)==0x880189ED){
+		*(u16*)(0x06011026) = 0x09;
+	}
+}
+
+
+/**********************************************************/
+
+
 void MANX_TT_SUPER_BIKE_patch(void)
 {
 	if(*(u8*)(0x60219B1)==0x01){
@@ -848,7 +962,10 @@ GAME_DB game_dbs[] = {
 	{"GS-9107",            "FIGHTERS_HISTORY",   FIGHTERS_HISTORY_patch},
 	{"T-1248G",            "FINAL_FIGHT_REVENGE",FINAL_FIGHT_REVENGE_patch},
 	{"T-1226G",            "XMEN_VS_SF",         xmvsf_patch},
-	{"T-1215G",            "MARVEL_SUPER",       MARVEL_SUPER_patch},
+	{"T-1215G",            "MARVEL_SUPER",       MARVEL_SUPER_patch}, //日版
+	{"T-1214H",            "MARVEL_SUPER",       MARVEL_SUPER_patch}, //美版
+	{"6106664",            "MARVEL_SUPER",       MARVEL_SUPER_patch}, //日版demo
+	{"T-7032H",            "MARVEL_SUPER",       MARVEL_SUPER_patch}, //欧版
 	{"T-1238G   V1.000",   "MSH_VS_SF",          mshvssf_patch},
 
 	{"T-1513G",            "Amagi_Shien",        Amagi_Shien_patch},
@@ -887,14 +1004,20 @@ GAME_DB game_dbs[] = {
 	{"MK-81210  V1.001",   "ManX_TT_Super_Bike", MANX_TT_SUPER_BIKE_patch},
 	{"MK-81210  V1.000",   "ManX_TT_Super_Bike", MANX_TT_SUPER_BIKE_patch},
 
+	{"T-20114G",           "PIA  CARROT 2",      Pia_Carrot_e_Youkoso_2_patch},
+
+	{"T-25403H",           "u_m_k3",             Ultimate_Mortal_Kombat_3_patch},	// 真人快打3  欧版/修正版
+	{"T-9701H",            "u_m_k3",             Ultimate_Mortal_Kombat_3_patch},	// 真人快打3  美版
+
+	{"T-8140H",            "B_F_T",              Batman_Forever_The_Arcade_Game_patch}, // 蝙蝠侠 美版 欧版/修正版
+	{"T-8118G",            "B_F_T",              Batman_Forever_The_Arcade_Game_patch}, // 蝙蝠侠 日版
+
+	{"T-1509G",            "G_N_T2",             Game_no_Tatsujin2_patch},	//Game no Tatsujin 2 (Japan)
+
+
 	{NULL,},
 };
 
-
-// Marvel Super Heroes (Europe)	T-7032H-50
-// Pia Carrot e Youkoso!! 2 (Japan)	T-20114G
-//
-//
 
 void patch_game(char *id)
 {
