@@ -377,6 +377,11 @@ int my_bios_loadcd_read(void)
 	cdc_trans_data(sbuf, 2048*16);
 	cdc_end_trans(&status);
 
+	if(strncmp("SEGA SEGASATURN ", (char*)0x06002000, 16)){
+		printk("Not a gamedisc!\n");
+		return -2;
+	}
+
 	if(bios_type<=BIOS_100V){
 		// 1.00j and V-Saturn 1.00
 		*(u16*)(0x06000380) = 1;
@@ -498,8 +503,13 @@ int bios_cd_cmd(int type)
 		// 2: 刻录游戏盘
 		my_bios_loadcd_init();
 		retv = my_bios_loadcd_read();
-		if(retv<0)
+		if(retv<0){
+			if(retv==-2){
+				use_sys_load = 1;
+				my_cdplayer();
+			}
 			return retv;
+		}
 
 		// emulate bios_loadcd_boot
 		*(u32*)(0x06000290) = 3;
