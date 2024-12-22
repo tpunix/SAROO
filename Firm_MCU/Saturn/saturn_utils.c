@@ -746,7 +746,7 @@ void load_cover(int index)
 		if(p)
 			*p = 0;
 
-		int fsum = adler32(ip+0x30, 32);
+		int fsum = adler32(ip+0x30, 64);
 		chdr = (int)find_cover(gid, fsum);
 		if(chdr<0){
 			printk("  No Cover Found! {%12s} {%08x}\n", gid, fsum);
