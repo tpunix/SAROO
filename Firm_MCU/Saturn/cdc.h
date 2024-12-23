@@ -394,5 +394,9 @@ void gif_decode_timer(void);
 void gif_decode_exit(void);
 
 
+void cover_init(void);
+void load_cover(int index);
+
+
 /******************************************************************************/
 

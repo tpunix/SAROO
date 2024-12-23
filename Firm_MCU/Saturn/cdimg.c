@@ -482,9 +482,6 @@ int load_disc(int index)
 	char *fname;
 	char cat_dir[256];
 
-	unload_disc();
-	current_index = 0;
-
 	if((index&0xffff)==0xffff){
 		return -1;
 	}
@@ -502,8 +499,14 @@ int load_disc(int index)
 
 	fname = malloc(256);
 	retv = find_cue_iso(cat_dir, fname);
-	if(retv<=0)
+	if(retv<=0){
+		if(retv==0)
+			retv = -2;
 		goto _exit;
+	}
+
+	unload_disc();
+	current_index = 0;
 
 	printk("Load disc: {%s}\n", fname);
 	if(retv==1){
@@ -582,6 +585,8 @@ int get_disc_ip(int index, u8 *ipbuf)
 	fname = malloc(256);
 	retv = find_cue_iso(cat_dir, fname);
 	if(retv<=0){
+		if(retv==0)
+			retv = -2;
 		goto _exit;
 	}else if(retv==1){
 		retv = parse_cue(fname, ipbuf);

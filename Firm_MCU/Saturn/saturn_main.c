@@ -636,6 +636,9 @@ void ss_cmd_handle(void)
 		// 镜像列表
 		list_disc(0, 0);
 
+		// 封面数据
+		cover_init();
+
 		// 背景音乐
 		int audio_repeat = 0;
 		retv = load_pcm("/SAROO/bgsound.pcm");
@@ -676,7 +679,6 @@ void ss_cmd_handle(void)
 		if(index&0x4000){
 			gif_decode_init();
 		}else{
-			void load_cover(int index);
 			load_cover(index);
 		}
 		break;

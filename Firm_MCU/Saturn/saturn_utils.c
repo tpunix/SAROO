@@ -641,7 +641,7 @@ int flush_smems(int flag)
 
 
 static FIL cover_fp;
-static int cover_init = 0;
+static int cover_inited = 0;
 static int *ip_cache_table[12];
 static int *ip_cache_ptr;
 
@@ -669,6 +669,36 @@ static int find_cover(char *gid, int fsum)
 
 static int last_chdr;
 
+// 初始化COVER数据
+void cover_init(void)
+{
+	int i, retv;
+	u32 nread;
+
+	retv = f_open(&cover_fp, "/SAROO/cover.bin", FA_READ);
+	if(retv!=FR_OK){
+		// 打开cover.bin失败.
+		cover_inited = -1;
+		return;
+	}
+
+	// 读cover.bin的头部到0x6140f000处。
+	f_read(&cover_fp, (u8*)0x614f0000, 0x10000, &nread);
+
+	// ip_cache，存放游戏index到cover的映射.
+	ip_cache_ptr = (int*)(0x614e0000);
+	memset((u8*)0x614e0000, 0, 2560*4);
+	// 每个类别有一个指向ip_cache的指针.
+	for(i=0; i<12; i++){
+		ip_cache_table[i] = NULL;
+	}
+
+	memset((u8*)0x61400100, 0, 324*240);
+	cover_inited = 1;
+	last_chdr = -1;
+}
+
+
 void load_cover(int index)
 {
 	int i, retv;
@@ -679,31 +709,9 @@ void load_cover(int index)
 	}
 	index &= 0x7fff;
 
-	// 初始化COVER数据
-	if(cover_init<0){
+	if(cover_inited<0){
 		// 无cover.bin
 		return;
-	}else if(cover_init==0){
-		retv = f_open(&cover_fp, "/SAROO/cover.bin", FA_READ);
-		if(retv!=FR_OK){
-			// 打开cover.bin失败.
-			cover_init = -1;
-			return;
-		}
-		// 读cover.bin的头部到0x6140f000处。
-		f_read(&cover_fp, (u8*)0x614f0000, 0x10000, &nread);
-
-		// ip_cache，存放游戏index到cover的映射.
-		ip_cache_ptr = (int*)(0x614e0000);
-		memset((u8*)0x614e0000, 0, 2560*4);
-		// 每个类别有一个指向ip_cache的指针.
-		for(i=0; i<12; i++){
-			ip_cache_table[i] = NULL;
-		}
-
-		memset((u8*)0x61400100, 0, 324*240);
-		cover_init = 1;
-		last_chdr = -1;
 	}
 
 	// 取得当前类别的ip_cache指针.
@@ -730,7 +738,7 @@ void load_cover(int index)
 		if(retv<0){
 			printk("  get_disc_ip failed!\n");
 			ip_cache[index] = -1;
-			return;
+			goto _no_cover;
 		}
 
 		u8 *ip = ipbuf;
