@@ -739,7 +739,10 @@ static int sel_handle(int ctrl)
 			SS_CMD = SSCMD_LOADDISC;
 			while(SS_CMD);
 
-			retv = bios_cd_cmd(0);
+			retv = SS_ARG;
+			if(retv==0){
+				retv = bios_cd_cmd(0);
+			}
 			if(retv){
 				char buf[40];
 				sprintf(buf, TT("游戏启动失败! %d"), retv);
@@ -754,7 +757,7 @@ static int sel_handle(int ctrl)
 				menu_status(menu, buf);
 			}
 		}
-	}else if(BUTTON_DOWN(ctrl, PAD_Z) && (sel_mode==0)){
+	}else if(BUTTON_DOWN(ctrl, PAD_Z)){
 		int index = page*MENU_ITEMS + menu->current;
 		int retv;
 
