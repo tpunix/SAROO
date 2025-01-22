@@ -3,6 +3,7 @@
 #include "stdlib.h"
 #include "string.h"
 #include "bup.h"
+#include "bup_format.h"
 
 
 /******************************************************************************/
@@ -135,7 +136,7 @@ static void scan_save(BUPINFO *binfo)
 /******************************************************************************/
 
 
-int ss_bup_export(int slot_id, int index)
+int ss_bup_export(int slot_id, int index, int exp_type)
 {
 	BUPINFO *binfo = GET_BUP_INFO();
 	int block, i;
@@ -160,7 +161,24 @@ int ss_bup_export(int slot_id, int index)
 
 				char fname[16];
 				int fsize = get_be32(save_buf+0x1c);
-				sprintf(fname, "%s.bin", save_buf+0x10);
+				sprintf(fname, "%s%s", save_buf+0x10, exp_type ? BUP_EXTENSION : ".bin");
+
+				// if Export format is .BUP, add new header
+				if (exp_type==1)
+				{
+					vmem_bup_header_t bup_header = {0};
+					
+					memcpy(bup_header.magic, VMEM_MAGIC_STRING, VMEM_MAGIC_STRING_LEN);
+					memcpy(bup_header.dir.filename, bp+4, 11);
+					memcpy(bup_header.dir.comment, bp+0x10, 10);
+					memcpy(&bup_header.dir.date, bp+0x1a, 4);
+					memcpy(&bup_header.dir.datasize, bp+0x1e, 4);
+					memcpy(&bup_header.date, bp+0x1a, 4);
+					bup_header.dir.language = bp[0x0f];
+
+					memcpy(save_buf, &bup_header, BUP_HEADER_SIZE);
+				}
+
 				write_file(fname, save_buf, fsize+0x40);
 
 				printf("Export Save_%d: %s\n", index, fname);

@@ -39,21 +39,21 @@ void bup_flush(void);
 
 int sr_bup_init(u8 *buf);
 int sr_bup_list(int slot_id);
-int sr_bup_export(int slot_id, int save_id);
+int sr_bup_export(int slot_id, int save_id, int exp_type);
 int sr_bup_import(int slot_id, int save_id, char *save_name);
 int sr_bup_delete(int slot_id, int save_id);
 int sr_bup_create(char *game_id);
 
 int ss_bup_init(u8 *buf);
 int ss_bup_list(int slot_id);
-int ss_bup_export(int slot_id, int save_id);
+int ss_bup_export(int slot_id, int save_id, int exp_type);
 int ss_bup_import(int slot_id, int save_id, char *save_name);
 int ss_bup_delete(int slot_id, int save_id);
 int ss_bup_create(char *game_id);
 
 int sr_mems_init(u8 *buf);
 int sr_mems_list(int slot_id);
-int sr_mems_export(int slot_id, int save_id);
+int sr_mems_export(int slot_id, int save_id, int exp_type);
 int sr_mems_import(int slot_id, int save_id, char *save_name);
 int sr_mems_delete(int slot_id, int save_id);
 int sr_mems_create(char *game_id);
