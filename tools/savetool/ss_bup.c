@@ -163,9 +163,8 @@ int ss_bup_export(int slot_id, int index, int exp_type)
 				int fsize = get_be32(save_buf+0x1c);
 				sprintf(fname, "%s%s", save_buf+0x10, exp_type ? BUP_EXTENSION : ".bin");
 
-				// if Export format is .BUP, add new header
-				if (exp_type==1)
-				{
+				// if Export format is .BUP, set new header
+				if (exp_type==1){
 					vmem_bup_header_t bup_header = {0};
 					
 					memcpy(bup_header.magic, VMEM_MAGIC_STRING, VMEM_MAGIC_STRING_LEN);
