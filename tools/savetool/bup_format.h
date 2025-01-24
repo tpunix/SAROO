@@ -22,20 +22,6 @@
 /** Max backup file comment length */
 #define JO_BACKUP_MAX_COMMENT_LENGTH       (10)
 
-/*
- * Language of backup save in jo_backup_file
- * taken from Jo Engine backup.c
- */
-enum jo_backup_language
-{
-    backup_japanese = 0,
-    backup_english = 1,
-    backup_french = 2,
-    backup_deutsch = 3,
-    backup_espanol = 4,
-    backup_italiano = 5,
-};
-
 /**
  * Backup file metadata information. Taken from Jo Engine.
  **/
