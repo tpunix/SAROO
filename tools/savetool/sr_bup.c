@@ -206,7 +206,8 @@ int sr_bup_export(int slot_id, int save_id, int exp_type)
 
 			char fname[16];
 			int fsize = get_be32(save_buf+0x1c);
-			sprintf(fname, "%s%s", save_buf+0x10, exp_type ? BUP_EXTENSION : ".bin");
+			put_be32(save_buf+0x0c, crc32b(save_buf+0x10, fsize+0x30));
+			sprintf(fname, "%s%s", save_buf+0x10, exp_type ? BUP_EXTENSION : ".SRO");
 
 			// if Export format is .BUP, set new header
 			if (exp_type==1){

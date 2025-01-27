@@ -33,6 +33,8 @@ u32 get_be16(void *p);
 void put_be32(void *p, u32 v);
 void put_be16(void *p, u32 v);
 
+u32 crc32b(u8 *data, int size);
+
 void set_bitmap(u8 *bmp, int index, int val);
 SAVEINFO *load_saveraw(char *save_name);
 void bup_flush(void);

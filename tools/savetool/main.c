@@ -99,6 +99,22 @@ void set_bitmap(u8 *bmp, int index, int val)
 u8 save_buf[0x100000];
 static SAVEINFO saveinfo;
 
+/* This is the basic CRC-32 calculation with some optimization but no table lookup. */
+u32 crc32b(u8 *data, int size)
+{
+	int j;
+	u32 crc = 0xFFFFFFFF;
+
+	while (size--){
+		crc ^= *data++;          // XOR with next byte.
+		for (j=0; j<8; j++){     // Do eight times.
+			crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+		}
+	}
+	return ~crc;
+}
+
+
 static void load_savebup(SAVEINFO *sinfo, const u8 *fbuf, int fsize)
 {
 	vmem_bup_header_t *bup_header = (vmem_bup_header_t*)fbuf;
@@ -114,11 +130,13 @@ static void load_savebup(SAVEINFO *sinfo, const u8 *fbuf, int fsize)
 	sinfo->dbuf = save_buf;
 }
 
+
 SAVEINFO *load_saveraw(char *save_name)
 {
 	SAVEINFO *sinfo = &saveinfo;
 	u8 *fbuf;
 	int fsize;
+	u32 crc;
 
 	fbuf = load_file(save_name, &fsize);
 	if(fbuf==NULL){
@@ -145,6 +163,12 @@ SAVEINFO *load_saveraw(char *save_name)
 
 	memcpy(save_buf, fbuf+0x40, fsize-0x40);
 	sinfo->dbuf = save_buf;
+
+	crc = get_be32(fbuf+0x0c);
+	if (crc && crc != crc32b(fbuf+0x10, fsize-0x10)){
+		printf("Warning: CRC32 mismatch for %s!\n", save_name);
+	}
+
 	return sinfo;
 }
 
