@@ -3,6 +3,7 @@
 #include "stdlib.h"
 #include "string.h"
 #include "bup.h"
+#include "bup_format.h"
 
 
 /******************************************************************************/
@@ -98,6 +99,21 @@ void set_bitmap(u8 *bmp, int index, int val)
 u8 save_buf[0x100000];
 static SAVEINFO saveinfo;
 
+static void load_savebup(SAVEINFO *sinfo, const u8 *fbuf, int fsize)
+{
+	vmem_bup_header_t *bup_header = (vmem_bup_header_t*)fbuf;
+
+	memset(sinfo, 0, sizeof(SAVEINFO));
+	memcpy(sinfo->file_name, bup_header->dir.filename, 11);
+	memcpy(sinfo->comment, bup_header->dir.comment, 10);
+	sinfo->data_size = bup_header->dir.datasize;
+	sinfo->date = bup_header->dir.date;
+	sinfo->language = bup_header->dir.language;
+
+	memcpy(save_buf, fbuf+BUP_HEADER_SIZE, fsize-BUP_HEADER_SIZE);
+	sinfo->dbuf = save_buf;
+}
+
 SAVEINFO *load_saveraw(char *save_name)
 {
 	SAVEINFO *sinfo = &saveinfo;
@@ -109,9 +125,15 @@ SAVEINFO *load_saveraw(char *save_name)
 		printf("Faield to load file %s!\n", save_name);
 		return NULL;
 	}
-	if(strcmp((char*)fbuf, "SSAVERAW")){
-		printf("%s: Not a SSAVERAW file!\n", save_name);
+	if(strcmp((char*)fbuf, "SSAVERAW") && memcmp(fbuf, VMEM_MAGIC_STRING, VMEM_MAGIC_STRING_LEN)){
+		printf("%s: Not a supported Saturn save file! (%s/%s)\n", save_name, "SSAVERAW", VMEM_MAGIC_STRING);
 		return NULL;
+	}
+
+	// check if it's a Vmem save file, and load the data
+	if(memcmp(fbuf, VMEM_MAGIC_STRING, VMEM_MAGIC_STRING_LEN)==0 && fsize>BUP_HEADER_SIZE){
+		load_savebup(sinfo, fbuf, fsize);
+		return sinfo;
 	}
 
 	memset(sinfo, 0, sizeof(SAVEINFO));
@@ -146,7 +168,7 @@ void bup_flush(void)
 
 int bup_create(char *game_id)
 {
-	int retv;
+	int retv=-1;
 
 	if(bup_type==0){
 		retv =  sr_bup_create(game_id);
@@ -167,7 +189,7 @@ int bup_create(char *game_id)
 
 int bup_import(int slot_id, int save_id, char *save_name)
 {
-	int retv;
+	int retv=-1;
 
 	if(bup_type==0){
 		retv = sr_bup_import(slot_id, save_id, save_name);
@@ -186,7 +208,7 @@ int bup_import(int slot_id, int save_id, char *save_name)
 
 int bup_delete(int slot_id, int save_id)
 {
-	int retv;
+	int retv=-1;
 
 	if(bup_type==0){
 		retv = sr_bup_delete(slot_id, save_id);
@@ -203,14 +225,14 @@ int bup_delete(int slot_id, int save_id)
 }
 
 
-int bup_export(int slot_id, int save_id)
+int bup_export(int slot_id, int save_id, int exp_type)
 {
 	if(bup_type==0){
-		return sr_bup_export(slot_id, save_id);
+		return sr_bup_export(slot_id, save_id, exp_type);
 	}else if(bup_type==1){
-		return ss_bup_export(slot_id, save_id);
+		return ss_bup_export(slot_id, save_id, exp_type);
 	}else if(bup_type==2){
-		return sr_mems_export(slot_id, save_id);
+		return sr_mems_export(slot_id, save_id, exp_type);
 	}
 
 	return -1;
@@ -265,6 +287,7 @@ int main(int argc, char *argv[])
 {
 	int slot_id = -1;
 	int save_id = -1;
+	int exp_type = 0;
 	int create = 0;
 	int import = 0;
 	int delete = 0;
@@ -280,6 +303,7 @@ int main(int argc, char *argv[])
 		printf("    -t n        Select save slot(for SAROO save).\n");
 		printf("    -c \"gameid\" New save slot(for SAROO save).\n");
 		printf("    -s n        Select and Export(without -i/-d) save.\n");
+		printf("    -x n        Select and Export save as .BUP format.\n");
 		printf("    -i [file]   Import save.\n");
 		printf("    -d          Delete save.\n");
 		printf("                List save.\n");
@@ -297,6 +321,8 @@ int main(int argc, char *argv[])
 				slot_id = atoi(argv[p+1]);
 				p += 1;
 				break;
+			case 'x':
+				exp_type = 1;
 			case 's':
 				if(p+1==argc)
 					goto _invalid_params;
@@ -345,7 +371,7 @@ _invalid_params:
 
 	retv = bup_load(bup_name);
 	if(retv<0){
-		printf("Faield to load save file!\n");
+		printf("Failed to load save file!\n");
 		return retv;
 	}
 
@@ -356,7 +382,7 @@ _invalid_params:
 	}else if(delete){
 		retv = bup_delete(slot_id, save_id);
 	}else if(save_id>=0){
-		retv = bup_export(slot_id, save_id);
+		retv = bup_export(slot_id, save_id, exp_type);
 	}else{
 		retv = bup_list(slot_id);
 	}
