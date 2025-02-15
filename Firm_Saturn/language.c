@@ -1,7 +1,6 @@
 
 #include "main.h"
 
-
 /******************************************************************************/
 
 int lang_id = 0;
@@ -14,14 +13,12 @@ typedef struct _str_entry
 	char *str;
 	int index;
 	struct _str_entry *next;
-}STR_ENTRY;
+} STR_ENTRY;
 
 static STR_ENTRY lang_str[LANG_STR_NR];
 static STR_ENTRY *lang_str_table[64];
 
-
 /******************************************************************************/
-
 
 static char *lang_zhcn[LANG_STR_NR] = {
 	"选择游戏(%d/%d)",
@@ -46,7 +43,6 @@ static char *lang_zhcn[LANG_STR_NR] = {
 	"选择游戏分类",
 };
 
-
 static char *lang_en[LANG_STR_NR] = {
 	"Select Game(%d/%d)",
 	"Select File(%d/%d)",
@@ -69,7 +65,6 @@ static char *lang_en[LANG_STR_NR] = {
 	"Not a Game Disc!",
 	"Select Game Category",
 };
-
 
 static char *lang_ptbr[LANG_STR_NR] = {
 	"Selecionar Jogo(%d/%d)",
@@ -94,6 +89,28 @@ static char *lang_ptbr[LANG_STR_NR] = {
 	"Selecionar categoria de jogo",
 };
 
+static char *lang_pt[LANG_STR_NR] = {
+	"Selecionar Jogo(%d/%d)",
+	"Selecionar Ficheiro(%d/%d)",
+	"A Inicializar o Jogo ......",
+	"Erro ao inicializar o jogo! %d",
+	"A Carregar o ficheiro ......",
+	"Erro ao carregar o ficheiro!  %d",
+	"Selecionar Jogo",
+	"Leitor de CD do Sistema",
+	"Carregar o Disco do Jogo",
+	"Shell de Depuração serial",
+	"A Carregar o Binário",
+	"Atualizar a Firmware",
+	"A Atualizar... Não desligue o sistema!",
+	"Erro ao atualizar!",
+	"Finalizado, reinicie o sistema!",
+	"SAROO Menu de Inicialização",
+	"A Verificar o disco ......",
+	"Sem CD!",
+	"Não é um disco de jogo!",
+	"Selecionar categoria de jogo",
+};
 
 static char *lang_ja[LANG_STR_NR] = {
 	"ゲームリスト(%d/%d)",
@@ -118,7 +135,6 @@ static char *lang_ja[LANG_STR_NR] = {
 	"ジャンル選択",
 };
 
-
 static char *lang_fr[LANG_STR_NR] = {
 	"Choisir un jeu (%d/%d)",
 	"Choisir un fichier (%d/%d)",
@@ -141,7 +157,6 @@ static char *lang_fr[LANG_STR_NR] = {
 	"Disque de jeu non détecté !",
 	"Sélectionnez la catégorie de jeu",
 };
-
 
 static char *lang_ru[LANG_STR_NR] = {
 	"Выбор игры (%d/%d)",
@@ -166,7 +181,6 @@ static char *lang_ru[LANG_STR_NR] = {
 	"Выберите категорию игры",
 };
 
-
 static char *lang_zhtw[LANG_STR_NR] = {
 	"選擇遊戲(%d/%d)",
 	"選擇檔案(%d/%d)",
@@ -189,7 +203,6 @@ static char *lang_zhtw[LANG_STR_NR] = {
 	"不是遊戲光碟!",
 	"選擇遊戲分類",
 };
-
 
 static char *lang_de[LANG_STR_NR] = {
 	"Spielauswahl(%d/%d)",
@@ -237,7 +250,6 @@ static char *lang_es[LANG_STR_NR] = {
 	"Seleccionar categoría de juego",
 };
 
-
 static char *lang_it[LANG_STR_NR] = {
 	"Seleziona gioco(%d/%d)",
 	"Seleziona file(%d/%d)",
@@ -260,7 +272,6 @@ static char *lang_it[LANG_STR_NR] = {
 	"Nessun disco di gioco trovato!",
 	"Seleziona categoria di gioco",
 };
-
 
 static char *lang_pl[LANG_STR_NR] = {
 	"Wybierz grę(%d/%d)",
@@ -285,7 +296,6 @@ static char *lang_pl[LANG_STR_NR] = {
 	"Wybierz kategorię gry",
 };
 
-
 static char *lang_swe[LANG_STR_NR] = {
 	"Välj spel(%d/%d)",
 	"Välj fil(%d/%d)",
@@ -308,7 +318,6 @@ static char *lang_swe[LANG_STR_NR] = {
 	"Inte en giltig spel skiva!",
 	"Välj spelkategori",
 };
-
 
 static char *lang_el[LANG_STR_NR] = {
 	"Επίλεξε Παιχνίδι(%d/%d)",
@@ -333,7 +342,6 @@ static char *lang_el[LANG_STR_NR] = {
 	"Επίλεξε Κατηγορία Παιχνιδιού",
 };
 
-
 static char *lang_ro[LANG_STR_NR] = {
 	"Selectați jocul(%d/%d)",
 	"Selectați fişierul(%d/%d)",
@@ -357,7 +365,6 @@ static char *lang_ro[LANG_STR_NR] = {
 	"Selectați categoria de jocuri",
 };
 
-
 static char **lang_list[] = {
 	lang_zhcn,
 	lang_en,
@@ -373,12 +380,12 @@ static char **lang_list[] = {
 	lang_swe,
 	lang_el,
 	lang_ro,
+	lang_pt,
 };
 
-static const int lang_nr = sizeof(lang_list)/4;
+static const int lang_nr = sizeof(lang_list) / 4;
 
 static char **lang_cur;
-
 
 /******************************************************************************/
 
@@ -388,8 +395,9 @@ static u32 str_hash(char *str)
 	u32 hash = 5381;
 	int i;
 
-	for(i=0; i<len; i++){
-		hash = ((hash<<5)+hash) ^ (u8)str[i];
+	for (i = 0; i < len; i++)
+	{
+		hash = ((hash << 5) + hash) ^ (u8)str[i];
 	}
 
 	return hash;
@@ -397,14 +405,16 @@ static u32 str_hash(char *str)
 
 char *TT(char *str)
 {
-	if(lang_id==0 || lang_id>=lang_nr)
+	if (lang_id == 0 || lang_id >= lang_nr)
 		return str;
 
 	u32 hash = str_hash(str);
-	STR_ENTRY *entry = lang_str_table[hash&0xff];
-	while(entry){
-		if(hash==entry->hash){
-			//printk("TT: %s(%08x) -> %d %s\n", str, hash, entry->index, lang_cur[entry->index]);
+	STR_ENTRY *entry = lang_str_table[hash & 0xff];
+	while (entry)
+	{
+		if (hash == entry->hash)
+		{
+			// printk("TT: %s(%08x) -> %d %s\n", str, hash, entry->index, lang_cur[entry->index]);
 			return lang_cur[entry->index];
 		}
 		entry = entry->next;
@@ -415,7 +425,6 @@ char *TT(char *str)
 
 /******************************************************************************/
 
-
 void lang_init(void)
 {
 	int i;
@@ -423,32 +432,32 @@ void lang_init(void)
 	memset(lang_str_table, 0, sizeof(lang_str_table));
 	memset(lang_str, 0, sizeof(lang_str));
 
-	for(i=0; i<LANG_STR_NR; i++){
+	for (i = 0; i < LANG_STR_NR; i++)
+	{
 		lang_str[i].str = lang_zhcn[i];
 		lang_str[i].hash = str_hash(lang_zhcn[i]);
 		lang_str[i].index = i;
 
-		int t = (lang_str[i].hash)&0xff;
-		if(lang_str_table[t]){
+		int t = (lang_str[i].hash) & 0xff;
+		if (lang_str_table[t])
+		{
 			lang_str[i].next = lang_str_table[t];
 		}
 		lang_str_table[t] = &lang_str[i];
 
-		//printk("%2d: %08x %s\n", i, lang_str[i].hash, lang_str[i].str);
+		// printk("%2d: %08x %s\n", i, lang_str[i].hash, lang_str[i].str);
 	}
 
-	if(lang_id>=lang_nr)
+	if (lang_id >= lang_nr)
 		lang_id = 0;
 	lang_cur = lang_list[lang_id];
 }
-
 
 void lang_next(void)
 {
 	lang_id += 1;
-	if(lang_id==lang_nr)
+	if (lang_id == lang_nr)
 		lang_id = 0;
 
 	lang_cur = lang_list[lang_id];
 }
-
