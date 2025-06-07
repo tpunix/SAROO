@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#define CT_VERSION "1.0.0"
+#define CT_VERSION "1.0.1"
 #define MAX_COVERS 0x4000 // Maximum number of covers supported
 #define COVER_FILE "cover.bin"
 
@@ -86,6 +86,7 @@ void get_cover_hash(FILE *f_in)
 	char gid[16];
 	uint8_t ipbuf[256];
 	uint8_t *ip = ipbuf;
+	uint32_t hash;
 
 	if(fread(ipbuf, sizeof(ipbuf), 1, f_in) != 1){
 		printf("Error! get_disc_ip failed!\n");
@@ -109,9 +110,11 @@ void get_cover_hash(FILE *f_in)
 	if(p)
 		*p = 0;
 
+	hash = adler32(ip+0x30, 64);
+	printf("IP Data: %.64s\n", ip+0x30);
 	printf("Game ID: %s\n", gid);
-	printf("Data   : %.64s\n", ip+0x30);
-	printf("IP Hash: %08X\n", adler32(ip+0x30, 64));
+	printf("IP Hash: %08X\n", hash);
+	printf("Cover  : cover_%s~%08X.bmp\n", gid, hash);
 }
 
 // Function to export a single image from the cover index
@@ -300,19 +303,21 @@ int main(int argc, char* argv[])
 		fwrite(cover_idx, sizeof(cover_hdr_t), MAX_COVERS, f_out);
 		printf("Packing images from %s...\n", argv[2]);
 
-		char *line = NULL;
-		size_t linecap = 0;
-		ssize_t linelen;
+		char *p, line[256];
 		int j = 0;
-		while (j < MAX_COVERS && (linelen = getline(&line, &linecap, fp)) > 0)
+		while (j < MAX_COVERS && fgets(line, sizeof(line), fp) != NULL)
 		{
-			line[linelen - 1] = '\0'; // Remove newline character
+			// Remove newline character
+			if ((p = strrchr(line, '\r')))
+				*p = 0;
+			if ((p = strrchr(line, '\n')))
+				*p = 0;
+
 			import_image(f_out, line, cover_idx, j);
-			printf("%04d: %12s [%08X] %dx%d 0x%08X\n", j, cover_idx[j].serial_id, cover_idx[j].ip_hash, cover_idx[j].width, cover_idx[j].height, cover_idx[j].img_offset);
+			printf("%04d: %12s [%08X] %dx%d 0x%08X <- Imported %s\n", j, cover_idx[j].serial_id, cover_idx[j].ip_hash, cover_idx[j].width, cover_idx[j].height, cover_idx[j].img_offset, line);
 			j++;
 		}
 
-		free(line);
 		fseek(f_out, 0, SEEK_SET);
 		fwrite(cover_idx, sizeof(cover_hdr_t), j, f_out); // Write cover index
 		printf("Packed %d images into %s\n", j, COVER_FILE);
