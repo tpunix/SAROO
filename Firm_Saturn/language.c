@@ -375,7 +375,7 @@ static char *lang_nl[LANG_STR_NR] = {
         "Voltooid, herstart het systeem!",
         "SAROO Opstartmenu",
         "Schijf wordt gecontroleerd ......",
-        "Geen CD!",
+        "Geen CD!", 
         "Geen spelschijf!",
         "Selecteer spelcategorie",
 };
