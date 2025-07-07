@@ -357,6 +357,28 @@ static char *lang_ro[LANG_STR_NR] = {
 	"Selectați categoria de jocuri",
 };
 
+static char *lang_nl[LANG_STR_NR] = {
+    "Spel Selecteren (%d/%d)",
+    "Bestand Selecteren (%d/%d)",
+    "Spel wordt geïnitialiseerd ......",
+    "Fout bij het initialiseren van het spel! %d",
+    "Bestand wordt geladen ......",
+    "Fout bij het laden van het bestand! %d",
+    "Spel Selecteren",
+    "Systeem CD-speler",
+    "Spelschijf Laden",
+    "Seriële Debugshell",
+    "Binaire wordt geladen",
+    "Firmware Bijwerken",
+    "Bezig met bijwerken... Schakel het systeem niet uit!",
+    "Fout bij het bijwerken!",
+    "Voltooid, herstart het systeem!",
+    "SAROO Opstartmenu",
+    "Schijf wordt gecontroleerd ......",
+    "Geen CD!",
+    "Geen spelschijf!",
+    "Selecteer spelcategorie",
+};
 
 static char **lang_list[] = {
 	lang_zhcn,
@@ -373,6 +395,7 @@ static char **lang_list[] = {
 	lang_swe,
 	lang_el,
 	lang_ro,
+	lang_nl,
 };
 
 static const int lang_nr = sizeof(lang_list)/4;
