@@ -360,7 +360,7 @@ int my_bios_loadcd_read(void)
 	cdc_cddev_connect(0);
 	cdc_play_fad(0, 150, 16);
 
-	HIRQ = 0;
+	HIRQ = 0x0f00;
 	tm = 10000000;
 	while(tm){
 		if(HIRQ&HIRQ_PEND)
@@ -373,7 +373,7 @@ int my_bios_loadcd_read(void)
 		return -1;
 	}
 
-	cdc_get_data(0, 0, 16);
+	cdc_get_del_data(0, 0, 16);
 	cdc_trans_data(sbuf, 2048*16);
 	cdc_end_trans(&status);
 
@@ -447,7 +447,7 @@ static void read_1st(void)
 	for(int i=0; i<0x80000; i+=0x20){
 		*(u16*)(0x25c00000+i) = 0x8000;
 	}
-	*(u16*)(0x25c7fffe) = 0xffff;
+	//*(u16*)(0x25c7fffe) = 0xffff;
 
 
 	// 0x06000320: 0x060006b0  bios_set_clock_speed
