@@ -447,7 +447,6 @@ static void read_1st(void)
 	for(int i=0; i<0x80000; i+=0x20){
 		*(u16*)(0x25c00000+i) = 0x8000;
 	}
-	//*(u16*)(0x25c7fffe) = 0xffff;
 
 
 	// 0x06000320: 0x060006b0  bios_set_clock_speed

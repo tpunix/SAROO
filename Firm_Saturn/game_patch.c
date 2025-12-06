@@ -247,6 +247,25 @@ void ULTRAMAN_patch(void)
 // KOF95
 // 2MB ROM cart
 
+void kof95_yzb_hack_handle(void)
+{
+	REG32(0x6081084)=0x6833d3ba;
+	REG32(0x6081088)=0xd1bae209;
+	REG32(0x608108c)=0xaff07808;
+		
+	REG32(0x6081070)=0x23212121;
+	REG32(0x6081074)=0x7122482b;
+	REG16(0x6081078)=0x2121;
+
+	REG32(0x6081370)=0x60020C2;
+	REG32(0x6081374)=0x60022bc;
+
+	__asm volatile("": : "r" (0x6081080) );
+	__asm volatile ( "jmp	  @r1	" :: );
+	__asm volatile ( "nop" :: );
+}
+
+
 void kof95_handle(void)
 {
 	*(u16*)(0x60020c2) = 0x0009;
@@ -264,14 +283,25 @@ void kof95_handle(void)
 
 void kof95_patch(void)
 {
-	need_bup = 0;
+	if(REG32(0x6002e28)==0x0607CD80){
+		need_bup = 0;
 
-	if(*(u32*)(0x6002e28)==0x0607CD80){
-		if(*(u32*)(0x607CDC4) == 0x6002048)
-			*(u32*)(0x607CDC4) = (u32)kof95_handle;
-		else if(*(u32*)(0x607CDC8) == 0x6002048)
-			*(u32*)(0x607CDC8) = (u32)kof95_handle;
+		if(REG32(0x607CDC4) == 0x6002048)
+			REG32(0x607CDC4) = (u32)kof95_handle;
+		else if(REG32(0x607CDC8) == 0x6002048)
+			REG32(0x607CDC8) = (u32)kof95_handle;
+	}else if((REG32(0x6002E58)==0x2312e113)&&(REG32(0x6002E78)==0x23301ff0)){
+		REG16(0x6002E58)=0x0009;
+		REG32(0x6002f04)=0x6833AFC3;
+		REG16(0x6002f08)=0x0009;
+
+		REG32(0x6002E90)=0xd302d201;
+		REG32(0x6002E94)=0x482B2322;
+		
+		REG32(0x6002E98)=(u32)kof95_yzb_hack_handle;
+		REG32(0x6002E9C)=0x607CDC4;
 	}
+
 }
 
 /**********************************************************/
@@ -291,8 +321,23 @@ void kof96_patch(void)
 
 void kof97_patch(void)
 {
-	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u16*)(0x06066F80) = 0x0009;//34403440
+	if((REG32(0x6066F80)==0x2122d110)&&(REG32(0x6066FC0)==0x23301ff0)){
+		ssctrl_set(MASK_EXMEM, CS0_RAM1M);
+		REG16(0x6066F80)=0x0009;
+	}else if((REG32(0x6002f40)==0x480b4601)&&(REG32(0x6002f44)==0x930b0303)){
+		ssctrl_set(MASK_EXMEM, CS0_RAM4M);
+
+		REG16(0x06002F5E)=0x4106;
+
+		REG32(0x6007050)=0xd302d201;
+		REG32(0x6007054)=0x4b2b2322;
+		REG32(0x6007058)=0xa718e209;
+		REG32(0x600705c)=0x0600622c;
+
+		REG32(0x6007060)=0xd301410b;
+		REG16(0x6007064)=0x2321;
+		REG32(0x6007068)=0x06066F80;
+	}
 }
 
 
@@ -741,20 +786,62 @@ void Heart_of_Darkness_patch(void)
 
 void VANDAL_HEARTS_CN_patch(void)
 {
-	int addres=0;
+	__asm volatile ( "mov.w		w_4c2b,r2" :: );
+	__asm volatile ( "mov.w		w_aecf,r3" :: );
+	__asm volatile ( "mov.l		d_6002F5e,r1" :: );
+	__asm volatile ( "mov.w   @r1,r0" :: );
+	__asm volatile ( "cmp/eq  r0,r2 " :: );
+	__asm volatile ( "bt/s	  loc_VANDAL_HEARTS_01" :: );
+	__asm volatile ( "mov.w   @(0x12,r1),r0" :: );
+	__asm volatile ( "cmp/eq  r0,r2 " :: );
+	__asm volatile ( "bf/s	  loc_VANDAL_HEARTS_end" :: );	
+	__asm volatile ( "add	  #0x12 ,r1" :: );
+	__asm volatile ( "add	  #-9 ,r3" :: );
 
-	if(REG16(0x06002F70)==0x4C2B)         // B2
-		addres=0x48;
-	else if(REG16(0x06002F5e)==0x4C2B)    // B1
-		addres=0x51;
 
-	if(addres){
-		REG8(0x06002F5e) =0xaf;
-		REG8(0x06002F5f) =addres;
-		REG32(0x06002E04)=0xE00961C3;
-		REG32(0x06002E08)=0x71547170;
-		REG32(0x06002E0C)=0x4C2B2101;
-	}
+	__asm volatile ( "loc_VANDAL_HEARTS_01:" :: );
+	__asm volatile ( "mova	  VANDAL_HEARTS_hex, r0" :: );
+	__asm volatile ( "mov.l	  d_6002d00,r5" :: );
+	__asm volatile ( "mov.w	  r3, @r1" :: );
+
+	__asm volatile ( "mov.l   @r0+,r1" :: );
+	__asm volatile ( "mov.l   @r0+,r2" :: );
+	__asm volatile ( "mov.l   @r0+,r3" :: );
+	__asm volatile ( "mov.l   @r0+,r4" :: );
+	__asm volatile ( "mov.l	  r1, @r5" :: );
+	__asm volatile ( "mov.l	  r2, @(0x4,r5)" :: );
+	__asm volatile ( "mov.l	  r3, @(0x8,r5)" :: );
+	__asm volatile ( "mov.l	  r4, @(0xc,r5)" :: );
+
+	__asm volatile ( "mov.l   @r0+,r1" :: );
+	__asm volatile ( "mov.l   @r0+,r2" :: );
+	__asm volatile ( "mov.l   @r0+,r3" :: );
+	__asm volatile ( "mov.l   @r0+,r4" :: );
+	__asm volatile ( "mov.l	  r1, @(0x10,r5)" :: );
+	__asm volatile ( "mov.l	  r2, @(0x14,r5)" :: );
+	__asm volatile ( "mov.l	  r3, @(0x18,r5)" :: );
+	__asm volatile ( "mov.l	  r4, @(0x1c,r5)" :: );	
+	
+	__asm volatile ( "mov.l   @r0+,r1" :: );
+	__asm volatile ( "mov.l   @r0+,r2" :: );
+	__asm volatile ( "mov.l   @r0+,r3" :: );
+	__asm volatile ( "mov.l   @r0+,r4" :: );
+	__asm volatile ( "mov.l	  r1, @(0x20,r5)" :: );
+	__asm volatile ( "mov.l	  r2, @(0x24,r5)" :: );
+	__asm volatile ( "mov.l	  r3, @(0x28,r5)" :: );
+	__asm volatile ( "mov.l	  r4, @(0x2c,r5)" :: );		
+
+	__asm volatile ( "loc_VANDAL_HEARTS_end:" :: );	
+	__asm volatile ( "rts" :: );
+	__asm volatile ( "nop" :: );
+
+	__asm volatile ( "w_4c2b:.word	0x4c2b"    :: );
+	__asm volatile ( "w_aecf:.word	0xaecf"    :: );
+	__asm volatile ( ".align 2"        :: );
+	__asm volatile ( "d_6002F5e:.long	0x6002F5e"        :: );
+	__asm volatile ( "d_6002d00:.long	0x6002d00"        :: );	
+	__asm volatile ( "VANDAL_HEARTS_hex:.long 0xD1096112,0x410BE401,0xBC440009,0xE301C71B,0x91096202,0x2211BAE5,0x1032E009,0x61C37154,0x71704C2B,0x21018001,0x06000320" :: );
+
 }
 
 
@@ -950,6 +1037,16 @@ void  Phantasy_Star_Collection_patch(void)
 
 
 /**********************************************************/
+// Croc: Legend of the Gobbos
+// 未正确初始化VDP1
+
+void Croc_LOG_patch(void)
+{
+	*(u16*)(0x25c7fffe) = 0xffff;
+}
+
+
+/**********************************************************/
 
 int skip_patch = 0;
 int need_bup = 1;
@@ -980,6 +1077,7 @@ GAME_DB game_dbs[] = {
 	{"T-3101G",            "KOF95",              kof95_patch},
 	{"T-3108G",            "KOF96",              kof96_patch},
 	{"T-3121G",            "KOF97",              kof97_patch},
+	{"T-4401G",            "KOF97",              kof97_patch},
 	{"T-3104G",            "SamuraiSp3",         smrsp3_patch},
 	{"T-3116G",            "SamuraiSp4",         smrsp4_patch},
 	{"T-3105G",            "REAL_BOUT",          REAL_BOUT_patch},
@@ -1026,6 +1124,7 @@ GAME_DB game_dbs[] = {
 	{"999999999 V1.000",   "Heart_of_Darkness",  Heart_of_Darkness_patch},
 //	{"T-2001G",            "Houma_Hunter_Lime_Perfect_Collection",
 //	                                             Houma_Hunter_Lime_Perfect_Collection_patch},
+	{"T-9526G",            "VANDAL_HEARTS_CN",   VANDAL_HEARTS_CN_patch},
 	{"T-1219G",            "VANDAL_HEARTS_CN",   VANDAL_HEARTS_CN_patch},
 	{"T-9515H",            "WHIZZ",              WHIZZ_patch},
 	{"T-36102G",           "WHIZZ",              WHIZZ_patch},
@@ -1050,6 +1149,8 @@ GAME_DB game_dbs[] = {
 	{"T-19501G",           "S_S_P",              Shichuu_Suimei_Pitagraph_patch},	//Shichuu Suimei Pitagraph (Japan) (2M)
 
 	{"GS-9186   V1.003",   "PSO",                Phantasy_Star_Collection_patch},
+
+	{"T-5029H-50V1.000",   "Croc:LOG",           Croc_LOG_patch}, // Croc: Legend of the Gobbos
 
 	{NULL,},
 };
