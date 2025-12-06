@@ -595,6 +595,7 @@ void CYBER_BOTS_patch(void)
 
 /**********************************************************/
 // FIGHTERS MEGAMIX_JAP_patch
+// 游戏中会写入ASR寄存器
 
 //jap 1m 2m
 void FIGHTERS_MEGAMIX_JAP_patch(void)
@@ -614,11 +615,15 @@ void FIGHTERS_MEGAMIX_USA_patch(void)
 
 /**********************************************************/
 // Fighting Vipers (Japan) (Rev C) patch
+// 游戏中会写入ASR寄存器
 
 // JAP 1m 2m
 void Fighting_Vipers_JAP_patch(void)
 {
-	*(u16*)(0x06022A60) = 0x9;
+	if(*(u16*)(0x06022A60)==0x400b){
+		//Rev C 日版 
+		*(u16*)(0x06022A60) = 0x9;
+	}
 }
 
 // USA PAL Korea
@@ -774,6 +779,17 @@ void Gundam_Zenpen_Zeta_no_Kodou_patch(void)
 
 
 /**********************************************************/
+//Shichuu Suimei Pitagraph (Japan) (2M)补丁
+// 游戏会检测PAUSE状态从而导致死循环
+
+void Shichuu_Suimei_Pitagraph_patch(void)
+{
+	if(*(u32*)(0x0601CFD4)==0x600C8801)
+		*(u8*)(0x0601CFD7) = 0x00;
+}
+
+
+/**********************************************************/
 // RMENU2_patch  菜单补丁
 
 void RMENU2_patch(void)
@@ -916,6 +932,24 @@ void MANX_TT_SUPER_BIKE_patch(void)
 
 
 /**********************************************************/
+// 梦幻之星 2代
+
+void  Phantasy_Star_Collection_handle(void)
+{
+	if(REG32(0x602345C)==0x6021B58)
+		REG32(0x602345C)= 0x600083c;
+	void (*go)(void) = (void*)0x6020000;
+	go();
+}
+
+void  Phantasy_Star_Collection_patch(void)
+{
+	if(REG32(0x060053DC)==0x6020000)
+		REG32(0x60053DC) = (u32)Phantasy_Star_Collection_handle;
+}
+
+
+/**********************************************************/
 
 int skip_patch = 0;
 int need_bup = 1;
@@ -1013,7 +1047,9 @@ GAME_DB game_dbs[] = {
 	{"T-8118G",            "B_F_T",              Batman_Forever_The_Arcade_Game_patch}, // 蝙蝠侠 日版
 
 	{"T-1509G",            "G_N_T2",             Game_no_Tatsujin2_patch},	//Game no Tatsujin 2 (Japan)
+	{"T-19501G",           "S_S_P",              Shichuu_Suimei_Pitagraph_patch},	//Shichuu Suimei Pitagraph (Japan) (2M)
 
+	{"GS-9186   V1.003",   "PSO",                Phantasy_Star_Collection_patch},
 
 	{NULL,},
 };
