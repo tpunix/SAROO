@@ -469,6 +469,11 @@
                 </FileArmAds>
               </FileOption>
             </File>
+            <File>
+              <FileName>tiny_xm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Main\tiny_xm.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1108,6 +1113,11 @@
                   </Cads>
                 </FileArmAds>
               </FileOption>
+            </File>
+            <File>
+              <FileName>tiny_xm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Main\tiny_xm.c</FilePath>
             </File>
           </Files>
         </Group>
