@@ -1,0 +1,365 @@
+
+               Cinepak (CVID) stream format for AVI and QT
+               -------------------------------------------
+
+                        Dr. Tim Ferguson, 2001.
+
+The Cinepak codec is a relatively old coding technique that is still
+infrequently used today.  Its advantage comes from computational simplicity
+at the decoder, rather than bit rate versus quality performance.  This 
+codec is basically a vector quantiser with adaptive vector density.  Each
+frame is segmented into 4x4 pixel blocks, and each block is coded using
+either 1 or 4 vectors.  We label these coding types as follows:
+
+   V1 - one vector per block,
+   V4 - four vectors per block.
+
+Each of the V1 and V4 coding types reference separate vector codebooks,
+which we label V1 codebook and V4 codebook respectively.  These codebooks
+contain a maximum of 256 entries each.
+
+A frame is also segmented into variable sized strips.  A strip defines
+an area of the frame defined with dimensions less than or equal to those
+of the frame.  Each strip defines its own pair of unique vector codebooks.
+
+A frame can be coded using either 8 bits per pixel (bpp), or 12 bpp.
+In 12 bpp mode, each codebook vector contains four eight bit luminance values
+and two sub-sampled eight bit chrominance values:
+
+   +----+----+  +---+  +---+
+   | y0 | y1 |  | u |  | v |
+   +----+----+  +---+  +---+
+   | y2 | y3 |
+   +----+----+
+
+In 8 bpp mode, the codebooks only contain the four luminance values.
+Conversion from the RGB colour space to the Cinepak colour space is
+achieved using the following simple matrix multiplication:
+
+   | r |   | 1.0  0.0  2.0 | | y |
+   | g | = | 1.0 -0.5 -1.0 | | u |
+   | b |   | 1.0  2.0  0.0 | | v |
+
+Taking the inverse of the 3x3 matrix gives us:
+
+   | y |   |  0.2857  0.5714  0.1429 | | r |
+   | u | = | -0.1429 -0.2857  0.4286 | | g |
+   | v |   |  0.3571 -0.2857 -0.0714 | | b |
+
+This is clearly different from the standard techniques for colour space
+conversion and was probably chosen due to its mathematical simplicity
+rather than its perceptual performance.
+
+As stated earlier, a 4x4 pixel block may be coded using one eight bit
+vector labeled V1, or four eight bit vectors labeled V4.  These vectors
+reference the V1 and V4 codebooks respectively.  In the case of a V1
+coded block, the single codebook vector is used to code the block as
+follows:
+
+   +----+----+----+----+  +---+---+  +---+---+
+   | y0 | y0 | y1 | y1 |  | u | u |  | v | v |
+   +----+----+----+----+  +---+---+  +---+---+
+   | y0 | y0 | y1 | y1 |  | u | u |  | v | v |
+   +----+----+----+----+  +---+---+  +---+---+
+   | y2 | y2 | y3 | y3 |
+   +----+----+----+----+
+   | y2 | y2 | y3 | y3 |
+   +----+----+----+----+
+
+For a V4 coded block, four codebook table entries are used to code the block.
+These are four vector references (r0, r1, r2, r3) are applied to the
+block as follows:
+
+   +------+------+------+------+  +-----+-----+  +-----+-----+
+   | r0y0 | r0y1 | r1y0 | r1y1 |  | r0u | r1u |  | r0v | r1v |
+   +------+------+------+------+  +-----+-----+  +-----+-----+
+   | r0y2 | r0y3 | r1y2 | r1y3 |  | r2u | r3u |  | r2v | r3v |
+   +------+------+------+------+  +-----+-----+  +-----+-----+
+   | r2y0 | r2y1 | r3y0 | r3y1 |
+   +------+------+------+------+
+   | r2y2 | r2y3 | r3y2 | r3y3 |
+   +------+------+------+------+
+
+
+A typical frame of a Cinepak video sequence is made up of the following
+parts:
+
+     +-----------------------+
+     | Frame Header          |
+     +-----------------------+
+     | Strip 1 Header        |
+     +-----------------------+
+     | Strip 1 Codebooks     |
+     +-----------------------+
+     | Strip 1 Frame Vectors |
+     +-----------------------+
+     | Strip 2 Header        |
+     +-----------------------+
+     | Strip 2 Codebooks     |
+     +-----------------------+
+     | Strip 2 Frame Vectors |
+     +-----------------------+
+     | Strip 3 Header        |
+     +-----------------------+
+     |    .      .      .    |
+          .      .      .     
+     |    .      .      .    |
+     +-----------------------+
+
+Each of these parts are described in more detail.  All multi-byte values are
+in most significant byte (MSB) ordering (ie: Motorola order).  Therefore,
+byte swapping is required on Intel based machines.
+
+
+ ---------------
+  Frame Header
+ ---------------
+
+Each frame of the Cinepak video sequence starts with a header, defined
+as follows:
+
+      7 6 5 4 3 2 1 0        Field Name                    Type
+     +---------------+
+  0  |             | |       Flags                         Byte
+     +---------------+
+  1  |               |       Length of CVID data           Unsigned
+     +-             -+
+  2  |               |
+     +-             -+
+  3  |               |
+     +---------------+
+  4  |               |       Width of coded frame          Unsigned
+     +-             -+
+  5  |               |
+     +---------------+
+  6  |               |       Height of coded frame         Unsigned
+     +-             -+
+  7  |               |
+     +---------------+
+  8  |               |       Number of coded strips        Unsigned
+     +-             -+
+  9  |               |
+     +---------------+
+
+Flags - Bit 0 of the flags field specifies weather or not the codebooks
+   for each of the strips uses the codebook defined in the previous strip.
+   For the first strip of a frame, the previous strip would be found in the
+   previous frame.
+Length - This field specifies the total number of bytes in the frame.
+Width - The pixel width of the frame.
+Height - The pixel height of the frame.
+Number of Strips - The total number of strips used to code the frame.
+
+
+ ---------------
+  Strip Header
+ ---------------
+
+The total number of strips for a frame is defined in the frame header.  Each
+of these strips starts with a strip header which is defined as follows:
+
+      7 6 5 4 3 2 1 0        Field Name                    Type
+     +---------------+
+  0  |               |       Strip CVID ID                 Unsigned
+     +-             -+
+  1  |               |
+     +---------------+
+  2  |               |       Size of strip data            Unsigned
+     +-             -+
+  3  |               |
+     +---------------+
+  4  |               |       Strips top Y position         Unsigned
+     +-             -+
+  5  |               |
+     +---------------+
+  6  |               |       Strips top X position         Unsigned
+     +-             -+
+  7  |               |
+     +---------------+
+  8  |               |       Strips bottom Y position      Unsigned
+     +-             -+
+  9  |               |
+     +---------------+
+ 10  |               |       Strips bottom X position      Unsigned
+     +-             -+
+ 11  |               |
+     +---------------+
+
+Strip ID - This ID takes on one of two values:
+   0x1000 - Intra-coded strip.
+   0x1100 - Inter-coded strip.
+Size - The total number of bytes used to code the strip.  This includes bytes
+   for the codebook definitions and the code vectors.
+Strips X and Y positions - These four values define the area of the frame
+   for which the strip is defined.
+
+
+ ---------------
+  CVID Chunk
+ ---------------
+
+Following the strip header, each strip is made up of a sequence of chunks,
+as show:
+
+      7 6 5 4 3 2 1 0        Field Name                    Type
+     +---------------+
+  0  |               |       CVID Chunk ID                 Unsigned
+     +-             -+
+  1  |               |
+     +---------------+
+  2  |               |       Size of chunk data (N)        Unsigned
+     +-             -+
+  3  |               |
+     +---------------+
+  4  |               |
+     +-             -+
+  5  |               |
+     +-   . . . .   -+
+     |               |       Chunk data (N - 4 bytes)      Byte
+     +-             -+
+  N  |               |
+     +---------------+
+
+A chunk starts with an identification number, followed by the number of bytes
+in the chunk.  There are several chunk types, which are listed as follows:
+
+   CVID Chunk ID - 
+       Intra-coded frames:
+           0x2000 - List of blocks in 12 bit V4 codebook
+           0x2200 - List of blocks in 12 bit V1 codebook
+           0x2400 - List of blocks in 8 bit V4 codebook
+           0x2600 - List of blocks in 8 bit V1 codebook
+           0x3000 - Vectors used to encode a frame
+           0x3200 - List of blocks from only the V1 codebook
+
+       Inter-coded frames:
+           0x2100 - Selective list of blocks to update 12 bit V4 codebook
+           0x2300 - Selective list of blocks to update 12 bit V1 codebook
+           0x2500 - Selective list of blocks to update 8 bit V4 codebook
+           0x2700 - Selective list of blocks to update 8 bit V1 codebook
+           0x3100 - Selective set of vectors used to encode a frame
+
+Following the chunk ID and size is the chunk data.  The format of this
+data depends on the chunk ID.  These are described in the following
+sections.
+
+ ---------------------------------------------------------------------
+  Intra list of codebook blocks (IDs 0x2000, 0x2200, 0x2400, 0x2600)
+ ---------------------------------------------------------------------
+
+This chunk contains a list of codebook entries.  Each byte represents
+one colour component value.  In the 12 bpp mode (0x2000 and 0x2200)
+each six bytes represents one codebook entry, starting at vector
+zero:
+
+      7 6 5 4 3 2 1 0        Field Name                    Type
+     +---------------+
+  0  |               |       Luminance value 0             Byte
+     +---------------+
+  1  |               |       Luminance value 1             Byte
+     +---------------+
+  2  |               |       Luminance value 2             Byte
+     +---------------+
+  3  |               |       Luminance value 3             Byte
+     +---------------+
+  4  |               |       U Chrominance value           Byte
+     +---------------+
+  5  |               |       V Chrominance value           Byte
+     +---------------+
+  6  |       .       |
+             .
+             .
+In 8 bpp mode (0x2400 and 0x2600), four bytes (luminance values)
+define each codebook entry.  The total number of codebook entries
+defined in the chunk depends on the chunk size (size/6 or size/4
+for 12 bpp and 8 bpp respectively).
+
+
+ ---------------------------------------------------------------------
+  Inter selective list of library blocks (IDs 0x2100, 0x2300, 0x2500, 0x2700)
+ ---------------------------------------------------------------------
+
+In inter-frames (or non key-frames) vectors from the previous frame
+may be reused for the current frame.  Vectors which cannot be reused
+may be modified using this chunk as follows:
+
+      7 6 5 4 3 2 1 0        Field Name                    Type
+     +---------------+
+  0  |               |       Update Flags                  Unsigned
+     +-             -+
+  1  |               |
+     +-             -+
+  2  |               |
+     +-             -+
+  3  |               |
+     +---------------+
+  4  |               |       Luminance value 0             Byte
+     +---------------+
+  5  |               |       Luminance value 1             Byte
+     +---------------+
+  6  |               |       Luminance value 2             Byte
+     +---------------+
+  7  |               |       Luminance value 3             Byte
+     +---------------+
+  8  |               |       U Chrominance value           Byte
+     +---------------+
+  9  |               |       V Chrominance value           Byte
+     +---------------+
+ 10  |       .       |
+             .
+     |       .       |
+     +---------------+
+     |       .       |       Update Flags                  Unsigned
+     +-      .      -+
+             .
+
+Update Flags - Each bit indicates whether a codebook entry is updated or not.
+   If the bit is one, the codebook entry is replaced by the next 6 or 4 bytes
+   (depending on the mode), otherwise the entry position is left unchanged.
+
+
+ ---------------------------------------------------------------------
+  Vectors used to encode a frame (ID 0x3000)
+ ---------------------------------------------------------------------
+
+Initially, four bytes are read from the chunk which define a set of
+flags.  One set of flags encodes 32 blocks using one bit for each block.
+Each of the 32 one bit flags (starting with the most significant bit in
+the flags variable) define which coding technique the block
+is represented by.  If the flag is one, then the block is coded
+as a V4 (four vectors = four bytes), otherwise the block is coded as a
+V1 (one vector = one byte).  After 32 blocks have been parsed, another
+four bytes must be read from the chunk and used as the next set of
+flags.
+
+ ---------------------------------------------------------------------
+  Selective set of vectors used to encode a frame (ID 0x3100)
+ ---------------------------------------------------------------------
+
+In inter-frame coding, not all of the blocks in a frame require updating.
+As in the previous chunk, four bytes represent a set of flags, however
+in this case one of three coding choices is made for each block.  Given
+the flag bits, the block will be:
+   0 = the block is skipped,
+   10 = V1 coded block,
+   11 = V4 coded block.
+That is, if the current flag bit is zero, the block will be skipped.  If
+however it is one, then the following bit will determine which of the
+two coding types is used (simple form of variable length coding (VLC)).
+
+ ---------------------------------------------------------------------
+  List of blocks from only the V1 codebook (ID 0x3200)
+ ---------------------------------------------------------------------
+
+All blocks coded by this chunk type are represented by V1 vectors.  That
+is, each byte in this chunk represents one vector per block.
+
+---------------------------------------------------------------------
+This document was written by Dr. Tim Ferguson, 2001.
+
+For more details, on this and other codecs, including source code, visit:
+    http://www.csse.monash.edu.au/~timf/videocodec.html 
+
+To contact me, email: timf@csse.monash.edu.au
+---------------------------------------------------------------------
+
