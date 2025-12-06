@@ -33,36 +33,39 @@ OBJ	=	obj/crt0.o  \
 		obj/tiny_xm.o \
 		obj/version.o
 
+define ECHO_CMD
+	$(if $(V), , @echo "    "$(1)" " $(2))
+	$(if $(V), $(3), @$(3))
+endef
+
 all	: obj BUILD_VER $(EXE)
 
 obj:
-	mkdir obj
+	$(call ECHO_CMD, "MKDIR  ", obj,      mkdir obj)
 
 BUILD_VER:
-	touch version.c
+	$(call ECHO_CMD, "TOUCH  ", version.c, touch version.c)
 
 $(EXE)	: $(OBJ)
-	$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $(EXE)
-	$(OBJDUMP) -xd $(EXE) > dump.txt
-	$(OBJCOPY) -O binary $(EXE) tmp.bin
-	cat tmp.bin font_cjk.bin >ssfirm.bin
-	rm -f tmp.bin
+	$(call ECHO_CMD, "LD     ", $@,       $(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $(EXE))
+	$(call ECHO_CMD, "OBJDUMP", dump.txt, $(OBJDUMP) -xd $(EXE) > dump.txt)
+	$(call ECHO_CMD, "OBJCOPY", tmp.bin,  $(OBJCOPY) -O binary $(EXE) tmp.bin)
+	$(call ECHO_CMD, "CAT    ", ssfirm.bin, cat tmp.bin font_cjk.bin >ssfirm.bin)
+	$(call ECHO_CMD, "RM     ", tmp.bin,  rm -f tmp.bin)
 
 $(OBJ): main.h smpc.h vdp2.h font_latin.h
 
 
 obj/%.o :	%.c
-		$(CC) -c $< -o $@ $(FLAGS)
+	$(call ECHO_CMD, "CC     ", $@, $(CC) -c $< -o $@ $(FLAGS))
 
 obj/%.o :	%.S
-		$(AS) $< -o $@
+	$(call ECHO_CMD, "AS     ", $@, $(AS) $< -o $@)
 
 clean	:
 		rm -f obj/*.o
 		rm -f $(EXE) ssfirm.bin dump.txt
 
-makedir :
-		mkdir obj
 
 #
 # end of makefile
