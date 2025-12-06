@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#define CT_VERSION "1.0.1"
+#define CT_VERSION "1.0.2"
 #define MAX_COVERS 0x4000 // Maximum number of covers supported
 #define COVER_FILE "cover.bin"
 
@@ -68,7 +68,7 @@ typedef struct __attribute__((packed)) bmp_hdr
 
 
 /* This is the basic Adler-32 hash calculation */
-uint32_t adler32(uint8_t *data, int len) 
+uint32_t adler32(uint8_t *data, int len)
 {
 	uint32_t a = 1, b = 0;
 	int i;
@@ -83,7 +83,7 @@ uint32_t adler32(uint8_t *data, int len)
 
 void get_cover_hash(FILE *f_in)
 {
-	char gid[16];
+	char gid[17];
 	uint8_t ipbuf[256];
 	uint8_t *ip = ipbuf;
 	uint32_t hash;
@@ -103,6 +103,7 @@ void get_cover_hash(FILE *f_in)
 	}
 
 	memcpy(gid, ip+0x20, 16);
+	gid[16] = 0;
 	char *p = strrchr(gid, 'V');
 	if(p)
 		*p = 0;
@@ -171,7 +172,7 @@ void export_image(FILE* f_in, cover_hdr_t *idx)
 uint32_t bmp_hash[MAX_COVERS] = {0};
 
 // Function to import a BMP image and fill the cover index
-void import_image(FILE *fbin, const char* fname, cover_hdr_t *idx, int pos)
+int import_image(FILE *fbin, const char* fname, cover_hdr_t *idx, int pos)
 {
 	FILE *bmp_file;
 	bmp_header_t bmp;
@@ -182,15 +183,22 @@ void import_image(FILE *fbin, const char* fname, cover_hdr_t *idx, int pos)
 	if (!bmp_file)
 	{
 		printf("ERROR! Can't open %s\n", fname);
-		return;
+		return 0;
 	}
 
 	fread(&bmp, sizeof(bmp_header_t), 1, bmp_file);
-	if (bmp.Signature != 0x4D42 || bmp.BitsPerPixel != 8 || bmp.Width > 128 || bmp.Height > 192 || bmp.Compression != 0)
+	if (bmp.Signature != 0x4D42 || bmp.BitsPerPixel != 8 || bmp.Width > 128 || bmp.Height > 192 || bmp.Compression != 0 || (bmp.Size + 0x40E) != bmp.DataOffset)
 	{
 		printf("ERROR! Invalid BMP file: %s\n", fname);
 		fclose(bmp_file);
-		return;
+		return 0;
+	}
+
+	// Adjust loading external .BMP images
+	if (bmp.Size != 40)
+	{
+		fseek(bmp_file, bmp.Size + 0x0E, SEEK_SET);
+		fread(&bmp.Palette, sizeof(bmp_palette_t), 1, bmp_file);
 	}
 
 	// Read the image data
@@ -213,7 +221,7 @@ void import_image(FILE *fbin, const char* fname, cover_hdr_t *idx, int pos)
 			idx[pos].img_offset = idx[i].img_offset; // Use the previous image offset
 			printf("%04d: Duplicate image -> using %s [%08X]\n", pos, idx[i].serial_id, idx[i].ip_hash);
 			free(img_data);
-			return;
+			return 1;
 		}
 
 	// Write palette
@@ -223,6 +231,7 @@ void import_image(FILE *fbin, const char* fname, cover_hdr_t *idx, int pos)
 		fwrite(img_data + (i * bmp.Width), 1, bmp.Width, fbin);
 
 	free(img_data);
+	return 1;
 }
 
 void print_usage(const char* arg)
@@ -313,7 +322,13 @@ int main(int argc, char* argv[])
 			if ((p = strrchr(line, '\n')))
 				*p = 0;
 
-			import_image(f_out, line, cover_idx, j);
+			if (!import_image(f_out, line, cover_idx, j))
+			{
+				printf("Failed to generate %s\n", COVER_FILE);
+				fclose(fp);
+				fclose(f_out);
+				return -1;
+			}
 			printf("%04d: %12s [%08X] %dx%d 0x%08X <- Imported %s\n", j, cover_idx[j].serial_id, cover_idx[j].ip_hash, cover_idx[j].width, cover_idx[j].height, cover_idx[j].img_offset, line);
 			j++;
 		}
