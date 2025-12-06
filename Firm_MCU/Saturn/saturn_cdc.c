@@ -195,7 +195,8 @@ void trans_start(void)
 			dp = bt->data+24;
 		}
 
-		if(cdb.sector_size==2048 && bt->size==2324){
+		if(cdb.sector_size==2048 && (bt->data[15]==2 && bt->data[18]&0x20)){
+			// MODE:2 Form:2
 			cdb.trans_size = 2324;
 		}else{
 			cdb.trans_size = cdb.sector_size;
@@ -283,8 +284,7 @@ void trans_handle(void)
 			bt->size += 2;
 			cnt -= 2;
 			if(bt->size == cdb.put_sector_size){
-				//printk("    trans_bk=%d\n", cdb.trans_bk);
-				pt->size += cdb.put_sector_size;
+				pt->size += bt->size;
 				cdb.trans_bk -= 1;
 				if(cdb.trans_bk==0){
 					ST_CTRL &= ~(STIRQ_DAT|0x0200);
@@ -332,7 +332,8 @@ void trans_handle(void)
 				dp = bt->data+24;
 			}
 
-			if(cdb.sector_size==2048 && bt->size==2324){
+			if(cdb.sector_size==2048 && (bt->data[15]==2 && bt->data[18]&0x20)){
+				// MODE:2 Form:2
 				cdb.trans_size = 2324;
 			}else{
 				cdb.trans_size = cdb.sector_size;
@@ -695,7 +696,6 @@ int end_trans(void)
 			SSLOG(_BUFIO, "end_trans: wait trans_put ...\n");
 			while(cdb.trans_bk){
 				trans_handle();
-				cdc_delay(1);
 			}
 		}
 	}else{
@@ -777,7 +777,8 @@ int play_cd(void)
 		cdb.index = 1;
 	}else{
 		// PTYPE_TNO or PTYPE_DFL
-		if(start_pos==0)
+		int track = (start_pos>>8)&0xff;
+		if(start_pos==0 || track==0)
 			start_pos = 0x0100;
 		cdb.play_fad_start = track_to_fad(start_pos);
 		cdb.track = (start_pos>>8)&0xff;
@@ -794,14 +795,17 @@ int play_cd(void)
 		cdb.play_fad_end = cdb.play_fad_start+end_pos&0x0fffff;
 	}else if(end_pos){
 		// PTYPE_TNO
+		int track = (end_pos>>8)&0xff;
 		int index = end_pos&0xff;
+		if(track==0)
+			end_pos |= 0x0100;
 		if(start_pos==end_pos && index>0){
 			cdb.play_fad_end = track_to_fad((end_pos&0xff00)|(index+1)) - 1;
 		}else{
 			cdb.play_fad_end = track_to_fad((end_pos&0xff00)|0x63);
 		}
 
-		if(play_tno){
+		if(play_tno && cdb.play_track->mode!=3){
 			// STEAM-HEART'S fixup
 			// 明确指定start与stop的情况下,强制更新fad.
 			cdb.old_fad = cdb.fad;
@@ -1258,7 +1262,7 @@ int get_buffer_size(void)
 	return 0;
 }
 
-int old_numblocks;
+static int old_numblocks;
 
 // 0x51 [S-]
 int get_sector_num(void)
