@@ -321,6 +321,7 @@ int parse_config(char *fname, char *gameid)
 	if(retv){
 		return -3;
 	}
+	fbuf[nread] = 0;
 
 	printk("\nLoad config [%s] for [%s]\n", fname, (gameid==NULL)?"Global":gameid);
 
@@ -732,7 +733,7 @@ void load_cover(int index)
 	}else if(chdr==0){
 		// 第一次选择该游戏，建立cache
 		u8 ipbuf[256];
-		char gid[16];
+		char gid[20];
 
 		retv = get_disc_ip(index, ipbuf);
 		if(retv<0){
@@ -747,6 +748,7 @@ void load_cover(int index)
 		}
 
 		memcpy(gid, ip+0x20, 16);
+		gid[16] = 0;
 		char *p = strrchr(gid, 'V');
 		if(p)
 			*p = 0;

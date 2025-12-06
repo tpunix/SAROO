@@ -79,6 +79,8 @@ u32 track_to_fad(u16 track_index)
 	}
 
 	t     = (track_index>>8)-1;
+	if(t<0)
+		t = 0;
 	index = track_index&0xff;
 	TRACK_INFO *tk = &cdb.tracks[t];
 
