@@ -12,7 +12,10 @@ static u8 *qbuf = (u8*)0x30000000;
 static u32 rp, wp, new_rp;
 
 
+#if 0 
+
 #define LOGSIZE 128
+
 typedef struct {
 	u16 rp;
 	u16 wp;
@@ -55,6 +58,9 @@ void showlog(void)
 	logptr = 0;
 }
 
+volatile void *show_log_ptr = showlog;
+
+#endif
 
 static void uart4_dma_send(void *buf, int len)
 {
@@ -145,7 +151,9 @@ static int uart4_put_buf(void *data, int length)
 	if(!in_isr())
 		osMutexAcquire(umtx, osWaitForever);
 
-	//dolog(rp, wp, data, length);
+#ifdef LOGSIZE
+	dolog(rp, wp, data, length);
+#endif
 
 	free = get_free();
 	if(length>free){
@@ -200,12 +208,9 @@ void uart4_puts(char *str)
 
 /******************************************************************************/
 
-//volatile void *aaaa;
 
 void uart4_init(void)
 {
-//	aaaa = showlog;
-
 	rp = 0;
 	wp = 0;
 
@@ -232,6 +237,19 @@ uint8_t _getc(void)
 {
 	while((UART4->ISR & 0x20)==0){
 		osDelay(20);
+	}
+	return UART4->RDR;
+}
+
+
+int _getc_tmout(int tmout_ms)
+{
+	int ticks = tmout_ms*20000;
+
+	while((UART4->ISR & 0x20)==0){
+		ticks -= 1;
+		if(ticks<=0)
+			return -1;
 	}
 	return UART4->RDR;
 }

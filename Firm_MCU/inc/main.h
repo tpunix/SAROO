@@ -34,7 +34,8 @@ int mem_test(u32 addr, int size);
 
 
 void uart4_init(void);
-u8   _getc(void);
+uint8_t _getc(void);
+int  _getc_tmout(int tmout_ms);
 void _putc(u8 byte);
 void _puts(char *str);
 void uart4_puts(char *str);
@@ -44,6 +45,8 @@ int sprintk(char *sbuf, const char *fmt, ...);
 void hex_dump(char *str, void *addr, int size);
 
 void simple_shell(void);
+
+int tiny_xmodem_recv(u8 *dest);
 
 
 

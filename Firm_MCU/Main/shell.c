@@ -333,6 +333,43 @@ void simple_shell(void)
 			scan_dir("/", 0, NULL);
 		}
 
+		CMD(upmcu){
+			int key = disable_irq();
+			int len = tiny_xmodem_recv((u8*)0x61600000);
+			restore_irq(key);
+
+			if(len){
+				FIL fp;
+				FRESULT fret = f_open(&fp, "/SAROO/mcuapp.bin", FA_CREATE_ALWAYS|FA_WRITE);
+				if(fret!=FR_OK){
+					printk("Open mcuapp.bin failed! %d\n", fret);
+				}else{
+					u32 wlen = 0;
+					f_write(&fp, (u8*)0x61600000, len, &wlen);
+					f_close(&fp);
+					printk("Write mcuapp.bin: %d bytes\n", wlen);
+				}
+			}
+		}
+		CMD(upss){
+			int key = disable_irq();
+			int len = tiny_xmodem_recv((u8*)0x61600000);
+			restore_irq(key);
+
+			if(len){
+				FIL fp;
+				FRESULT fret = f_open(&fp, "/SAROO/ssfirm.bin", FA_CREATE_ALWAYS|FA_WRITE);
+				if(fret!=FR_OK){
+					printk("Open ssfirm.bin failed! %d\n", fret);
+				}else{
+					u32 wlen = 0;
+					f_write(&fp, (u8*)0x61600000, len, &wlen);
+					f_close(&fp);
+					printk("Write ssfirm.bin: %d bytes\n", wlen);
+				}
+			}
+		}
+
 #ifndef BOOT
 		CMD(aplay){
 			void play_i2s(char *audio_file);
