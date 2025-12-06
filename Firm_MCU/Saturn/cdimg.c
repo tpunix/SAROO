@@ -427,6 +427,10 @@ int unload_disc(void)
 		memset(tk, 0, sizeof(TRACK_INFO));
 	}
 
+	if(cdb.has_subrw){
+		f_close(&cdb.subcode_fp);
+	}
+
 	return 0;
 }
 
@@ -521,6 +525,29 @@ int load_disc(int index)
 		retv = get_gameid(gameid);
 		if(retv){
 			goto _exit;
+		}
+		
+		char *p = strrchr(fname, '.');
+		p[1] = 's';
+		p[2] = 'u';
+		p[3] = 'b';
+		retv = f_open(&cdb.subcode_fp, fname, FA_READ);
+		if(retv==FR_OK){
+			cdb.has_subrw = 1;
+		}else{
+			p[1] = 'c';
+			p[2] = 'd';
+			p[3] = 'g';
+			retv = f_open(&cdb.subcode_fp, fname, FA_READ);
+			if(retv==FR_OK){
+				cdb.has_subrw = 2;
+			}
+		}
+		if(retv==FR_OK){
+			printk("Load %s\n", fname);
+		}else{
+			cdb.has_subrw = 0;
+			retv = 0;
 		}
 
 		mdisc_str[0] = 0;

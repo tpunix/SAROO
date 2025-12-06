@@ -213,10 +213,19 @@ void trans_start(void)
 		dp = (u8*)cdb.FINFO;
 		cdb.trans_size = 12;
 	}else if(cdb.trans_type==TRANS_SUBQ){
-		dp = (u8*)cdb.SUBH;
+		dp = cdb.SUBH;
 		cdb.trans_size = 10;
 	}else if(cdb.trans_type==TRANS_SUBRW){
-		dp = (u8*)cdb.SUBH;
+#if 0
+		if(cdb.subrw_rp == cdb.subrw_wp){
+			memset(cdb.SUBH, 0, 24);
+			dp = cdb.SUBH;
+		}else
+#endif
+		{
+			dp = cdb.subrw_buf+cdb.subrw_rp*24;
+			cdb.subrw_rp = (cdb.subrw_rp+1)%64;
+		}
 		cdb.trans_size = 24;
 	}
 
@@ -562,17 +571,35 @@ int get_session_info(void)
 }
 
 // 0x04 [SR]
+//   iflag[0]: 复位CDBLOCK软件(其他位忽略)
+//   iflag[1]: 解码subcode_rw
+//   iflag[2]: 不确认MODE2 subheader
+//   iflag[3]: Form2读取重试
+//   iflag[4]: CD-ROM 2x
+//   iflag[7]: 忽略所有位
+//
+//   stnby: 从PAUSE到STANDY的时间。默认0x0000(180秒)
+//
 int init_cdblock(void)
 {
 	int i;
 
-	SSLOG(_INFO, "init_cdblock\n");
+	int iflag = cdb.cr1&0xff;
+	int stnby = cdb.cr2;
+	int ecc   = cdb.cr4>>8;
+	int retry = cdb.cr4&0xff;
+
+	SSLOG(_INFO, "init_cdblock  iflag=%02x stnby=%04x ecc=%02x retry=%02x\n", iflag, stnby, ecc, retry);
+
+	if(iflag&0x80){
+		goto _exit;
+	}
+	cdb.iflag = iflag;
 
 	// Wait change_dir finished
 	while(cdb.play_type==PLAYTYPE_DIR){
 		osDelay(1);
 	}
-
 	// Stop Play task
 	if(cdb.play_type){
 		cdb.pause_request = 1;
@@ -582,6 +609,14 @@ int init_cdblock(void)
 			wait_pause_ok();
 		}while(cdb.pause_request);
 	}
+
+	if((iflag&0x01)==0){
+		return 0;
+	}
+
+
+	cdb.subrw_rp = 0;
+	cdb.subrw_wp = 0;
 
 	// disable fifo irq
 	ST_CTRL &= ~STIRQ_DAT;
@@ -620,14 +655,15 @@ int init_cdblock(void)
 		cdb.filter[i].smval  = 0;
 		cdb.filter[i].cival  = 0;
 	}
-	
+
 	cdb.saturn_auth = 0;
 	cdb.mpeg_auth = 0;
-	
+
 	HIRQ_CLR = HIRQ_PEND | HIRQ_DRDY | HIRQ_BFUL;
 
+_exit:
 	set_report(cdb.status);
-	return HIRQ_ESEL|HIRQ_EHST;
+	return HIRQ_EFLS|HIRQ_ECPY|HIRQ_ESEL|HIRQ_EHST;
 }
 
 
@@ -874,24 +910,11 @@ int seek_cd(void)
 /******************************************************************************/
 // Subcode 相关命令
 
-int TOBCD(int val)
-{
-	return ((val/10)<<4) | (val%10);
-}
-
-void fad_to_msf(int fad, int *m, int *s, int *f)
-{
-	*m = fad/4500;
-	fad %= 4500;
-	*s = fad/75;
-	*f = fad%75;
-}
 
 // 0x20 [S-]
 int get_subcode(void)
 {
-	int type;
-	int rel_fad, rm, rs, rf, m, s, f;
+	int type, rel_fad;
 
 	if(cdb.trans_type){
 		set_status(STAT_WAIT | cdb.status);
@@ -909,24 +932,26 @@ int get_subcode(void)
 		SSCR4 = 0;
 
 		rel_fad = cdb.fad-cdb.tracks[cdb.track-1].fad_start;
-		fad_to_msf(rel_fad, &rm, &rs, &rf);
-		fad_to_msf(cdb.fad,  &m,  &s,  &f);
 
 		cdb.SUBH[0] = cdb.ctrladdr;
-		cdb.SUBH[1] = TOBCD(cdb.track);
-		cdb.SUBH[2] = TOBCD(cdb.index);
-		cdb.SUBH[3] = TOBCD(rm);
-		cdb.SUBH[4] = TOBCD(rs);
-		cdb.SUBH[5] = TOBCD(rf);
+		cdb.SUBH[1] = cdb.track;
+		cdb.SUBH[2] = cdb.index;
+		cdb.SUBH[3] = rel_fad>>16;
+		cdb.SUBH[4] = rel_fad>>8;
+		cdb.SUBH[5] = rel_fad>>0;
 		cdb.SUBH[6] = 0;
-		cdb.SUBH[7] = TOBCD(m);
-		cdb.SUBH[8] = TOBCD(s);
-		cdb.SUBH[9] = TOBCD(f);
+		cdb.SUBH[7] = cdb.fad>>16;
+		cdb.SUBH[8] = cdb.fad>>8;
+		cdb.SUBH[9] = cdb.fad>>0;
 
 		cdb.trans_type = TRANS_SUBQ;
 		trans_start();
 	}else if(type==1){
 		// Get RW Channel
+		if(cdb.subrw_rp == cdb.subrw_wp){
+			set_status(STAT_WAIT | cdb.status);
+			return 0;
+		}
 		SSCR1 = 0x4000 | (cdb.status<<8);
 		SSCR2 = 12;
 		SSCR3 = 0;

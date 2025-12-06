@@ -111,7 +111,7 @@ void spi2_trans(u32 data)
 static int abuf_size(void)
 {
 	if(afull)
-		return 0;
+		return ABUF_NUM;
 	else if(awp>arp)
 		return awp-arp;
 	else
@@ -120,6 +120,8 @@ static int abuf_size(void)
 
 int fill_audio_buffer(u8 *data)
 {
+	int asize;
+
 	if(afull)
 		return -1;
 
@@ -131,7 +133,8 @@ int fill_audio_buffer(u8 *data)
 	if(awp==arp)
 		afull = 1;
 
-	if(aplay==0 && abuf_size()>=2){
+	asize = abuf_size();
+	if(aplay==0 && asize>=2){
 		u8 *buf0 = audio_buf[arp];
 		u8 *buf1 = audio_buf[(arp+1)&(ABUF_NUM-1)];
 		spi2_dma_start(buf0, buf1, 2352);
@@ -140,7 +143,7 @@ int fill_audio_buffer(u8 *data)
 
 	restore_irq(key);
 
-	return 0;
+	return asize;
 }
 
 

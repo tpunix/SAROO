@@ -124,7 +124,6 @@ TRACK_INFO *get_track_info(int track_index)
 
 /******************************************************************************/
 
-
 // 内部扇区缓存, 32K大小, 大概16个2k的扇区. 位于SDRAM中
 // FATFS层以512字节为单位读取, 每次读64个单位.
 static u8 *sector_buffer = (u8*)0x24002000;
@@ -139,6 +138,50 @@ static u32 buf_fad_offset = 0;
 static u32 buf_fad_size = 0;
 
 
+static u8 reorder[24] = {
+	0x00, 0x42, 0x7d, 0xbf, 0x64, 0x32, 0x96, 0xaf,
+	0x08, 0x21, 0x3a, 0x53, 0x6c, 0x85, 0x9e, 0xb7,
+	0x10, 0x29, 0x19, 0x5b, 0x74, 0x8d, 0xa6, 0x4b
+};
+
+void subcode_convert(void)
+{
+	u8 *dst = cdb.subcode_buf;
+	u8 *sub = sector_buffer;
+	u8 *tbuf = sector_buffer+2048;
+	int p, i, j, k;
+
+	p = 0;
+	while(p<1536){
+		memset(tbuf, 0, 96);
+	//	for(i=0; i<8; i++){ // 带PQ通道
+		for(i=2; i<8; i++){ // 无PQ通道
+			for(j=0; j<12; j++){
+				u8 d = sub[i*12+j];
+				for(k=0; k<8; k++){
+					u8 b = (d>>(7-k))&1;
+					tbuf[j*8+k] |= b<<(7-i);
+				}
+			}
+		}
+		tbuf += 96;
+		sub += 96;
+		p += 96;
+	}
+
+	sub = sector_buffer+2048;
+	p = 0;
+	while(p<(96*14)){
+		for(j=0; j<24; j++){
+			dst[j] = sub[reorder[j]];
+		}
+		p += 24;
+		dst += 24;
+		sub += 24;
+	}
+}
+
+
 int get_sector(int fad, BLOCK *wblk)
 {
 	int retv, dp, nread;
@@ -149,6 +192,7 @@ int get_sector(int fad, BLOCK *wblk)
 		SSLOG(_DTASK, "Change to track %d\n", cdb.track);
 		if(cdb.track!=0xff){
 			cdb.play_track = &cdb.tracks[cdb.track-1];
+			cdb.subrw_wp = cdb.subrw_rp;
 		}else{
 			// play的FAD参数错误
 			SSLOG(_DTASK, "play_track not found!\n");
@@ -168,6 +212,19 @@ int get_sector(int fad, BLOCK *wblk)
 	}else{
 		// 内部缓存中没有要play的扇区. 从文件重新读取.
 		//SSLOG(_DTASK, " fad_%08x not found. need read from file.\n", fad);
+		
+		// 先读subcode. 最多读1536字节((32768/2048)*96).
+		if(cdb.has_subrw && cdb.iflag&0x02){
+			f_lseek(&cdb.subcode_fp, (fad-150)*96);
+			f_read(&cdb.subcode_fp, sector_buffer, 1536, (u32*)&nread);
+			if(cdb.has_subrw==1){
+				// sub格式需要先解码
+				subcode_convert();
+			}else{
+				// cdg格式直接使用
+				memcpy(cdb.subcode_buf, sector_buffer, 1536);
+			}
+		}
 
 		cdb.ctrladdr = cdb.play_track->ctrl_addr;
 		cdb.index = 1;
@@ -205,6 +262,20 @@ int get_sector(int fad, BLOCK *wblk)
 		wblk->cn = wblk->data[0x11];
 		wblk->sm = wblk->data[0x12];
 		wblk->ci = wblk->data[0x13];
+	}
+
+	// 处理subcode
+	if(cdb.has_subrw && cdb.iflag&0x02){
+		u8 *sbuf = cdb.subcode_buf+(fad-buf_fad_start)*96;
+		for(int i=0; i<4; i++){
+			memcpy(cdb.subrw_buf+cdb.subrw_wp*24, sbuf, 24);
+			int new_wp = (cdb.subrw_wp+1)%64;
+			cdb.subrw_wp = new_wp;
+			if(new_wp==cdb.subrw_rp){
+				cdb.subrw_rp = (cdb.subrw_rp+1)%64;
+			}
+			sbuf += 24;
+		}
 	}
 
 	return 0;
@@ -375,14 +446,19 @@ _restart_nowait:
 			if(retv)
 				break;
 			led_event(LEDEV_CSCT);
-
 			HIRQ = HIRQ_SCDQ;
 			set_peri_report();
 
 			if(cdb.play_type!=PLAYTYPE_FILE && cdb.play_track->mode==3){
-				if(fill_audio_buffer(wblk.data)<0){
+				int asize = fill_audio_buffer(wblk.data);
+				if(asize<0){
 					cdb.play_wait = 1;
 					goto _restart_wait;
+				}
+				if(asize<=4){
+					hw_delay(10000);
+				}else{
+					hw_delay(13500);
 				}
 			}else
 			{
@@ -831,6 +907,8 @@ void ss_sw_init(void)
 	cdb.SUBH  = (u8*)(info_buf+0x00da0);
 	cdb.tracks = (TRACK_INFO*)(info_buf+0x00e00); // 0x7db80
 	memset(cdb.tracks, 0, 100*sizeof(TRACK_INFO));
+	cdb.subcode_buf = (u8*)(info_buf+0x0e00+100*sizeof(TRACK_INFO));
+	cdb.subrw_buf = cdb.subcode_buf+1536;
 
 	for(i=0; i<MAX_SELECTORS; i++){
 		cdb.filter[i].range = 0xffffffff;

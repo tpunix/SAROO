@@ -212,7 +212,7 @@ typedef struct
 	u8 ctrladdr;
 	u8 track;
 	u8 index;
-	u8 unuse;
+	u8 iflag;
 
 
 ////// 数据传输类型 ///////////////////////////////////////////
@@ -258,9 +258,16 @@ typedef struct
 
 	// TOC缓存, 共102项
 	u32 *TOC;
-	// Subcode缓存
-	u8  *SUBH;
 
+	// Subcode缓存
+	u8 *SUBH;
+	FIL subcode_fp;
+	u8 *subcode_buf;
+	u8 *subrw_buf;
+	u8  has_subrw;
+	u8  subrw_wp;
+	u8  subrw_rp;
+	u8  unuse;
 
 	int play_type;
 	int play_wait;
