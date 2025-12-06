@@ -58,7 +58,9 @@ static int pad_state;
 
 int pad_read(void)
 {
-	u32 bits = 0;
+	u32 bits=0, bits1=0;
+	u8 *oreg;
+	int p;
 
 #ifdef PADMODE_DIRECT
 	PDR1 = 0x60; bits |= (PDR1 & 0x8) << 0;
@@ -82,9 +84,26 @@ int pad_read(void)
 		if(SF&1){
 			return -1;
 		}
-		bits = (OREG2<<8) | (OREG3);
+
+		oreg = (u8*)0x20100021;
+		p = 0;
+
+		// read PAD1
+		if(oreg[p]==0xf1){
+			bits = (oreg[p+4]<<8) | (oreg[p+6]);
+			bits ^= 0xFFFF;
+			p += (oreg[p+2]&0x0f)*2;
+		}else{
+			p += 2;
+		}
+		// read PAD2
+		if(oreg[p]==0xf1){
+			bits1 = (oreg[p+4]<<8) | (oreg[p+6]);
+			bits1 ^= 0xFFFF;
+			bits |= bits1;
+		}
+
 		IREG0 = 0x40;
-		bits ^= 0xFFFF;
 		pad_state = 2;
 	}else if(pad_state==2){
 		if((TVSTAT&0x0008)==0){
@@ -109,6 +128,7 @@ void pad_init(void)
     IOSEL = IOSEL1;
 #else
 	DDR1 = 0;
+	DDR2 = 0;
 	EXLE = 0;
     IOSEL = 0;
 
