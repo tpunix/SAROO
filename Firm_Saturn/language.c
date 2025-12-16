@@ -358,6 +358,30 @@ static char *lang_ro[LANG_STR_NR] = {
 };
 
 
+static char *lang_cym[LANG_STR_NR] = {
+	"Dewis Gêm(%d/%d)",
+	"Dewis Ffeil(%d/%d)",
+	"Gêm yn Cychwyn ......",
+	"Methu Cychwyn y Gêm! %d",
+	"Llwytho Ffeil ......",
+	"Methu Llwytho Ffeil! %d",
+	"Dewiswch Gêm",
+	"Chwaraewr CD System",
+	"Llwytho Disg Gêm",
+	"Cragen Dadfygio Cyfresol",
+	"Llwytho Deuaidd",
+	"Diweddariad Cadarnwedd",
+	"Yn Diweddaru... Peidiwch â Diffodd",
+	"Methu Diweddariad!",
+	"Diweddariad Wedi Gorffen! Ailgychwyn!",
+	"Dewislen Cychwyn SAROO",
+	"Yn Gwirio Disg ......",
+	"Heb Ddarganfod Disg!",
+	"Nid Disg Gêm!",
+	"Dewiswch Categori Gêm",
+};
+
+
 static char **lang_list[] = {
 	lang_zhcn,
 	lang_en,
@@ -373,6 +397,7 @@ static char **lang_list[] = {
 	lang_swe,
 	lang_el,
 	lang_ro,
+	lang_cym,
 };
 
 static const int lang_nr = sizeof(lang_list)/4;
