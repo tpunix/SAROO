@@ -496,6 +496,7 @@ u32 conio_getc(void)
 	switch(pdat_state){
 	case 0:
 		// 空闲检测
+		// Idle detection
 		if(pdat != curr_pdat){
 			curr_pdat = pdat;
 			pdat_state = 1;
@@ -504,6 +505,7 @@ u32 conio_getc(void)
 		break;
 	case 1:
 		// 等待稳定
+		// Waiting for stability
 		if(pdat == curr_pdat){
 			pdat_count += 1;
 			if(pdat_count==2){
@@ -515,10 +517,12 @@ u32 conio_getc(void)
 		break;
 	case 2:
 		// 稳定状态
+		// Stable state
 		pdat = last_pdat ^ curr_pdat;
 		last_pdat = curr_pdat;
 		if(curr_pdat){
 			// 转入重复状态
+			// Enter repeat state
 			pdat_state = 3;
 			pdat_wait  = get_timer() + MS2TICK(PAD_REPEAT_TIME);
 		}else{
@@ -528,6 +532,7 @@ u32 conio_getc(void)
 		return last_value;
 	case 3:
 		// 重复状态
+		// Repeat state
 		if(pdat != curr_pdat){
 			pdat_state = 0;
 		}else{

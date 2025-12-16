@@ -5,6 +5,7 @@ static u32 CRC32[256];
 static int init = 0;
 
 //初始化表
+// Initialize table
 static void init_table(void)
 {
 	int i,j;
@@ -24,6 +25,7 @@ static void init_table(void)
 }
 
 //crc32实现函数
+// crc32 implementation function
 u32 crc32(u8 *buf, int len, u32 crc)
 {
 	int   i;

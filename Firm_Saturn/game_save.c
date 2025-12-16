@@ -624,7 +624,7 @@ int sro_bup_delete(int dev, char *file_name)
 			has_data = 0;
 	}
 
-	// 释放数据块
+// 释放数据块
 // Release data blocks
 	if(has_data){
 		u8 *bmp = bp+0x40;

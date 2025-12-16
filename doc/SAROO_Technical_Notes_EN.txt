@@ -1,0 +1,461 @@
+
+
+Saturn A-BUS Timing
+===================
+
+Timing: 28MHz source, one cycle is approximately 36ns
+
+Address: Same cycle as CS emission, CS remains valid for 1-2 cycles
+RD: Same cycle as CS emission, one cycle after CS becomes valid
+WR: Emitted with CS
+
+
+FC0/FC1: Generally low during writes.
+FC1: Becomes high every 14.32us during reads/writes. Used for refresh control.
+
+AAS: Same cycle as CS
+
+
+
+TIM0: Emitted with address. Ends one cycle before CS becomes valid.
+TIM1: During write operations, emitted with address. One cycle after TIM0.
+TIM2: Emitted one cycle after TIM1. Same cycle as CS.
+
+These TIM1/2 can be used for delay indication.
+
+During write operations, two cycles after WR starts,
+WR0 corresponds to SS_DATA[7:0],
+WR1 corresponds to SS_DATA[15:8].
+
+
+
+ABUS CS2 space is relatively special:
+1: The ASR register controls wait states. The value of ADDR[18-15] is equivalent to the wait state count.
+2: CS2 is a 32-bit space, ADDR[19] is used to select the space mode:
+        0: 32-bit space. Regardless of address byte alignment, accesses return a 32-bit value. (Emits A1)
+        1: 16-bit space. Each access returns a 16-bit value. The upper 16 bits cannot be accessed. (A1 is always 0)
+
+
+CDBLOCK emulation uses ADDR[14-12] as the high address bits, ADDR[5-2] as the low address bits.
+
+    00: DATA_PORT
+    08: HIRQ
+    0C: HIRQ_MASK
+    18: CR1
+    1C: CR2
+    20: CR3
+    24: CR4
+    28: MPEGRGB
+
+    F0: DATATRNS (Control)
+    F4: DATATRNS (FIFO)
+    F8: DATATRNS (Status)
+
+
+Memory Map
+=========
+
+06080000 +------------------+-----+
+         |  WorkRAM_H: 512K |     |
+06000000 +------------------+ CS3 |
+05fe00d0 +------------------+     |
+         |  SCU: 208        |     |
+05fe0000 +------------------+     |
+05f80120 +------------------+     |
+         |  VDP2: 288       |     |
+05f80000 +------------------+     |
+05f01000 +------------------+     |
+         |  VDP2: 4K        |     |
+05f00000 +------------------+     |
+05e80000 +------------------+     |
+         |  VDP2: 512K      |     |
+05e00000 +------------------+     |
+05d00018 +------------------+     |
+         |  VDP1: 24        | CS2
+05d00000 +------------------+     |
+05cc0000 +------------------+     |
+         |  VDP1: 192K      |     |
+05c00000 +------------------+     |
+05b00ee4 +------------------+     |
+         |  Sound: 1M       |     |
+05a00000 +------------------+     |
+05900000 +------------------+     |
+         |  ABUS CS2:1M     |     |
+05800000 +------------------+     |
+         |  ABUS Dummy:8M   |     |
+05000000 +------------------+     |
+         |                  |     |
+         |  ABUS CS1:16M    |     |
+         |                  |     |
+04000000 +------------------+-----+
+         |                  |     |
+         |                  |     |
+         |                  |     |
+         |  ABUS CS0:32M    | CS1 |
+         |                  |     |
+         |                  |     |
+         |                  |     |
+02000000 +------------------+-----+
+01800004 +------------------+     |
+         |  SINT: 4         |     |
+01800000 +------------------+     |
+01000004 +------------------+     |
+         |  MINT: 4         |     |
+01000000 +------------------+     |
+00300000 +------------------+     |
+         |  WorkRAM_L: 1M   |     |
+00200000 +------------------+     |
+00190000 +------------------+     |
+         |  SRAM: 64K       | CS0 |
+00180000 +------------------+     |
+00100080 +------------------+     |
+         |  SMPC            |     |
+00100000 +------------------+     |
+00080000 +------------------+     |
+         |  ROM: 512K       |     |
+00000000 +------------------+-----+
+
+=========================================================================
+
+
+SAROO Saturn Address Port:
+
+    Base address 0x25807000
+
+    +00: Card ID flag, 0x5253("SR")
+    +02: Card version, 0x1101 -> Hardware version 1.1, Software version 0.1
+    +04: Card control register
+    +08: Card status register
+    +0c: A 32-bit timer, counting at 1MHz frequency. 0c is high word, 0e is low word.
+    +10: Command register to STM32. Writing this register generates an interrupt on the STM32 side.
+         Defines SDRAM space starting at 0x22800000 as the data exchange space between Saturn and STM32.
+         Currently SDRAM space does not support byte access.
+    +14: STM32 and Saturn data exchange register.
+    +18: FIFO data port (read only).
+
+
+    Card control register:
+    bit15: CDC register enable.
+           When 0, reads the system's CDC registers.
+           When 1, reads the cartridge's own CDC registers. The system should be in CDOFF state at this time, otherwise the read data is incorrect.
+           When writing CDC registers, both the system's registers and the cartridge's registers will be written. This provides a means for STM32 to
+           monitor CDC write data.
+    bit13:
+    bit12: CS0 space type.
+           00: Boot ROM
+           01: Data cartridge
+           10: 1M RAM cartridge
+           11: 4M RAM cartridge
+
+    bit8: Control LED1
+
+
+    Card status register
+    bit11: FIFO full status
+    bit10:
+     ...
+    bit0: FIFO data count
+
+=========================================================================
+
+SAROO STM32 Address Port
+
+    Base address 0x60000000
+    +00: Card ID flag, 0x5253("SR") (read only)
+    +02: Card version, 0x1101 -> Hardware version 1.1, Software version 0.1 (read only)
+    +04: Card control register
+    +06: Card status register (read only)
+    +08: FIFO data port (write only)
+    +0c: FIFO status register
+    +10: Saturn CMD register (write to reset)
+    +12: STM32 and Saturn data exchange register
+    +14: Saturn control register (read only)
+
+    +18: CDC RESP1 (read only)
+    +1a: CDC RESP2 (read only)
+    +1c: CDC RESP3 (read only)
+    +1e: CDC RESP4 (read only)
+    +20: CDC CR1  | When reading, reads CRn register
+    +22: CDC CR2  | When writing, writes RESPn register
+    +24: CDC CR3  |
+    +26: CDC CR4  |
+    +28: CDC HIRQ (write 1 to set)
+    +2a: CDC HIRQ_MASK
+    +2c: CDC HIRQ (write 1 to reset) (write only)
+    +2e: CDC MRGB (unused)
+
+
+    Card control register
+    bit9: FIFO byte order: 0: little-endian 1: big-endian
+    bit8: FIFO reset.
+    bit2: FIFO interrupt enable. FIFO half empty.
+    bit1: CMD interrupt enable. Saturn writes CMD register, generates interrupt.
+    bit0: CDC interrupt enable. Saturn writes CR4 register, generates interrupt.
+
+    Card status register
+    bit15: FPGA 100MHz clock normal operation indicator.
+    bit14: ST_IRQ status.
+    bit12: in_cmd status. Set by writing CR1, reset by reading CR4.
+    bit2: FIFO interrupt status. Write 1 to clear interrupt status.
+    bit1: CMD interrupt status. Write 1 to clear interrupt status.
+    bit0: CDC interrupt status. Write 1 to clear interrupt status.
+
+    FIFO status register
+    bit11: FIFO full status
+    bit10:
+     ...
+    bit0: FIFO data count
+
+
+
+
+Saturn side:
+22000000-22400000 4M Saturn available
+22400000-22800000 4M for RAM cartridge
+22800000-22a00000 2M Saturn and STM32 available
+22a00000-23000000 6M STM32 available
+
+
+=========================================================================
+
+61800000-61820000: 128K stores scanned disc information
+   00000-01000: Stores disc path pointers, total 1024.
+   01000-20000: Stores disc path strings.
+
+
+=========================================================================
+
+About Disc Format
+-----------------
+
+Red Book: CD-DA audio CD standard.
+Yellow Book: CD-ROM data disc standard. Extension of Red Book.
+
+
+CD-DA: Sample rate 44100Hz, precision 16bit, stereo.
+  Logical layer:
+       176400 bytes of data per second. (44100x2x2)
+       One frame has 6 samples, total 24 bytes of data.
+       One sector is 98 frames, 98x24=2352 bytes.
+       75 sectors per second. 176400/2352=75.
+
+  Physical layer:
+      Frame1: 24 bytes of valid data for one frame
+      Frame2: Frame1 plus 8 bytes of checksum
+      Frame3: Frame2 plus 1 byte of control data, i.e., subcode data
+      Frame3 plus 3 bytes of sync header (not EFM encoded), EFM (8-14) encoded, written to disc medium.
+            There are also 3 bits of merge codes between two EFM encodings.
+
++----------+---------+-----------------+------+------------------+------+
+| SyncBits | SubCode |   LeftChannel   | Qchk |   RightChannel   | Pchk |
+|     3    |    1    |       12        |   4  |        12        |   4  | Physical layer
++----------+---------+-----------------+------+------------------+------+
+.....24.3.....14.3.....14.3.14.3...14.3.14.3.....14.3.14.3........14.3... EFM physical layer
+
+
+subcode: Contains 8 channels: P Q R S T U V W
+    Generally divided into 3 groups: subcode-Q, subcode-P, subcode-RW
+    subcode-P and subcode-Q contain some control information. Can be recovered in real-time.
+    subcode-RW stores images and other CD-DA extension data.
+    MDF/MDS format images can include this information. ISO/CUE etc. do not include it. Default read as 0.
+
+
+
+
+CD-ROM/XA: Redefines the 2352-byte logical layer of CD-DA
+      0-11: 12-byte sync header: 00 FF FF FF FF FF FF FF FF FF FF 00
+     12-14: Sector address. Format: MM(minutes) SS(seconds) FF(Frame, sector)
+        15: Type.
+
+00: All-zero sector. Generally used to mark disc Lead_in and Lead_Out areas
++------+------+------+
+| Sync | Addr | Zero |
+|  12  |  4   | 2336 |
++------+------+------+
+
+01: Used to store data
++------+------+------+-----+-------+-----+
+| Sync | Addr | Data | CRC | Unuse | ECC |
+|  12  |  4   | 2048 |  4  |   8   | 276 |
++------+------+------+-----+-------+-----+
+
+02: Used to store audio/video data
++------+------+------+
+| Sync | Addr | Data |
+|  12  |  4   | 2336 |
++------+------+------+
+
+02: XA/Form1. Used to store data
++------+------+--------+------+-----+-----+
+| Sync | Addr | SubHdr | Data | CRC | ECC |
+|  12  |  4   |    8   | 2048 |  4  | 276 |
++------+------+--------+------+-----+-----+
+
+02: XA/Form2. Used to store audio/video data
++------+------+--------+------+-----+
+| Sync | Addr | SubHdr | Data | CRC |
+|  12  |  4   |    8   | 2324 |  4  |
++------+------+--------+------+-----+
+
+SubHdr: sub-header
+    FN CN SM CI FN CN SM CI
+
+    FN: File Number         Which file this block belongs to
+    CN: Channel Number      Playback channel selection
+    SM: Sub-Mode
+    CI: Coding information
+
+
+TOC
+---
+Description of information for each track on the disc.
+
+ISO defaults to one track.
+MDS/MDF/NRG/CUE etc. can describe multi-track discs.
+
+This information needs to be rebuilt when loading disc images.
+
+Track and Session
+-----------------
+A session contains several tracks. Files contained in later session tracks should be able to override files in earlier sessions.
+Only MDS/MDF supports multiple sessions.
+
+Are there cases of multi-session Saturn discs? I think there shouldn't be. They're not discs created through multiple burns.
+
+Langrisser 3 (J) is in NRG format. Track01 is a data track. Track02 is also a data track but contains all zeros, over 100MB. Purely wasting space.
+
+
+Saturn Related
+--------------
+The internal sector buffer in Saturn is uniformly 2352 bytes.
+The first 24 bytes are reserved space for various headers, filled with 0.
+
+
+=========================================================================
+
+
+cdc_get_file_scope: fid minimum is 2, fnum maximum is 254. drend meaning unknown
+
+cdc_read_dir: When fid is 0xffffff, returns up to 254 file information entries (excluding . and ..)
+
+
+file scope: fid=200 fnum=254 drend=0
+At this time calling cdc_get_file_info(2, finfo) will return REJECT.
+This indicates that the parameter fid in get_file_info refers to the sequential id in the current directory, not the id of the current page.
+Specifying fid as 203 returns the correct result.
+
+
+=========================================================================
+
+cdc_read_file(int selnum, int fid, int offset)
+
+CDB internally sets selnum to: mode=0x41 fad=[start+offset] range=[fad_size]
+
+The partition corresponding to selnum will be cleared first.
+
+After selnum is filled, reading temporarily stops until available blocks continue.
+
+
+Then ends with EFLS.
+
+
+=========================================================================
+
+// Assume partition 1 has 192 sectors
+cdc_get_del_data(1, 0, 0xffffff);
+
+// But only transferred 100 sectors
+cdc_trans_data(sbuf, 2048*100);
+cdc_end_trans(NULL);
+// After calling end_trans, even the 92 untransferred sectors will be deleted.
+// Current code needs modification to match this situation.
+
+
+=========================================================================
+
+After cdc_get_del_data executes, regardless of whether data was transferred, cdc_get_numsector returns the sector count after deletion.
+It appears that during data transfer, blocks are not immediately released. Only when end_trans is called are they released. This ensures data
+safety.
+
+=========================================================================
+
+
+3D controller detailed protocol:
+https://nfggames.com/forum2/index.php?topic=5055.0
+
+=========================================================================
+
+<Metal Max: Xenon 2>
+play_cd: start=0080874a end=00800001 mode=00
+After this command executes, if the delay is too large, causing data reading before play_end, it will freeze.
+
+=========================================================================
+
+Saturn clock configuration:
+
++------+---------+------+-----------+-----------+
+|      |   XTAL  | DIV  | 1708(320) | 1820(352) |
++------+---------+------+-----------+-----------+
+| PAL  | 14.318  |  910 | 26.873875 | 28.636000 |
++------+---------+------+-----------+-----------+
+| NTSC | 17.7344 | 1135 | 26.687538 | 28.437540 |
++------+---------+------+-----------+-----------+
+
+=========================================================================
+
+Saturn Save Format (BackUpRam)
+
+BUP is located at 0x00180000, size 64K. Because the address space here is 16-bit, but the SRAM chip used is 8-bit, so even
+addresses are floating (read as FF), only odd addresses are valid data. So BUP actual size is 32K.
+
+Data in BUP is organized in 64-byte blocks. There are 512 blocks total. First two blocks are system reserved. Block 0 is a signature,
+"BackUpRam Format" repeated 4 times. Block 1 is all zeros.
+
+The remaining blocks have a 4-byte signature at the header. 0x80000000 indicates the start of a save. 0x00000000 indicates a normal block. Whether a block is free
+needs to be determined by parsing each save.
+
+Save start block structure:
+  00: 80000000
+  04: Save name, 11 bytes.
+  0f: Language flag.
+  10: Save comment, 10 bytes.
+  1a: Save date encoding, 4 bytes.
+  1e: Save byte size, 4 bytes.
+  22: List of blocks occupied by save. Ends with 0000. If start block is full, continues to next block. Need to skip the first 4 bytes of the block.
+      Note, if the save size indicated at 20 fits within the start block, no block list is needed.
+
+  After the block list is the actual save data. The block list does not include the start block.
+
+
+=========================================================================
+
+Custom Save Format (SaroSave)
+
+First 64 bytes are the file header, followed by 64 bytes of block occupation bitmap.
+32K save, block size is 64 bytes, total 512 blocks, can be represented by a 64-byte bitmap.
+Save size doubles, block size also doubles, so bitmap size remains unchanged.
+
+Save start block occupies one block. Blocks occupied by save data are also described by a 64-byte bitmap. Data bitmap does not include start block and bitmap block.
+If it's a 32K save, bitmap occupies the block after the start block. If it's larger than 32K save, bitmap is located inside the start block.
+
+
+File header
+  00: "SaroSave"
+  08: Save byte size
+  0c: Block size
+  0e: Free block count
+  20: Game ID
+  3e: Block number of first save
+
+
+Save start block structure:
+  00: Save name, 11 bytes.
+  0c: Save byte size, 4 bytes.
+  10: Save comment, 10 bytes.
+  1a: 00
+  1b: Language flag.
+  1c: Save date encoding, 4 bytes.
+  3e: Block number of next save.
+
+
+=========================================================================
