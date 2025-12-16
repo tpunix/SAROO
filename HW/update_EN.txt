@@ -1,0 +1,31 @@
+
+SAROO V1.2
+
+
+1. Replaced MCU with STM32H750VBT6.
+     Faster speed: 200/400Mhz
+     More RAM: 1024KB
+       RAM can be used as SD card data cache
+
+2. Added USB OTG device support.
+
+3. BUGFIX:
+     Added FSMC ADV signal.
+     Fixed XC6206 packaging.
+
+4. Added a reset button for easier debugging.
+
+5. STM32 added a SPI FLASH.
+
+6. AWAIT signal added tri-state driver.
+
+7. FPGA added a SPI PSRAM.
+
+
+SAROO V1.3
+
+1. SD card signals added pull-up resistors
+
+2. FPGA_DONE signal added pull-up resistor
+
+3. Saturn cartridge slot removed SPCLK, and added AA24

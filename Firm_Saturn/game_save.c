@@ -374,7 +374,7 @@ static int find_save(char *file_name, int offset, int *last)
 /******************************************************************************/
 
 
-// ¸ù¾ÝBIOSµÄBUP´úÂë£¬Ö»ÓÐdevÎª2Ê±²Å¼ì²ânum¡£
+// ï¿½ï¿½ï¿½ï¿½BIOSï¿½ï¿½BUPï¿½ï¿½ï¿½ë£¬Ö»ï¿½ï¿½devÎª2Ê±ï¿½Å¼ï¿½ï¿½numï¿½ï¿½
 int sro_bup_sel_part(int dev, int num)
 {
 	printk("bup_sel_part(%d): %d\n", dev, num);
@@ -466,7 +466,7 @@ int sro_bup_write(int dev, BUPDIR *dir, u8 *data, int mode)
 	if(dev>1)
 		return BUP_NON;
 
-	// ¼ÆËãËùÐèµÄ¿éÊýÁ¿¡£
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	int block_size = (dev==0) ? 128 : 1024;
 	if(dev==1 && (dir->data_size < (1024-64))){
 		block_need = 0;
@@ -474,10 +474,12 @@ int sro_bup_write(int dev, BUPDIR *dir, u8 *data, int mode)
 		block_need = (dir->data_size+block_size-1)/block_size;
 	}
 
-	// 1. ¸ù¾Ýdir²éÕÒ´æµµ
+	// 1. ï¿½ï¿½ï¿½ï¿½dirï¿½ï¿½ï¿½Ò´æµµ
+	// 1. Search for save in directory
 	block = find_save(dir->file_name, 0, &last);
 
-	// 2. Èç¹ûÕÒµ½£¬ÇÒÔÊÐí¸²¸Ç£¬Ôò¸²¸ÇÐ´Èë
+	// 2. ï¿½ï¿½ï¿½ï¿½Òµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç£ï¿½ï¿½ò¸²¸ï¿½Ð´ï¿½ï¿½
+	// 2. If found and not verify mode, overwrite
 	if(block>0){
 		if(mode)
 			return BUP_FOUND;
@@ -495,21 +497,22 @@ int sro_bup_write(int dev, BUPDIR *dir, u8 *data, int mode)
 		return 0;
 	}
 
-	// 3. Î´ÕÒµ½¡£ÐÂ½¨´æµµ¡£
+	// 3. Î´ï¿½Òµï¿½ï¿½ï¿½ï¿½Â½ï¿½ï¿½æµµï¿½ï¿½
+	// 3. Not found, create new save
 	int free_block = (dev==0) ? BUPMEM->free_block: *(u16*)(MEMS_HEADER+0x0c);
 	printk("block_need=%d\n", block_need+1);
 	if((block_need+1) > free_block){
 		return BUP_NOT_ENOUGH_MEMORY;
 	}
 
-	// ·ÖÅäÆðÊ¼¿é
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½
 	block = get_free_block(0);
 	hdr = block;
 
 	bp = get_block_addr(START_BLOCK|hdr);
 	printk("start at %04x %08x\n", hdr, bp);
 
-	// Ð´¿ªÊ¼¿é
+	// Ð´ï¿½ï¿½Ê¼ï¿½ï¿½
 	memset(bp, 0, block_size);
 	memcpy(bp+0x00, dir->file_name, 11);
 	*(u32*)(bp+0x0c) = dir->data_size;
@@ -517,7 +520,7 @@ int sro_bup_write(int dev, BUPDIR *dir, u8 *data, int mode)
 	bp[0x1b] = dir->language;
 	*(u32*)(bp+0x1c) = dir->date;
 
-	// ·ÖÅä¿é
+	// ï¿½ï¿½ï¿½ï¿½ï¿½
 	block = 0;
 	for(i=0; i<block_need; i++){
 		block = get_free_block(block);
@@ -529,10 +532,10 @@ int sro_bup_write(int dev, BUPDIR *dir, u8 *data, int mode)
 		block += 1;
 	}
 
-	// Ð´Êý¾Ý
+	// Ð´ï¿½ï¿½ï¿½ï¿½
 	access_data(hdr, data, 2);
 
-	// ¸üÐÂlastÖ¸Õë
+	// ï¿½ï¿½ï¿½ï¿½lastÖ¸ï¿½ï¿½
 	if(dev==1){
 		memcpy((u8*)MEMS_HEADER+0x400+last*16, dir->file_name, 11);
 		*(u16*)(MEMS_HEADER+0x400+last*16+0x0e) = hdr;
@@ -601,7 +604,7 @@ int sro_bup_delete(int dev, char *file_name)
 	bp = get_block_addr(START_BLOCK|block);
 
 	has_data = 1;
-	// ÊÍ·Å¿ªÊ¼¿é
+	// ï¿½Í·Å¿ï¿½Ê¼ï¿½ï¿½
 	if(dev==0){
 		set_bitmap((u8*)BUPMEM->bitmap, block, 0);
 		BUPMEM->free_block += 1;
@@ -613,7 +616,7 @@ int sro_bup_delete(int dev, char *file_name)
 			has_data = 0;
 	}
 
-	// ÊÍ·ÅÊý¾Ý¿é
+	// ï¿½Í·ï¿½ï¿½ï¿½ï¿½Ý¿ï¿½
 	if(has_data){
 		u8 *bmp = bp+0x40;
 		block = 0;
@@ -636,7 +639,7 @@ int sro_bup_delete(int dev, char *file_name)
 		}
 	}
 
-	// ¸üÐÂlastÖ¸Õë
+	// ï¿½ï¿½ï¿½ï¿½lastÖ¸ï¿½ï¿½
 	if(dev==1){
 		memset((u8*)MEMS_HEADER+1024+last*16, 0, 16);
 	}else{
