@@ -26,6 +26,7 @@ int log_mask = LOG_MASK_DEFAULT;
 
 void hw_delay(int us);
 
+int do_firm_update = 0;
 
 /******************************************************************************/
 
@@ -332,6 +333,8 @@ void disk_task(void *arg)
 _restart_wait:
 		wait_ticks = (cdb.play_wait || cdb.block_free!=MAX_BLOCKS)? 1: 2;
 		retv = osSemaphoreAcquire(sem_wait_disc, wait_ticks);
+		if(do_firm_update)
+			continue;
 		if(retv==osErrorTimeout){
 			if(cdb.pause_request){
 				goto _restart_nowait;
@@ -457,10 +460,12 @@ _restart_nowait:
 					cdb.play_wait = 1;
 					goto _restart_wait;
 				}
-				if(asize<=4){
-					hw_delay(10000);
-				}else{
-					hw_delay(13500);
+				if(cdb.has_subrw && cdb.iflag&0x02){
+					if(asize<=4){
+						hw_delay(10000);
+					}else{
+						hw_delay(13500);
+					}
 				}
 			}else
 			{
