@@ -699,8 +699,12 @@ int end_trans(void)
 			}
 		}
 	}else{
-		SSLOG(_BUFIO, "end_trans: cdwnum=%08x FIFO_STAT=%08x RCNT=%04x min_num=%d\n", cdb.cdwnum, FIFO_STAT, FIFO_RCNT, min_num);
-		fifo_remain = (FIFO_STAT&0x0fff)*2; // FIFO中还有多少字节未读
+		int fifo_stat = FIFO_STAT;
+		int fifo_rcnt = FIFO_RCNT;
+		fifo_rcnt  |= (fifo_stat&0xf000)<<4;
+		fifo_remain = (fifo_stat&0x0fff)*2; // FIFO中还有多少字节未读
+
+		SSLOG(_BUFIO, "end_trans: cdwnum=%08x FIFO_STAT=%08x RCNT=%04x min_num=%d\n", cdb.cdwnum, fifo_stat, fifo_rcnt, min_num);
 		if(fifo_remain>=512){
 			//FIFO中的数据大于512字节，不会产生中断。cdwnum会少记一次。
 			cdb.cdwnum += 0x800;
@@ -2106,7 +2110,6 @@ void cdc_cmd_process(void)
 	//if(cmd!=0)
 		SSLOG(_DEBUG, "\nSS CDC: HIRQ=%04x STAT=%02x  %s\n", HIRQ, cdb.status, cmd_str(cmd));
 
-	cmd = (cdb.cr1>>8)&0xff;
 	switch(cmd){
 	// common
 	case 0x00: hirq = get_cd_status();

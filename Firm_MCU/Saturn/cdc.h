@@ -325,7 +325,7 @@ extern int total_disc;
 #define _FILTER    0x0080
 #define _DTASK     0x0100
 
-#define LOG_MASK_DEFAULT  (_FILEIO | _CDRV | _INFO | _FILTER | _DTASK)
+#define LOG_MASK_DEFAULT  (_FILEIO | _CDRV | _INFO | _DTASK)
 
 extern int log_mask;
 
