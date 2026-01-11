@@ -250,25 +250,25 @@ module SSMaster(
 
 	reg[15:0] ss_hirq;
 
+	wire st_hirq_set = (st_wr_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h28);
+	wire st_hirq_clr = (st_wr_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h2c);
+	wire ss_hirq_clr = (ss_wr_start==1 && ss_cdc_cs==1 && SS_ADDR[5:2]==4'b00_10);
 
 	always @(negedge NRESET or posedge mclk)
 	begin
 		if(NRESET==0) begin
 			ss_hirq <= 0;
 		end else begin
-			if(     st_wr_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h28)
-				// STM32 set
-				ss_hirq <= ss_hirq|ST_AD;
-			else if(st_wr_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h2c)
-				// STM32 reset
+			if(st_hirq_set) begin
+				if(ss_hirq_clr) begin
+					ss_hirq <= (ss_hirq|ST_AD)&SS_DATA;
+				end else begin
+					ss_hirq <= ss_hirq|ST_AD;
+				end
+			end else if(st_hirq_clr)
 				ss_hirq <= ss_hirq&(~ST_AD);
-			else if(ss_wr_start==1 && ss_cdc_cs==1 && SS_ADDR[5:2]==4'b00_10)
-				// Saturn reset
+			else if(ss_hirq_clr)
 				ss_hirq <= ss_hirq&SS_DATA;
-//			else if(ss_wr_start==1 && ss_cdc_cs==1 && SS_ADDR[5:2]==4'b10_01 && ss_cr1==0)
-//				// Saturn write CR4
-//				// Auto ack getStatus command
-//				ss_hirq <= ss_hirq|16'b1;
 		end
 	end
 
@@ -284,8 +284,7 @@ module SSMaster(
 		if(NRESET==0) begin
 			st_irq_cdc <= 1'b0;
 		end else begin
-			if(ss_wr_start==1 && ss_cdc_cs==1 && SS_ADDR[5:2]==4'b10_01) // && ss_cr1!=0)
-				// SS write CR4 and not a getStatus command
+			if(ss_wr_start==1 && ss_cdc_cs==1 && SS_ADDR[5:2]==4'b10_01)
 				st_irq_cdc <= 1'b1;
 			else if(st_wr_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h06)
 				st_irq_cdc <= st_irq_cdc&(~ST_AD[0]);
@@ -374,13 +373,13 @@ module SSMaster(
 	begin
 		st_reg_data_out <= 
 						(fsmc_addr[7:0]==8'h00)? 16'h5253 : // ID: "SR"
-						(fsmc_addr[7:0]==8'h02)? 16'h1205 : // ver: HW1.2 && SW0.5
+						(fsmc_addr[7:0]==8'h02)? 16'h1206 : // ver: HW1.2 && SW0.5
 						(fsmc_addr[7:0]==8'h04)? st_reg_ctrl :
 						(fsmc_addr[7:0]==8'h06)? st_reg_stat :
 						(fsmc_addr[7:0]==8'h08)? st_fifo_data_out :
 						(fsmc_addr[7:0]==8'h0a)? st_fifo_data_out :
 						(fsmc_addr[7:0]==8'h0c)? st_fifo_stat :
-						(fsmc_addr[7:0]==8'h0e)? st_fifo_rcnt :
+						(fsmc_addr[7:0]==8'h0e)? st_fifo_rcnt[15:0] :
 						(fsmc_addr[7:0]==8'h10)? ss_reg_cmd :
 						(fsmc_addr[7:0]==8'h12)? ss_reg_data :
 						(fsmc_addr[7:0]==8'h14)? ss_reg_ctrl :
@@ -421,7 +420,7 @@ module SSMaster(
 		5'b0, st_irq_fifo, st_irq_cmd, st_irq_cdc
 	};
 
-	wire[15:0] st_fifo_stat = {4'b0, fifo_full, fifo_usedw};
+	wire[15:0] st_fifo_stat = {st_fifo_rcnt[19:16], fifo_full, fifo_usedw};
 
 
 	wire st_irq_fifoen = st_reg_ctrl[2];
@@ -503,7 +502,7 @@ module SSMaster(
 	begin
 		ss_bcr_data_out <= 
 			(SS_ADDR[5:1]==5'b00_000)? 16'h5253 : // ID: "SR"
-			(SS_ADDR[5:1]==5'b00_001)? 16'h1205 : // ver: HW1.2 && SW0.5
+			(SS_ADDR[5:1]==5'b00_001)? 16'h1206 : // ver: HW1.2 && SW0.6
 			(SS_ADDR[5:2]==4'b00_01 )? ss_reg_ctrl :
 			(SS_ADDR[5:2]==4'b00_10 )? ss_reg_stat :
 			(SS_ADDR[5:1]==5'b00_110)? ss_reg_timer[31:16] :
@@ -601,11 +600,11 @@ module SSMaster(
 			);
 
 	// Saturn set and STM32 reset
-	reg[15:0] st_fifo_rcnt;
+	reg[19:0] st_fifo_rcnt;
 	always @(negedge NRESET or posedge mclk)
 	begin
 		if(NRESET==0)
-			st_fifo_rcnt <= 4'b0000;
+			st_fifo_rcnt <= 0;
 		else if(st_wr_start==1 && fsmc_addr[24]==0 && fsmc_addr[7:0]==8'h0e)
 			st_fifo_rcnt <= 0;
 		else if(ss_fifo_read)
@@ -671,7 +670,7 @@ module SSMaster(
 	reg[11:0] st_reg_sdram;
 
 	// STM32 is LittleEndian system
-	wire[25:0] st_ram_addr = {2'b0, fsmc_addr[23:0]};
+	wire[25:0] st_ram_addr = {st_reg_ctrl[11:10], fsmc_addr[23:0]};
 	wire[ 1:0] st_mask = {ST_BL1,ST_BL0};
 	wire[15:0] st_ram_data_out;
 	wire st_ram_wait;
@@ -694,7 +693,8 @@ module SSMaster(
 	reg[25:0] ss_ram_addr;
 	always @(posedge mclk)
 	begin
-		ss_ram_addr[25:24] <= 2'b0;
+		ss_ram_addr[25] <= 1'b0;
+		ss_ram_addr[24] <= st_reg_ctrl[12] & SS_SCLK;
 		ss_ram_addr[23:21] <= SS_ADDR[23:21];
 
 		if(SS_ADDR[23:22]==2'b01 && ss_cs0_type==2'b10)
