@@ -242,6 +242,37 @@ int mem_test(u32 addr, int size)
 
 /******************************************************************************/
 
+#define FIRM_BUFFER 0x24002000
+
+void update_firm(char *firm_file)
+{
+	int key, len;
+
+	do_firm_update = 1;
+
+	key = disable_irq();
+	len = tiny_xmodem_recv((u8*)FIRM_BUFFER);
+	restore_irq(key);
+
+	if(len){
+		FIL fp;
+		FRESULT fret = f_open(&fp, firm_file, FA_CREATE_ALWAYS|FA_WRITE);
+		if(fret!=FR_OK){
+			printk("Open %s failed! %d\n", firm_file, fret);
+		}else{
+			u32 wlen = 0;
+			f_write(&fp, (u8*)FIRM_BUFFER, len, &wlen);
+			f_close(&fp);
+			printk("Write %s: %d bytes\n", firm_file, wlen);
+		}
+	}
+
+	do_firm_update = 0;
+}
+
+
+/******************************************************************************/
+
 
 #define CMD_START if(0){}
 #define CMD(x) else if(strcmp(cmd, #x)==0)
@@ -334,47 +365,24 @@ void simple_shell(void)
 		}
 
 		CMD(upmcu){
-			int key = disable_irq();
-			int len = tiny_xmodem_recv((u8*)0x61600000);
-			restore_irq(key);
-
-			if(len){
-				FIL fp;
-				FRESULT fret = f_open(&fp, "/SAROO/mcuapp.bin", FA_CREATE_ALWAYS|FA_WRITE);
-				if(fret!=FR_OK){
-					printk("Open mcuapp.bin failed! %d\n", fret);
-				}else{
-					u32 wlen = 0;
-					f_write(&fp, (u8*)0x61600000, len, &wlen);
-					f_close(&fp);
-					printk("Write mcuapp.bin: %d bytes\n", wlen);
-				}
-			}
+			update_firm("/SAROO/mcuapp.bin");
 		}
 		CMD(upss){
-			int key = disable_irq();
-			int len = tiny_xmodem_recv((u8*)0x61600000);
-			restore_irq(key);
-
-			if(len){
-				FIL fp;
-				FRESULT fret = f_open(&fp, "/SAROO/ssfirm.bin", FA_CREATE_ALWAYS|FA_WRITE);
-				if(fret!=FR_OK){
-					printk("Open ssfirm.bin failed! %d\n", fret);
-				}else{
-					u32 wlen = 0;
-					f_write(&fp, (u8*)0x61600000, len, &wlen);
-					f_close(&fp);
-					printk("Write ssfirm.bin: %d bytes\n", wlen);
-				}
-			}
+			update_firm("/SAROO/ssfirm.bin");
+		}
+		CMD(upfpga){
+			update_firm("/SAROO/update/SSMaster.rbf");
 		}
 
 #ifndef BOOT
+
+#if 0
 		CMD(aplay){
 			void play_i2s(char *audio_file);
 			play_i2s(sp);
 		}
+#endif
+
 		CMD(lscue){
 			int list_disc(int cid, int show);
 			list_disc(arg[0], 1);
@@ -439,18 +447,6 @@ void simple_shell(void)
 				pend_delay = arg[0];
 			}
 			printk("pend_delay: %d\n", pend_delay);
-		}
-		CMD(seram){
-			FIL fp;
-			int retv = f_open(&fp, "/exram.bin", FA_CREATE_ALWAYS|FA_WRITE);
-			if(retv==FR_OK){
-				u32 wsize = 0x00400000;
-				retv = f_write(&fp, (void*)0x61400000, 0x00400000, &wsize);
-				f_close(&fp);
-				printk("save to exram.bin: %d %d\n", retv, wsize);
-			}else{
-				printk("create exram.bin failed! %d\n", retv);
-			}
 		}
 		CMD(pt){
 			void show_pt(int id);

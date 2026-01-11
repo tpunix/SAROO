@@ -25,6 +25,8 @@ typedef long long s64;
 
 /******************************************************************************/
 
+extern int do_firm_update;
+
 u32 get_build_date(void);
 
 void *malloc(uint32_t size);
