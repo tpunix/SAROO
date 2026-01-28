@@ -373,7 +373,7 @@ module SSMaster(
 	begin
 		st_reg_data_out <= 
 						(fsmc_addr[7:0]==8'h00)? 16'h5253 : // ID: "SR"
-						(fsmc_addr[7:0]==8'h02)? 16'h1206 : // ver: HW1.2 && SW0.5
+						(fsmc_addr[7:0]==8'h02)? 16'h1206 : // ver: HW1.2 && SW0.6
 						(fsmc_addr[7:0]==8'h04)? st_reg_ctrl :
 						(fsmc_addr[7:0]==8'h06)? st_reg_stat :
 						(fsmc_addr[7:0]==8'h08)? st_fifo_data_out :
@@ -416,7 +416,7 @@ module SSMaster(
 	wire st_ram_cs = (fsmc_cs==0 && ST_ADDR[7]==1);
 
 	wire[15:0] st_reg_stat = {
-		pll_locked, ST_IRQ, 1'b0, ss_in_cmd, 4'b0,
+		pll_locked, ST_IRQ, SS_SCLK, ss_in_cmd, 4'b0,
 		5'b0, st_irq_fifo, st_irq_cmd, st_irq_cdc
 	};
 
