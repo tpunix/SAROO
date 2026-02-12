@@ -8,6 +8,7 @@
 //         0.3:
 //         0.4: support put_sector_data
 //         0.5: CDC bug fix
+//         0.6: HIRQ bug fix
 
 
 module SSMaster(
