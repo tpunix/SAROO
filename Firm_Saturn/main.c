@@ -92,7 +92,7 @@ int pad_read(void)
 		if(oreg[p]==0xf1){
 			bits = (oreg[p+4]<<8) | (oreg[p+6]);
 			bits ^= 0xFFFF;
-			p += (oreg[p+2]&0x0f)*2;
+			p += (oreg[p+2]&0x0f)*4;
 		}else{
 			p += 2;
 		}
