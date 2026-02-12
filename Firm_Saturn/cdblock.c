@@ -698,6 +698,7 @@ void cdc_auth_hram(CDCMD *resp, int delay)
 
 	for(int i=0; i<delay; i++){
 		__asm volatile("":::"memory"); // 防止被gcc优化掉
+		// Prevent gcc from optimizing it away
 	}
 
 	// cdc_move_data(0,0,0,50);
@@ -886,6 +887,7 @@ int cdblock_check(void)
 		cdc_get_status(&cdstat);
 		cdstat &= 0x0f;
 		// cdc_reset_selector会有比较长的BUSY状态。
+		// cdc_reset_selector has a relatively long BUSY state.
 		if(cdstat==STATUS_BUSY)
 			continue;
 		if(cdstat==STATUS_OPEN || cdstat==STATUS_NODISC){
