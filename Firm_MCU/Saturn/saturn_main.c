@@ -61,7 +61,12 @@ void init_toc(void)
 	cdb.TOC[99]  = bswap32((cdb.tracks[0].ctrl_addr<<24) | 0x010000);
 	cdb.TOC[100] = bswap32((last->ctrl_addr<<24) | (cdb.track_num<<16));
 	cdb.TOC[101] = bswap32((last->ctrl_addr<<24) | (last->fad_end+1));
-	
+
+	cdb.trans_type = 0;
+	cdb.cdwnum = 0;
+	cdb.cdir_lba = 0;
+	cdb.root_lba = 0;
+
 	cdb.status = STAT_PAUSE;
 	set_status(cdb.status);
 
@@ -626,6 +631,16 @@ void ss_cmd_handle(void)
 		SS_CMD = 0;
 		break;
 	case SSCMD_LOADDISC:
+		// Stop Play task
+		if(cdb.play_type){
+			cdb.pause_request = 1;
+			cdb.play_wait = 0;
+			disk_task_wakeup();
+			do{
+				wait_pause_ok();
+			}while(cdb.pause_request);
+		}
+
 		// 装载镜像
 		retv = load_disc(SS_ARG);
 		SS_ARG = retv;
