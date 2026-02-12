@@ -267,7 +267,7 @@ typedef struct
 	u8  has_subrw;
 	u8  subrw_wp;
 	u8  subrw_rp;
-	u8  unuse;
+	u8  scan_dir;
 
 	int play_type;
 	int play_wait;

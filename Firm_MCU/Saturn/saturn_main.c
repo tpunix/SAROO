@@ -217,7 +217,7 @@ int get_sector(int fad, BLOCK *wblk)
 		//SSLOG(_DTASK, " fad_%08x not found. need read from file.\n", fad);
 		
 		// 先读subcode. 最多读1536字节((32768/2048)*96).
-		if(cdb.has_subrw && cdb.iflag&0x02){
+		if(cdb.has_subrw && cdb.iflag&0x02 && cdb.status!=STAT_SCAN){
 			f_lseek(&cdb.subcode_fp, (fad-150)*96);
 			f_read(&cdb.subcode_fp, sector_buffer, 1536, (u32*)&nread);
 			if(cdb.has_subrw==1){
@@ -232,7 +232,11 @@ int get_sector(int fad, BLOCK *wblk)
 		cdb.ctrladdr = cdb.play_track->ctrl_addr;
 		cdb.index = 1;
 
-		buf_fad_start = fad;
+		if(cdb.status==STAT_SCAN){
+			buf_fad_start = fad-13;
+		}else{
+			buf_fad_start = fad;
+		}
 		buf_fad_size = cdb.play_track->sector_size;
 
 		dp = cdb.play_track->file_offset+(fad-cdb.play_track->fad_start)*cdb.play_track->sector_size;
@@ -268,7 +272,7 @@ int get_sector(int fad, BLOCK *wblk)
 	}
 
 	// 处理subcode
-	if(cdb.has_subrw && cdb.iflag&0x02){
+	if(cdb.has_subrw && cdb.iflag&0x02 && cdb.status!=STAT_SCAN){
 		u8 *sbuf = cdb.subcode_buf+(fad-buf_fad_start)*96;
 		for(int i=0; i<4; i++){
 			memcpy(cdb.subrw_buf+cdb.subrw_wp*24, sbuf, 24);
@@ -429,7 +433,8 @@ _restart_nowait:
 				lazy_play_state = 0;
 			}
 		}else{
-			cdb.status = STAT_PLAY;
+			if(cdb.status!=STAT_SCAN)
+				cdb.status = STAT_PLAY;
 		}
 		if(old_status!=cdb.status){
 			if(cdb.play_track->mode==3){
@@ -460,7 +465,7 @@ _restart_nowait:
 					cdb.play_wait = 1;
 					goto _restart_wait;
 				}
-				if(cdb.has_subrw && cdb.iflag&0x02){
+				if(cdb.has_subrw && cdb.iflag&0x02 && cdb.status!=STAT_SCAN){
 					if(asize<=4){
 						hw_delay(10000);
 					}else{
@@ -495,7 +500,15 @@ _restart_nowait:
 			}
 
 			cdb.old_fad = cdb.fad;
-			cdb.fad++;
+			if(cdb.status==STAT_SCAN){
+				if(cdb.scan_dir==0){
+					cdb.fad += 8;
+				}else{
+					cdb.fad -= 8;
+				}
+			}else{
+				cdb.fad++;
+			}
 		}
 
 		SSLOG(_DTASK, "\nplay end! fad=%08x end=%08x repcnt=%d maxrep=%d play_type=%d\n",

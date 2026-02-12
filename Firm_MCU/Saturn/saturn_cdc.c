@@ -913,7 +913,15 @@ int seek_cd(void)
 }
 
 // 0x12 [SR]
-// Scan not support
+int scan_cd(void)
+{
+	cdb.scan_dir = (cdb.cr1&0xff);
+	SSLOG(_CDRV, "\nscan_cd: dir=%d\n", cdb.scan_dir);
+
+	cdb.status = STAT_SCAN;
+	set_report(cdb.status);
+	return 0;
+}
 
 /******************************************************************************/
 // Subcode 相关命令
@@ -2046,6 +2054,7 @@ char *cmd_str(int cmd)
 	// cd drive
 	case 0x10: return "play_cd";
 	case 0x11: return "seek_cd";
+	case 0x12: return "scan_cd";
 
 	// subcode
 	case 0x20: return "get_subcode";
@@ -2131,6 +2140,8 @@ void cdc_cmd_process(void)
 	case 0x10: hirq = play_cd();
 		break;
 	case 0x11: hirq = seek_cd();
+		break;
+	case 0x12: hirq = scan_cd();
 		break;
 
 	// subcode
