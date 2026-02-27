@@ -357,6 +357,28 @@ static char *lang_ro[LANG_STR_NR] = {
 	"Selectați categoria de jocuri",
 };
 
+static char *lang_ca[LANG_STR_NR] = {
+	"Seleccionar joc(%d/%d)",
+	"Seleccionar fitxer(%d/%d)",
+	"Carregant joc ......",
+	"Error al carregar el joc! %d",
+	"Carregant fitxer ......",
+	"Error al carregar el fitxer! %d",
+	"Seleccionar joc",
+	"Reproductor CD del Sistema",
+	"Carregar disc de joc",
+	"Consola de depuració sèrie UART",
+	"Carregar binari",
+	"Actualitzar firmware",
+	"Actualitzant... No apagueu la consola!!",
+	"Actualització fallida!",
+	"Actualització completada! Ja podeu reiniciar!",
+	"SAROO Menú d'arrencada",
+	"Comprovant disc .....",
+	"Disc no trobat!",
+	"No és un disc de joc!",
+	"Seleccionar categoria de joc",
+};
 
 static char **lang_list[] = {
 	lang_zhcn,
@@ -373,6 +395,7 @@ static char **lang_list[] = {
 	lang_swe,
 	lang_el,
 	lang_ro,
+	lang_ca,
 };
 
 static const int lang_nr = sizeof(lang_list)/4;
