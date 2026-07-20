@@ -179,6 +179,7 @@ int sr_mems_import(int slot_id, int save_id, char *save_name)
 
 	if(block){
 		// overwrite
+		u8 *sbp;
 		char sname[20];
 		if(save_name==NULL){
 			sprintf(sname, "%s.bin", bp);
@@ -188,7 +189,10 @@ int sr_mems_import(int slot_id, int save_id, char *save_name)
 		if(save==NULL)
 			return -1;
 
-		*(u32*)(bp+0x1c) = save->date;
+		// bp points to the 16-byte directory entry, not the save block.
+		// The date lives in the save's start block, so update it there.
+		sbp = get_block_addr(block);
+		*(u32*)(sbp+0x1c) = save->date;
 		access_data(block, save->dbuf, 2);
 		printf("Import %s from %s.\n", bp, save_name);
 		return 0;
