@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAROO Save Editor — Web</title>
+<style>
+  :root {
+    --bg:#12141a; --panel:#1b1e27; --panel2:#232734; --edge:#2f3444;
+    --txt:#e6e8ef; --muted:#9aa2b4; --accent:#4f8cff; --accent2:#3a6fd8;
+    --danger:#e2564d; --ok:#37b26b; --warn:#e0a13a;
+    --radius:10px;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body {
+    background:var(--bg); color:var(--txt);
+    font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  header {
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding:12px 18px; background:var(--panel); border-bottom:1px solid var(--edge);
+    position:sticky; top:0; z-index:20;
+  }
+  header h1 { font-size:16px; margin:0; font-weight:650; letter-spacing:.2px; }
+  header h1 small { color:var(--muted); font-weight:400; font-size:12px; margin-left:6px; }
+  .spacer { flex:1; }
+  button, .btn {
+    font:inherit; cursor:pointer; border:1px solid var(--edge); background:var(--panel2);
+    color:var(--txt); padding:7px 12px; border-radius:8px; display:inline-flex; align-items:center; gap:6px;
+    transition:background .12s,border-color .12s; text-decoration:none;
+  }
+  a.btn, a.btn:hover { color:var(--txt); }
+  a.btn.donate { color:#fff; background:#0070ba; border-color:#0070ba; }
+  a.btn.donate:hover { background:#005ea6; }
+  a.btn.donate svg { color:#ffc439; }
+  button:hover, .btn:hover { background:#2c3142; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover { background:var(--accent2); }
+  button.danger { color:#ffb9b4; border-color:#4a2b2b; }
+  button.danger:hover { background:#3a2323; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button.mini { padding:4px 8px; font-size:12px; }
+
+  main { padding:18px; max-width:1200px; margin:0 auto; }
+
+  #drop {
+    border:2px dashed var(--edge); border-radius:var(--radius); padding:48px 18px; text-align:center;
+    color:var(--muted); background:var(--panel); margin-bottom:18px;
+  }
+  #drop.hot { border-color:var(--accent); color:var(--txt); background:#1a2233; }
+  #drop b { color:var(--txt); }
+  #drop .kinds { margin-top:10px; font-size:12px; }
+
+  .bar {
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px;
+    padding:10px 12px; background:var(--panel); border:1px solid var(--edge); border-radius:var(--radius);
+  }
+  .bar .muted { color:var(--muted); }
+  .badge { display:inline-block; padding:2px 9px; border-radius:6px; font-size:12px; font-weight:600;
+    background:#1d2b45; border:1px solid #2c4368; color:#a9c6ff; }
+  .badge.ro { background:#3a2f1a; border-color:#5a4a2b; color:#e7c78a; }
+
+  .slot {
+    background:var(--panel); border:1px solid var(--edge); border-radius:var(--radius);
+    margin-bottom:16px; overflow:hidden;
+  }
+  .slot > .head {
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:11px 14px; background:var(--panel2); border-bottom:1px solid var(--edge);
+  }
+  .slot > .head .name { font-weight:650; font-size:14px; word-break:break-all; }
+  .slot > .head .sub { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; }
+
+  .tablewrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; min-width:560px; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--edge); vertical-align:middle; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+  tr:last-child td { border-bottom:none; }
+  td.name { font-weight:600; white-space:nowrap; }
+  td.num { font-variant-numeric:tabular-nums; color:var(--muted); white-space:nowrap; }
+  td.actions { text-align:right; white-space:nowrap; }
+  td.actions .grp { display:inline-flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+  .emptyrow td { color:var(--muted); text-align:center; padding:22px; }
+
+  .empty { text-align:center; color:var(--muted); padding:40px; }
+
+  /* modal */
+  .modal-bg {
+    position:fixed; inset:0; background:rgba(6,8,12,.66); display:none;
+    align-items:center; justify-content:center; z-index:50; padding:18px;
+  }
+  .modal-bg.show { display:flex; }
+  .modal {
+    background:var(--panel); border:1px solid var(--edge); border-radius:14px;
+    width:min(460px,100%); max-height:92vh; overflow:auto; padding:20px;
+  }
+  .modal.wide { width:min(720px,100%); }
+
+  /* hex editor */
+  .hexwrap { margin-bottom:12px; }
+  .hexbar { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:6px; }
+  .hexbar .lbl { color:var(--muted); font-size:12px; }
+  .hexview {
+    font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:#15181f; border:1px solid var(--edge); border-radius:8px;
+    padding:8px 10px; max-height:230px; overflow:auto; white-space:pre; tab-size:2;
+  }
+  .hexrow { white-space:pre; }
+  .hoff { color:var(--muted); user-select:none; }
+  .hb { border-radius:3px; cursor:text; }
+  .hb:hover { background:#33405a; }
+  .hb.dirty { color:var(--warn); }
+  .hascii { color:var(--muted); user-select:none; }
+  .ha.dirty { color:var(--warn); }
+  .hexcell {
+    width:2ch; font:inherit; background:#12305a; color:var(--txt);
+    border:1px solid var(--accent); border-radius:3px; padding:0; margin:0;
+    text-align:center; text-transform:lowercase; outline:none; vertical-align:baseline;
+  }
+  .modal h2 { margin:0 0 14px; font-size:16px; }
+  label.field { display:block; margin-bottom:12px; }
+  label.field span { display:block; color:var(--muted); font-size:12px; margin-bottom:4px; }
+  label.field input, label.field select {
+    width:100%; background:var(--panel2); border:1px solid var(--edge); color:var(--txt);
+    padding:8px 10px; border-radius:8px; font:inherit;
+  }
+  .note { color:var(--muted); font-size:12px; margin:4px 0 0; }
+  .err { color:#ffb9b4; font-size:12px; min-height:16px; margin-top:4px; }
+  .modal .footer { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+
+  #toast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--panel2); border:1px solid var(--edge); padding:10px 16px; border-radius:8px;
+    z-index:100; opacity:0; transition:opacity .25s; pointer-events:none; max-width:90vw;
+  }
+  #toast.show { opacity:1; }
+  #toast.ok { border-color:var(--ok); } #toast.err { border-color:var(--danger); }
+
+  .hint { color:var(--muted); font-size:12px; }
+  a { color:var(--accent); }
+  code { background:var(--panel2); padding:1px 5px; border-radius:4px; font-size:12px; }
+
+  /* dropdown */
+  .menu { position:relative; display:inline-block; }
+  .menu > .items { display:none; position:absolute; right:0; top:calc(100% + 4px); z-index:30;
+    background:var(--panel2); border:1px solid var(--edge); border-radius:8px; padding:4px; min-width:150px;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .menu.open > .items { display:block; }
+  .menu > .items button { display:block; width:100%; text-align:left; border:none; background:none; padding:6px 10px; border-radius:6px; }
+  .menu > .items button:hover { background:#333a4d; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SAROO Save Editor <small>web edition · by <a href="https://github.com/bucanero/" target="_blank" rel="noopener noreferrer">Bucanero</a></small></h1>
+  <a class="btn" href="https://github.com/tpunix/SAROO" target="_blank" rel="noopener noreferrer" title="SAROO on GitHub">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+  <a class="btn donate" href="https://paypal.me/bucanerodev" target="_blank" rel="noopener noreferrer" title="Support the developer via PayPal">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+    Support
+  </a>
+  <div class="spacer"></div>
+  <button id="btnOpen">📂 Open .BIN</button>
+  <button id="btnNew">✨ New SAROO save</button>
+  <button id="btnExport" class="primary">💾 Export .BIN</button>
+</header>
+
+<main>
+  <div id="drop">
+    Drag &amp; drop a SAROO/Saturn save file here, or use <b>Open .BIN</b>.
+    <div class="kinds">Supports <b>SS_SAVE.BIN</b> (SAROO save) · <b>SS_BUP.BIN</b> (Saturn Backup RAM) · <b>SS_MEMS.BIN</b> (SaroMems). Changes stay in memory until you <b>Export .BIN</b>.</div>
+  </div>
+
+  <div class="bar" id="bar" style="display:none">
+    <span class="badge" id="fmtBadge"></span>
+    <span class="muted" id="fileInfo"></span>
+    <div class="spacer"></div>
+    <button id="btnNewSlot" class="mini" style="display:none">➕ New slot</button>
+  </div>
+
+  <div id="content"></div>
+  <div class="empty" id="emptyMsg" style="display:none">No save file loaded. Open a <code>.BIN</code> to begin.</div>
+</main>
+
+<!-- Edit metadata modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal wide">
+    <h2 id="editTitle">Edit save</h2>
+    <div class="row" style="display:flex;gap:16px;flex-wrap:wrap">
+      <label class="field" style="flex:1;min-width:150px"><span>File name (max 11 chars)</span>
+        <input type="text" id="edName" maxlength="11" placeholder="SAVENAME"></label>
+      <label class="field" style="flex:1;min-width:150px"><span>Comment (max 10 chars)</span>
+        <input type="text" id="edComment" maxlength="10" placeholder="comment"></label>
+      <label class="field" style="flex:0 0 140px"><span>Language</span>
+        <select id="edLang"></select></label>
+    </div>
+    <div class="hexwrap">
+      <div class="hexbar">
+        <span class="lbl">Save data · <span id="hexSize"></span></span>
+        <span class="hint" id="hexHint">Click a byte to edit its value</span>
+      </div>
+      <div id="hexView" class="hexview"></div>
+    </div>
+    <div class="err" id="edErr"></div>
+    <div class="footer">
+      <button id="edCancel">Cancel</button>
+      <button id="edSave" class="primary">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- New slot modal -->
+<div class="modal-bg" id="slotModal">
+  <div class="modal">
+    <h2>New SAROO slot</h2>
+    <label class="field"><span>Game ID (max 16 chars, e.g. MK-81088 or a folder name)</span>
+      <input type="text" id="slotId" maxlength="16" placeholder="GAME001"></label>
+    <p class="note">Adds an empty 64&nbsp;KB save slot. Import saves into it afterwards.</p>
+    <div class="err" id="slotErr"></div>
+    <div class="footer">
+      <button id="slotCancel">Cancel</button>
+      <button id="slotCreate" class="primary">Create slot</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileOpen" accept=".bin,application/octet-stream" style="display:none">
+<input type="file" id="fileImport" accept=".sro,.bup,.bin,.xml,application/octet-stream,application/xml" style="display:none">
+<div id="toast"></div>
+
+<script>
+// ============================================================================
+// SAROO savetool codec — faithful JS port of tools/savetool (C).
+// Operates on the whole file buffer in place (mirrors bup_flush()).
+// ============================================================================
+
+// ---- byte helpers (big-endian, matching C get_be*/put_be*) ----
+const be32 = (u,o)=>((u[o]<<24)|(u[o+1]<<16)|(u[o+2]<<8)|u[o+3])>>>0;
+const be16 = (u,o)=>((u[o]<<8)|u[o+1])>>>0;
+function wbe32(u,o,v){ u[o]=(v>>>24)&255; u[o+1]=(v>>>16)&255; u[o+2]=(v>>>8)&255; u[o+3]=v&255; }
+function wbe16(u,o,v){ u[o]=(v>>>8)&255; u[o+1]=v&255; }
+function setBit(u,base,idx,val){ const byte=base+(idx>>3), mask=1<<(idx&7); if(val) u[byte]|=mask; else u[byte]&=~mask; }
+function getBit(u,base,idx){ return (u[base+(idx>>3)]>>(idx&7))&1; }
+function cstr(u,off,max){ let s=''; for(let i=0;i<max;i++){ const c=u[off+i]; if(c===0) break; s+=String.fromCharCode(c); } return s; }
+function writeFixed(u,off,str,len){ for(let i=0;i<len;i++) u[off+i]= i<str.length ? (str.charCodeAt(i)&0xff) : 0; }
+// Write a fixed-length field: prefer verbatim raw bytes (faithful round-trip, incl. any
+// bytes past the null terminator, exactly like the C tool's memcpy) else the null-padded string.
+function writeField(u,off,len,raw,str){ if(raw){ for(let i=0;i<len;i++) u[off+i]=raw[i]||0; } else writeFixed(u,off,str,len); }
+
+function crc32b(data,off,len){
+  let crc=0xFFFFFFFF>>>0;
+  for(let n=0;n<len;n++){
+    crc=(crc^data[off+n])>>>0;
+    for(let j=0;j<8;j++) crc=((crc>>>1)^(0xEDB88320 & (-(crc&1)>>>0)))>>>0;
+  }
+  return (~crc)>>>0;
+}
+
+// ---- Saturn BUP date (minutes since 1980-01-01 00:00) ----
+const isLeap = y => (y%4===0 && y%100!==0) || y%400===0;
+function decodeDate(v){
+  if(!v) return null;
+  let m=v%60, t=Math.floor(v/60); let h=t%24; let days=Math.floor(t/24);
+  let year=1980; for(;;){ const dy=isLeap(year)?366:365; if(days>=dy){ days-=dy; year++; } else break; }
+  const md=[31,isLeap(year)?29:28,31,30,31,30,31,31,30,31,30,31]; let mo=0;
+  while(days>=md[mo]){ days-=md[mo]; mo++; }
+  return {year,month:mo+1,day:days+1,hour:h,min:m};
+}
+function encodeDate(d){
+  let days=0; for(let y=1980;y<d.year;y++) days+=isLeap(y)?366:365;
+  const md=[31,isLeap(d.year)?29:28,31,30,31,30,31,31,30,31,30,31];
+  for(let m=1;m<d.month;m++) days+=md[m-1];
+  days+=d.day-1;
+  return (((days*24)+d.hour)*60+d.min)>>>0;
+}
+
+// ---- raw save (.SRO SSAVERAW / .BUP Vmem) parse & build ----
+function parseRawSave(u){
+  const magic = cstr(u,0,8);
+  if(u[0]===0x56 && u[1]===0x6d && u[2]===0x65 && u[3]===0x6d){ // "Vmem"
+    const dataSize=be32(u,0x2c), date=be32(u,0x28);
+    return { fmt:'BUP', filename:cstr(u,0x10,11), comment:cstr(u,0x1c,10),
+             rawFilename:u.slice(0x10,0x1b), rawComment:u.slice(0x1c,0x26),
+             language:u[0x27], date, dataSize, data:u.slice(0x40,0x40+dataSize) };
+  }
+  if(magic==='SSAVERAW'){
+    const dataSize=be32(u,0x1c), date=be32(u,0x2c);
+    const crc=be32(u,0x0c);
+    const rec={ fmt:'SRO', filename:cstr(u,0x10,11), comment:cstr(u,0x20,10),
+                rawFilename:u.slice(0x10,0x1b), rawComment:u.slice(0x20,0x2a),
+                language:u[0x2b], date, dataSize, data:u.slice(0x40,0x40+dataSize), crcOk:true };
+    if(crc && crc!==crc32b(u,0x10,dataSize+0x30)) rec.crcOk=false;
+    return rec;
+  }
+  return null;
+}
+
+function buildSRO(s){
+  const buf=new Uint8Array(0x40+s.dataSize);
+  writeFixed(buf,0,"SSAVERAW",12);
+  writeField(buf,0x10,11,s.rawFilename,s.filename);
+  wbe32(buf,0x1c,s.dataSize);
+  writeField(buf,0x20,10,s.rawComment,s.comment);
+  buf[0x2b]=s.language&0xff;
+  wbe32(buf,0x2c,s.date>>>0);
+  buf.set(s.data,0x40);
+  wbe32(buf,0x0c,crc32b(buf,0x10,s.dataSize+0x30));
+  return buf;
+}
+function buildBUP(s){
+  const buf=new Uint8Array(0x40+s.dataSize);
+  writeFixed(buf,0,"Vmem",4);
+  writeField(buf,0x10,11,s.rawFilename,s.filename); // dir.filename[12], 11 significant
+  writeField(buf,0x1c,10,s.rawComment,s.comment);   // dir.comment[11]
+  buf[0x27]=s.language&0xff;
+  wbe32(buf,0x28,s.date>>>0);          // dir.date
+  wbe32(buf,0x2c,s.dataSize);          // dir.datasize
+  wbe32(buf,0x34,s.date>>>0);          // header date
+  buf.set(s.data,0x40);
+  return buf;
+}
+
+// ============================================================================
+// Container controller
+// ============================================================================
+const LANGS=['Japanese','English','French','German','Spanish','Italian'];
+
+function detect(u){
+  if(cstr(u,0,16)==="Saroo Save File") return {type:0};
+  if(cstr(u,0,16)==="BackUpRam Format") return {type:1,sub:1};
+  if(u[1]===0x42&&u[3]===0x61&&u[5]===0x63&&u[7]===0x6b) return {type:1,sub:0}; // interleaved "BackUpRam"
+  if(cstr(u,0,8)==="SaroMems") return {type:2};
+  return null;
+}
+
+class Container {
+  constructor(buf){
+    this.buf = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    const d = detect(this.buf);
+    if(!d) throw new Error('Unrecognized save file (not a SAROO/Saturn BUP/SaroMems image).');
+    this.type = d.type; this.sub = d.sub;
+    if(this.type===1){
+      // de-interleave to 32KB working memory (read-only format)
+      this.mem = new Uint8Array(32768);
+      if(this.sub===0){ for(let i=0;i<32768;i++) this.mem[i]=this.buf[i*2+1]; }
+      else this.mem.set(this.buf.subarray(0,32768));
+    } else {
+      this.mem = this.buf; // operate directly on file bytes
+    }
+  }
+  get bytes(){ return this.buf; }
+
+  // ---------- volumes ----------
+  volumes(){
+    if(this.type===0){
+      const v=[]; const b=this.buf;
+      for(let i=1;i<4096;i++){ const o=i*16; if(o+16>b.length||be32(b,o)===0) break;
+        if((i+1)*0x10000>b.length) break; v.push({id:i,name:cstr(b,o,16)}); }
+      return v;
+    }
+    if(this.type===1) return [{id:0,name:'Saturn Backup RAM'}];
+    return [{id:0,name:'SaroMems'}];
+  }
+  stats(volId){
+    if(this.type===0){ const base=volId*0x10000; return {total:512, free:be16(this.buf,base+0x0e)}; }
+    if(this.type===2){ return {total:8064, free:be16(this.mem,0x0c)}; }
+    return {total:512, free:null};
+  }
+
+  // ---------- listing saves ----------
+  saves(volId){
+    if(this.type===0) return this._sr_list(volId);
+    if(this.type===1) return this._ss_list();
+    return this._mems_list();
+  }
+
+  // ===================== TYPE 0: SAROO save =====================
+  _sr_base(volId){ return volId*0x10000; }
+  _sr_list(volId){
+    const b=this.buf, base=this._sr_base(volId); const out=[];
+    if(be32(b,base)!==0x5361726f || be32(b,base+4)!==0x53617665) return out;
+    const bs=be16(b,base+0x0c); let block=be16(b,base+0x3e), i=0, guard=0;
+    while(block && guard++<512){
+      const bp=base+block*bs;
+      const dsize=be32(b,bp+0x0c);
+      out.push({ id:i, filename:cstr(b,bp,11), comment:cstr(b,bp+0x10,10),
+                 language:b[bp+0x1b], date:be32(b,bp+0x1c), dataSize:dsize,
+                 blocks:Math.ceil(dsize/bs)+1, _block:block });
+      block=be16(b,bp+0x3e); i++;
+    }
+    return out;
+  }
+  _sr_read(volId,saveId){
+    const b=this.buf, base=this._sr_base(volId), bs=be16(b,base+0x0c);
+    let block=be16(b,base+0x3e), i=0;
+    while(block){ if(i===saveId) break; block=be16(b,base+block*bs+0x3e); i++; }
+    if(!block) return null;
+    const bp=base+block*bs, dsize=be32(b,bp+0x0c);
+    const data=new Uint8Array(dsize);
+    // access_data read via per-save bitmap
+    let dp=0, blk=0, bmp=bp+0x40;
+    while(dp<dsize){
+      blk=this._nextBit(b,bmp,blk,512);
+      const src=base+blk*bs, n=Math.min(dsize-dp,bs);
+      data.set(b.subarray(src,src+n),dp); dp+=n; blk++;
+    }
+    return { meta:{...this._sr_list(volId)[saveId], rawFilename:b.slice(bp,bp+11), rawComment:b.slice(bp+0x10,bp+0x1a)}, data };
+  }
+  _nextBit(u,base,pos,limit){ for(let p=pos;p<limit;p++) if(getBit(u,base,p)) return p; return 0; }
+  _sr_freeBlock(base,pos){ // find & claim a free block in global bitmap
+    const b=this.buf, bmpBase=base+0x40;
+    for(let i=pos;i<512;i++){ if(!getBit(b,bmpBase,i)){ setBit(b,bmpBase,i,1);
+      wbe16(b,base+0x0e,be16(b,base+0x0e)-1); return i; } }
+    return 0;
+  }
+  _sr_format(base,gid){ // mirrors sr_bup_format(); gid = 16 bytes from the directory entry
+    const b=this.buf; b.fill(0,base,base+0x10000);
+    wbe32(b,base,0x5361726f); wbe32(b,base+4,0x53617665);
+    wbe32(b,base+8,0x10000); wbe16(b,base+0x0c,0x80); wbe16(b,base+0x0e,512-1);
+    for(let i=0;i<16;i++) b[base+0x20+i]=gid[i]||0;
+    wbe16(b,base+0x3e,0); b[base+0x40]=0x01;
+  }
+  _sr_ensureFormat(volId){ // sr_bup_select() formats an unformatted slot before any write
+    const b=this.buf, base=volId*0x10000;
+    if(be32(b,base)!==0x5361726f || be32(b,base+4)!==0x53617665)
+      this._sr_format(base, b.slice(volId*16, volId*16+16));
+  }
+  _sr_delete(volId,saveId){
+    this._sr_ensureFormat(volId);
+    const b=this.buf, base=this._sr_base(volId), bs=be16(b,base+0x0c);
+    let block=be16(b,base+0x3e), last=0, i=0;
+    while(block){ if(i===saveId) break; last=block; block=be16(b,base+block*bs+0x3e); i++; }
+    if(!block) throw new Error('save not found');
+    const bp=base+block*bs;
+    setBit(b,base+0x40,block,0); wbe16(b,base+0x0e,be16(b,base+0x0e)+1);
+    let blk=0, bmp=bp+0x40;
+    for(;;){ blk=this._nextBit(b,bmp,blk,512); if(!blk) break;
+      setBit(b,base+0x40,blk,0); wbe16(b,base+0x0e,be16(b,base+0x0e)+1); blk++; }
+    // relink: last(or header)->next
+    const lastbp = base + last*bs;
+    b[lastbp+0x3e]=b[bp+0x3e]; b[lastbp+0x3f]=b[bp+0x3f];
+  }
+  _sr_import(volId,save){ // add NEW save (save_id=-1)
+    this._sr_ensureFormat(volId);
+    const b=this.buf, base=this._sr_base(volId), bs=be16(b,base+0x0c);
+    const dsize=save.dataSize, blockNeed=Math.ceil(dsize/bs);
+    if((blockNeed+1) > be16(b,base+0x0e)) throw new Error('Not enough free space in this slot.');
+    // find last block in linked list
+    let block=be16(b,base+0x3e), last=0;
+    while(block){ last=block; block=be16(b,base+block*bs+0x3e); }
+    // start block
+    const hdr=this._sr_freeBlock(base,0), bp=base+hdr*bs;
+    b.fill(0,bp,bp+bs);
+    writeField(b,bp,11,save.rawFilename,save.filename);
+    wbe32(b,bp+0x0c,dsize);
+    writeField(b,bp+0x10,10,save.rawComment,save.comment);
+    b[bp+0x1b]=save.language&0xff;
+    wbe32(b,bp+0x1c,save.date>>>0);
+    // data blocks -> per-save bitmap
+    let blk=0; for(let k=0;k<blockNeed;k++){ blk=this._sr_freeBlock(base,blk); setBit(b,bp+0x40,blk,1); blk++; }
+    // write data
+    let dp=0; blk=0;
+    while(dp<dsize){ blk=this._nextBit(b,bp+0x40,blk,512); const dst=base+blk*bs, n=Math.min(dsize-dp,bs);
+      b.set(save.data.subarray(dp,dp+n),dst); dp+=n; blk++; }
+    // link
+    wbe16(b, base+last*bs+0x3e, hdr);
+  }
+  _sr_overwrite(volId,saveId,save){
+    this._sr_ensureFormat(volId);
+    const b=this.buf, base=this._sr_base(volId), bs=be16(b,base+0x0c);
+    let block=be16(b,base+0x3e), i=0;
+    while(block){ if(i===saveId) break; block=be16(b,base+block*bs+0x3e); i++; }
+    if(!block) throw new Error('save not found');
+    const bp=base+block*bs, dsize=be32(b,bp+0x0c);
+    if(save.dataSize!==dsize){ // size changed -> delete + re-add, preserving this save's identity
+      const keep={ rawFilename:b.slice(bp,bp+11), rawComment:b.slice(bp+0x10,bp+0x1a), language:b[bp+0x1b] };
+      this._sr_delete(volId,saveId);
+      this._sr_import(volId,{...keep, dataSize:save.dataSize, date:save.date, data:save.data});
+      return;
+    }
+    wbe32(b,bp+0x1c,save.date>>>0);
+    let dp=0, blk=0;
+    while(dp<dsize){ blk=this._nextBit(b,bp+0x40,blk,512); const dst=base+blk*bs, n=Math.min(dsize-dp,bs);
+      b.set(save.data.subarray(dp,dp+n),dst); dp+=n; blk++; }
+  }
+  _sr_createSlot(gameId){
+    const b=this.buf;
+    // append-index == current file block count (robust & matches contiguous dirs)
+    const idx=Math.floor(b.length/0x10000);
+    const nb=new Uint8Array(b.length+0x10000); nb.set(b); this.buf=nb; this.mem=nb;
+    writeFixed(nb,idx*16,gameId,16);
+    this._sr_format(idx*0x10000, nb.slice(idx*16, idx*16+16));
+    return idx;
+  }
+
+  // ===================== TYPE 1: Saturn BUP (read-only) =====================
+  _ss_list(){
+    const m=this.mem, out=[]; let i=0;
+    for(let block=2;block<512;block++){ const bp=block*64;
+      if(be32(m,bp)===0x80000000){
+        const dsize=be32(m,bp+0x1e);
+        out.push({ id:i, filename:cstr(m,bp+4,11), comment:cstr(m,bp+0x10,10),
+                   language:m[bp+0x0f], date:be32(m,bp+0x1a), dataSize:dsize,
+                   blocks:Math.ceil(dsize/62)+1, _block:block, readonly:true });
+        i++;
+      }
+    }
+    return out;
+  }
+  _ss_read(saveId){
+    const m=this.mem; let i=0;
+    for(let block=2;block<512;block++){ if(be32(m,block*64)!==0x80000000) continue;
+      if(i===saveId){ const bp=block*64; return { meta:{...this._ss_list()[saveId], rawFilename:m.slice(bp+4,bp+15), rawComment:m.slice(bp+0x10,bp+0x1a)}, data:this._ss_readData(block) }; }
+      i++;
+    }
+    return null;
+  }
+  _ss_readData(startBlock){
+    const m=this.mem, BS=64; const bp0=startBlock*64; const dsize=be32(m,bp0+0x1e);
+    const data=new Uint8Array(dsize);
+    // load_blist
+    const blist=[startBlock];
+    let nbp,dp;
+    if(dsize<=0x1e){ nbp=1; dp=0x22; }
+    else{
+      let bp=bp0; nbp=1; dp=0x22; let idx=1;
+      for(;;){ const blk=be16(m,bp+dp); if(blk===0) break; blist[idx++]=blk; dp+=2;
+        if(dp===BS){ bp=blist[nbp]*64; nbp++; dp=4; } }
+      dp+=2; if(dp===BS){ nbp++; dp=4; }
+    }
+    // read_data
+    let bp=blist[nbp-1]*64; let ds=dsize, out=0;
+    while(ds>0){ data[out]=m[bp+dp]; data[out+1]=m[bp+dp+1]; dp+=2; out+=2; ds-=2;
+      if(dp===BS){ bp=blist[nbp]*64; nbp++; dp=4; } }
+    return data.subarray(0,dsize);
+  }
+
+  // ===================== TYPE 2: SaroMems =====================
+  _mems_list(){
+    const m=this.mem, out=[]; let idx=0;
+    for(let i=0;i<448;i++){ const e=1024+i*16; if(m[e]===0) continue;
+      const block=be16(m,e+0x0e), bp=block*1024, dsize=be32(m,bp+0x0c);
+      out.push({ id:idx, filename:cstr(m,bp,11), comment:cstr(m,bp+0x10,10),
+                 language:m[bp+0x1b], date:be32(m,bp+0x1c), dataSize:dsize,
+                 blocks:(dsize>960?Math.ceil(dsize/1024):0)+1, _entry:i, _block:block });
+      idx++;
+    }
+    return out;
+  }
+  _mems_read(saveId){
+    const m=this.mem; let idx=0;
+    for(let i=0;i<448;i++){ const e=1024+i*16; if(m[e]===0) continue;
+      if(idx===saveId){ const block=be16(m,e+0x0e), bp=block*1024; return { meta:{...this._mems_list()[saveId], rawFilename:m.slice(bp,bp+11), rawComment:m.slice(bp+0x10,bp+0x1a)}, data:this._mems_readData(block) }; }
+      idx++;
+    }
+    return null;
+  }
+  _mems_readData(block){
+    const m=this.mem, BS=1024, bp=block*1024, dsize=be32(m,bp+0x0c);
+    const data=new Uint8Array(dsize);
+    if(dsize<=BS-64){ data.set(m.subarray(bp+0x40,bp+0x40+dsize)); return data; }
+    let dp=0, bmp=bp+0x40;
+    while(dp<dsize){ const blk=be16(m,bmp); bmp+=2; const src=blk*1024, n=Math.min(dsize-dp,BS);
+      data.set(m.subarray(src,src+n),dp); dp+=n; }
+    return data;
+  }
+  _mems_free(pos){ const m=this.mem; for(let i=pos;i<8064;i++){ if(!getBit(m,0x10,i)){ setBit(m,0x10,i,1);
+    wbe16(m,0x0c,be16(m,0x0c)-1); return i; } } return 0; }
+  _mems_import(save){
+    const m=this.mem, BS=1024, dsize=save.dataSize;
+    let last=-1; for(let i=0;i<448;i++){ if(m[1024+i*16]===0){ last=i; break; } }
+    if(last<0) throw new Error('Directory full (448 saves max).');
+    let blockNeed = dsize<=(BS-64) ? 0 : Math.ceil(dsize/BS);
+    if(blockNeed>0 && (blockNeed+1)>be16(m,0x0c)) throw new Error('Not enough free space.');
+    const hdr=this._mems_free(0), bp=hdr*1024;
+    m.fill(0,bp,bp+1024);
+    writeField(m,bp,11,save.rawFilename,save.filename); wbe32(m,bp+0x0c,dsize);
+    writeField(m,bp+0x10,10,save.rawComment,save.comment); m[bp+0x1b]=save.language&0xff; wbe32(m,bp+0x1c,save.date>>>0);
+    let blk=0,k=0; for(k=0;k<blockNeed;k++){ blk=this._mems_free(blk); wbe16(m,bp+0x40+k*2,blk); blk++; }
+    wbe16(m,bp+0x40+k*2,0);
+    // write data
+    if(dsize<=BS-64){ m.set(save.data.subarray(0,dsize),bp+0x40); }
+    else { let dp=0,bmp=bp+0x40; while(dp<dsize){ const b2=be16(m,bmp); bmp+=2; const n=Math.min(dsize-dp,BS);
+      m.set(save.data.subarray(dp,dp+n),b2*1024); dp+=n; } }
+    // directory
+    writeField(m,1024+last*16,11,save.rawFilename,save.filename); wbe16(m,1024+last*16+0x0e,hdr);
+  }
+  _mems_delete(saveId){
+    const m=this.mem; let idx=0, last=-1, block=0;
+    for(let i=0;i<448;i++){ const e=1024+i*16; if(m[e]===0) continue;
+      if(idx===saveId){ block=be16(m,e+0x0e); last=i; break; } idx++; }
+    if(!block) throw new Error('save not found');
+    const bp=block*1024;
+    setBit(m,0x10,block,0); wbe16(m,0x0c,be16(m,0x0c)+1);
+    const dsize=be32(m,bp+0x0c);
+    if(dsize>960){ let bmp=bp+0x40; for(;;){ const blk=be16(m,bmp); if(blk===0) break;
+      setBit(m,0x10,blk,0); wbe16(m,0x0c,be16(m,0x0c)+1); bmp+=2; } }
+    m.fill(0,1024+last*16,1024+last*16+16);
+  }
+  _mems_overwrite(saveId,save){
+    const m=this.mem; let idx=0, block=0;
+    for(let i=0;i<448;i++){ const e=1024+i*16; if(m[e]===0) continue;
+      if(idx===saveId){ block=be16(m,e+0x0e); break; } idx++; }
+    if(!block) throw new Error('save not found');
+    const bp=block*1024, dsize=be32(m,bp+0x0c);
+    if(save.dataSize!==dsize){
+      const keep={ rawFilename:m.slice(bp,bp+11), rawComment:m.slice(bp+0x10,bp+0x1a), language:m[bp+0x1b] };
+      this._mems_delete(saveId);
+      this._mems_import({...keep, dataSize:save.dataSize, date:save.date, data:save.data});
+      return;
+    }
+    wbe32(m,bp+0x1c,save.date>>>0);
+    if(dsize<=1024-64){ m.set(save.data.subarray(0,dsize),bp+0x40); }
+    else { let dp=0,bmp=bp+0x40; while(dp<dsize){ const b2=be16(m,bmp); bmp+=2; const n=Math.min(dsize-dp,1024);
+      m.set(save.data.subarray(dp,dp+n),b2*1024); dp+=n; } }
+  }
+
+  // ---------- unified public ops ----------
+  read(volId,saveId){ return this.type===0?this._sr_read(volId,saveId):this.type===1?this._ss_read(saveId):this._mems_read(saveId); }
+  importNew(volId,save){ if(this.type===0)this._sr_import(volId,save); else if(this.type===2)this._mems_import(save); else throw new Error('Import not supported for Saturn Backup RAM.'); }
+  overwrite(volId,saveId,save){ if(this.type===0)this._sr_overwrite(volId,saveId,save); else if(this.type===2)this._mems_overwrite(saveId,save); else throw new Error('Not supported.'); }
+  remove(volId,saveId){ if(this.type===0)this._sr_delete(volId,saveId); else if(this.type===2)this._mems_delete(saveId); else throw new Error('Delete not supported for Saturn Backup RAM.'); }
+  createSlot(gameId){ if(this.type!==0) throw new Error('Slots only exist in SAROO save files.'); return this._sr_createSlot(gameId); }
+
+  // Edit a save's metadata (name/comment/language) in place. Data is untouched.
+  editMeta(volId,saveId,meta){
+    if(this.type===1) throw new Error('Saturn Backup RAM is read-only.');
+    const list=this.saves(volId), s=list[saveId];
+    if(!s) throw new Error('save not found');
+    const m=this.mem;
+    const bp = this.type===0 ? volId*0x10000 + s._block*be16(this.buf,volId*0x10000+0x0c) : s._block*1024;
+    // filename/comment may be raw byte arrays (e.g. Shift-JIS encoded) or plain strings.
+    const isRaw = v => v instanceof Uint8Array || Array.isArray(v);
+    if(meta.filename!==undefined){ if(isRaw(meta.filename)) writeField(m,bp,11,meta.filename); else writeFixed(m,bp,meta.filename,11); }
+    if(meta.comment!==undefined){ if(isRaw(meta.comment)) writeField(m,bp+0x10,10,meta.comment); else writeFixed(m,bp+0x10,meta.comment,10); }
+    if(meta.language!==undefined) m[bp+0x1b]=meta.language&0xff;
+    if(this.type===2 && meta.filename!==undefined){ const o=1024+s._entry*16; if(isRaw(meta.filename)) writeField(m,o,11,meta.filename); else writeFixed(m,o,meta.filename,11); }
+  }
+
+  // Overwrite a save's data payload in place (same length). Metadata is untouched.
+  writeData(volId,saveId,bytes){
+    if(this.type===1) throw new Error('Saturn Backup RAM is read-only.');
+    if(this.type===0) return this._sr_writeData(volId,saveId,bytes);
+    return this._mems_writeData(saveId,bytes);
+  }
+  _sr_writeData(volId,saveId,bytes){
+    const b=this.buf, base=volId*0x10000, bs=be16(b,base+0x0c);
+    let block=be16(b,base+0x3e), i=0;
+    while(block){ if(i===saveId) break; block=be16(b,base+block*bs+0x3e); i++; }
+    if(!block) throw new Error('save not found');
+    const bp=base+block*bs, dsize=be32(b,bp+0x0c);
+    if(bytes.length!==dsize) throw new Error('data size mismatch');
+    let dp=0, blk=0;
+    while(dp<dsize){ blk=this._nextBit(b,bp+0x40,blk,512); const dst=base+blk*bs, n=Math.min(dsize-dp,bs);
+      b.set(bytes.subarray(dp,dp+n),dst); dp+=n; blk++; }
+  }
+  _mems_writeData(saveId,bytes){
+    const m=this.mem; let idx=0, block=0;
+    for(let i=0;i<448;i++){ const e=1024+i*16; if(m[e]===0) continue;
+      if(idx===saveId){ block=be16(m,e+0x0e); break; } idx++; }
+    if(!block) throw new Error('save not found');
+    const bp=block*1024, dsize=be32(m,bp+0x0c);
+    if(bytes.length!==dsize) throw new Error('data size mismatch');
+    if(dsize<=1024-64){ m.set(bytes.subarray(0,dsize),bp+0x40); }
+    else { let dp=0,bmp=bp+0x40; while(dp<dsize){ const b2=be16(m,bmp); bmp+=2; const n=Math.min(dsize-dp,1024);
+      m.set(bytes.subarray(dp,dp+n),b2*1024); dp+=n; } }
+  }
+}
+
+const TYPE_NAME=['SAROO save','Saturn Backup RAM','SaroMems'];
+const DEFAULT_NAME=['SS_SAVE.BIN','SS_BUP.BIN','SS_MEMS.BIN'];
+// ============================================================================
+// APP
+// ============================================================================
+const $ = (id)=>document.getElementById(id);
+let box = null;        // Container
+let fileName = '';     // opened/default file name
+let pending = null;    // pending import/replace action
+
+function toast(msg,kind){ const t=$('toast'); t.textContent=msg; t.className='show '+(kind||''); clearTimeout(toast._t); toast._t=setTimeout(()=>t.className='',2800); }
+function download(bytes,name,type){
+  const blob=new Blob([bytes],{type:type||'application/octet-stream'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function langName(c){ return LANGS[c]!==undefined?LANGS[c]:('#'+c); }
+
+// ---- Shift-JIS (the Saturn's text encoding) <-> Unicode for display & editing ----
+// Saturn save names/comments are Shift-JIS. The codec keeps fields as raw bytes
+// (latin-1 strings, 1 char == 1 byte); here we reinterpret them for humans.
+const _sjisDec = (()=>{ try { return new TextDecoder('shift-jis'); } catch(e){ return null; } })();
+function sjisText(latin1){                          // latin-1 field string -> display string
+  if(!_sjisDec) return latin1;
+  const b=new Uint8Array(latin1.length); for(let i=0;i<latin1.length;i++) b[i]=latin1.charCodeAt(i)&0xff;
+  return _sjisDec.decode(b);
+}
+let _sjisEnc=null;                                   // Unicode char -> Shift-JIS bytes (built lazily from the decoder)
+function sjisEncoder(){
+  if(_sjisEnc || !_sjisDec) return _sjisEnc;
+  const m=new Map();
+  for(let b=0;b<0x80;b++) m.set(String.fromCharCode(b),[b]);                // ASCII
+  for(let b=0xA1;b<=0xDF;b++){ const s=_sjisDec.decode(new Uint8Array([b])); if(s.length===1&&s!=='�') m.set(s,[b]); } // half-width kana
+  for(const [lo,hi] of [[0x81,0x9F],[0xE0,0xFC]]) for(let b1=lo;b1<=hi;b1++) for(let b2=0x40;b2<=0xFC;b2++){
+    if(b2===0x7F) continue;
+    const s=_sjisDec.decode(new Uint8Array([b1,b2]));
+    if(s.length===1 && s!=='�' && !m.has(s)) m.set(s,[b1,b2]);
+  }
+  return (_sjisEnc=m);
+}
+// Encode a display string to Shift-JIS bytes (max `len`, never splitting a 2-byte char).
+// Returns {bytes, overflow, unencodable}. Falls back to latin-1 if TextDecoder is unavailable.
+function sjisEncode(str,len){
+  const enc=sjisEncoder();
+  if(!enc){ const b=[]; for(const c of str) b.push(c.charCodeAt(0)&0xff); const over=b.length>len; return {bytes:new Uint8Array(b.slice(0,len)),overflow:over,unencodable:false}; }
+  const out=[]; let overflow=false, unencodable=false;
+  for(const ch of str){ const b=enc.get(ch); if(!b){ unencodable=true; continue; }
+    if(out.length+b.length>len){ overflow=true; break; } out.push(...b); }
+  return {bytes:new Uint8Array(out), overflow, unencodable};
+}
+function fmtDate(v){ const d=decodeDate(v); if(!d) return '—';
+  const p=n=>String(n).padStart(2,'0'); return `${d.year}-${p(d.month)}-${p(d.day)} ${p(d.hour)}:${p(d.min)}`; }
+function fmtSize(n){ return n>=1024 ? (n/1024).toFixed(n%1024?1:0)+' KB' : n+' B'; }
+function safeName(s){ return (s||'SAVE').replace(/[^A-Za-z0-9._-]/g,'_'); }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---- hitomi2500 "SS Backup RAM Parser" .XML format ----
+// Date/time fields are used verbatim (no offset), matching the raw "minutes since 1980" value.
+function b64encode(b){ let s=''; for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
+function b64decode(str){ const bin=atob((str||'').replace(/\s+/g,'')); const b=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b; }
+function padBytes(b,n){ const o=new Uint8Array(n); o.set(b.subarray(0,n)); return o; }
+// field bytes up to the first NUL, decoded as UTF-8 with replacement — matches hitomi's text elements
+function xmlFieldText(bytes){ let n=bytes.length; for(let i=0;i<bytes.length;i++){ if(bytes[i]===0){ n=i; break; } } return new TextDecoder('utf-8').decode(bytes.subarray(0,n)); }
+function xmlEsc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function looksLikeXml(bytes){ let i=0; while(i<bytes.length && bytes[i]!==0x3c && bytes[i]<0x80 && bytes[i]<=0x20) i++; return bytes[i]===0x3c; }
+
+function buildXmlSave(s){
+  const rf=padBytes(s.rawFilename||new Uint8Array(0),11), rc=padBytes(s.rawComment||new Uint8Array(0),10);
+  const d=decodeDate(s.date>>>0) || {year:1980,month:1,day:1,hour:0,min:0};
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Sega_Saturn_Save>',
+    '    <mandatory>',
+    '        <counter>0</counter>',
+    `        <name>${xmlEsc(xmlFieldText(rf))}</name>`,
+    `        <name_binary>${b64encode(rf)}</name_binary>`,
+    `        <comment>${xmlEsc(xmlFieldText(rc))}</comment>`,
+    `        <comment_binary>${b64encode(rc)}</comment_binary>`,
+    `        <language_code>${s.language&0xff}</language_code>`,
+    `        <size>${s.dataSize}</size>`,
+    `        <date year="${d.year}" month="${d.month}" day="${d.day}"/>`,
+    `        <time hour="${d.hour}" minute="${d.min}" second="0"/>`,
+    `        <data>${b64encode(s.data)}</data>`,
+    '    </mandatory>',
+    '    <optional/>',
+    '</Sega_Saturn_Save>',
+    ''
+  ].join('\n');
+}
+function parseXmlSave(text){
+  const doc=new DOMParser().parseFromString(text,'text/xml');
+  if(doc.querySelector('parsererror')) throw new Error('Invalid XML.');
+  if(!doc.querySelector('Sega_Saturn_Save')) throw new Error('Not a Sega_Saturn_Save XML file.');
+  const q=t=>{ const e=doc.querySelector(t); return e?e.textContent.trim():null; };
+  const dataB64=q('data'); if(dataB64===null) throw new Error('Missing <data> element.');
+  const data=b64decode(dataB64);
+  const size=parseInt(q('size')||data.length,10);
+  if(data.length!==size) throw new Error(`Data size mismatch (declared ${size}, decoded ${data.length}).`);
+  const nb=q('name_binary'), cb=q('comment_binary');
+  const rawFilename=padBytes(nb!==null?b64decode(nb):new TextEncoder().encode(q('name')||''),11);
+  const rawComment =padBytes(cb!==null?b64decode(cb):new TextEncoder().encode(q('comment')||''),10);
+  const language=parseInt(q('language_code')||'0',10)&0xff;
+  const de=doc.querySelector('date'), te=doc.querySelector('time');
+  let date=0;
+  if(de){ const y=+de.getAttribute('year'), mo=+de.getAttribute('month'), dd=+de.getAttribute('day');
+    const h=te?+te.getAttribute('hour'):0, mi=te?+te.getAttribute('minute'):0;
+    if(y) date=encodeDate({year:y,month:mo,day:dd,hour:h,min:mi}); }
+  return { fmt:'XML', filename:cstr(rawFilename,0,11), comment:cstr(rawComment,0,10),
+           rawFilename, rawComment, language, date, dataSize:size, data };
+}
+
+// Position an open dropdown as viewport-fixed so it isn't clipped by the table's
+// overflow container (e.g. on the last row). Flips upward when there's no room below.
+function positionMenu(trg, items){
+  const r=trg.getBoundingClientRect(), pad=8;
+  items.style.position='fixed'; items.style.right='auto'; items.style.top='0px'; items.style.left='0px';
+  const w=items.offsetWidth, h=items.offsetHeight;               // measured while visible
+  let left=Math.min(r.right-w, window.innerWidth-w-pad);
+  items.style.left=Math.max(pad,left)+'px';
+  const below=r.bottom+4, above=r.top-4-h;
+  items.style.top=((below+h<=window.innerHeight) || above<pad ? below : above)+'px';
+}
+function closeMenus(){ document.querySelectorAll('.menu.open').forEach(m=>m.classList.remove('open')); }
+
+// ---------------------------- RENDER ----------------------------
+function render(){
+  const loaded = !!box;
+  $('drop').style.display = loaded ? 'none' : 'block';
+  $('bar').style.display = loaded ? 'flex' : 'none';
+  $('emptyMsg').style.display = 'none';
+  $('btnExport').disabled = !loaded;
+  const content=$('content'); content.innerHTML='';
+  if(!loaded) return;
+
+  $('fmtBadge').textContent = TYPE_NAME[box.type] + (box.readOnly?' · read-only':'');
+  $('fmtBadge').className = 'badge'+(box.readOnly?' ro':'');
+  $('btnNewSlot').style.display = box.type===0 ? 'inline-flex' : 'none';
+
+  const vols = box.volumes();
+  let totalSaves=0;
+  vols.forEach(v=>{ totalSaves += box.saves(v.id).length; });
+  $('fileInfo').textContent = `${esc(fileName||DEFAULT_NAME[box.type])} · ${vols.length} ${box.type===0?'slot':'volume'}${vols.length!==1?'s':''} · ${totalSaves} save${totalSaves!==1?'s':''}`;
+
+  if(box.type===0 && vols.length===0){
+    content.innerHTML = `<div class="empty">Empty SAROO save. Use <b>➕ New slot</b> to add a game slot, then import saves into it.</div>`;
+    return;
+  }
+
+  vols.forEach(v=>{
+    const st = box.stats(v.id);
+    const saves = box.saves(v.id);
+    const slot=document.createElement('div'); slot.className='slot';
+    const head=document.createElement('div'); head.className='head';
+    let sub = `${saves.length} save${saves.length!==1?'s':''}`;
+    if(st.free!==null) sub += ` · ${st.free}/${st.total} blocks free`;
+    head.innerHTML = `<div><div class="name">${esc(sjisText(v.name))||'<em>unnamed</em>'}</div><div class="sub">${sub}</div></div><div class="spacer"></div>`;
+    if(!box.readOnly){
+      const imp=document.createElement('button'); imp.className='mini primary'; imp.textContent='⬆ Import save…';
+      imp.onclick=()=>startImport(v.id); head.appendChild(imp);
+    }
+    slot.appendChild(head);
+
+    const table=document.createElement('table');
+    table.innerHTML = `<thead><tr>
+      <th>File</th><th>Comment</th><th>Lang</th><th>Size</th><th>Blocks</th><th>Date</th><th></th>
+    </tr></thead>`;
+    const tb=document.createElement('tbody');
+    if(saves.length===0){
+      const tr=document.createElement('tr'); tr.className='emptyrow';
+      tr.innerHTML=`<td colspan="7">No saves in this ${box.type===0?'slot':'volume'}.</td>`; tb.appendChild(tr);
+    }
+    saves.forEach(s=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML =
+        `<td class="name">${esc(sjisText(s.filename))}</td>`+
+        `<td>${esc(sjisText(s.comment))||'<span class="hint">—</span>'}</td>`+
+        `<td>${esc(langName(s.language))}</td>`+
+        `<td class="num">${fmtSize(s.dataSize)}</td>`+
+        `<td class="num">${s.blocks}</td>`+
+        `<td class="num">${fmtDate(s.date)}</td>`;
+      const act=document.createElement('td'); act.className='actions';
+      const grp=document.createElement('div'); grp.className='grp';
+      const mk=(label,cls,fn)=>{ const b=document.createElement('button'); b.className='mini '+(cls||''); b.textContent=label; b.onclick=fn; return b; };
+      // Export dropdown
+      const menu=document.createElement('div'); menu.className='menu';
+      const trg=mk('⬇ Export','',()=>{
+        const willOpen=!menu.classList.contains('open');
+        document.querySelectorAll('.menu.open').forEach(m=>m.classList.remove('open'));
+        if(willOpen){ menu.classList.add('open'); positionMenu(trg,items); }
+      });
+      const items=document.createElement('div'); items.className='items';
+      items.appendChild(mk('.SRO (SAROO raw)','',()=>{ exportSave(v.id,s.id,'SRO'); menu.classList.remove('open'); }));
+      items.appendChild(mk('.BUP (Pseudo Saturn)','',()=>{ exportSave(v.id,s.id,'BUP'); menu.classList.remove('open'); }));
+      items.appendChild(mk('.BIN (raw data)','',()=>{ exportSave(v.id,s.id,'BIN'); menu.classList.remove('open'); }));
+      items.appendChild(mk('.XML (Backup RAM Parser)','',()=>{ exportSave(v.id,s.id,'XML'); menu.classList.remove('open'); }));
+      menu.appendChild(trg); menu.appendChild(items);
+      grp.appendChild(menu);
+      if(!box.readOnly){
+        grp.appendChild(mk('✎ Edit','',()=>openEdit(v.id,s.id)));
+        grp.appendChild(mk('⇄ Replace','',()=>startReplace(v.id,s.id)));
+        grp.appendChild(mk('🗑','danger',()=>doDelete(v.id,s.id,sjisText(s.filename))));
+      }
+      act.appendChild(grp); tr.appendChild(act); tb.appendChild(tr);
+    });
+    table.appendChild(tb);
+    const wrap=document.createElement('div'); wrap.className='tablewrap'; wrap.appendChild(table);
+    slot.appendChild(wrap); content.appendChild(slot);
+  });
+}
+
+// ---------------------------- ACTIONS ----------------------------
+function exportSave(volId,saveId,fmt){
+  try{
+    const r=box.read(volId,saveId); const m=r.meta;
+    const s={...m, data:r.data};           // spread carries rawFilename/rawComment -> byte-faithful export
+    const base=safeName(sjisText(m.filename));
+    if(fmt==='SRO') download(buildSRO(s), base+'.SRO');
+    else if(fmt==='BUP') download(buildBUP(s), base+'.BUP');
+    else if(fmt==='XML') download(buildXmlSave(s), base+'.xml', 'application/xml');
+    else download(r.data, base+'.BIN');
+    toast(`Exported ${sjisText(m.filename)}.${fmt}`,'ok');
+  }catch(e){ toast('Export failed: '+e.message,'err'); }
+}
+
+function doDelete(volId,saveId,name){
+  if(!confirm(`Delete save "${name}"? This frees its blocks. (Applied to the .BIN when you Export.)`)) return;
+  try{ box.remove(volId,saveId); render(); toast(`Deleted ${name}`,'ok'); }
+  catch(e){ toast('Delete failed: '+e.message,'err'); }
+}
+
+function startImport(volId){ pending={mode:'import',volId}; $('fileImport').click(); }
+function startReplace(volId,saveId){ pending={mode:'replace',volId,saveId}; $('fileImport').click(); }
+
+$('fileImport').onchange = async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f||!pending) return;
+  try{
+    const buf=new Uint8Array(await f.arrayBuffer());
+    const isXml = /\.xml$/i.test(f.name) || looksLikeXml(buf);
+    const save = isXml ? parseXmlSave(new TextDecoder('utf-8').decode(buf)) : parseRawSave(buf);
+    if(!save){ toast('Unsupported file — expected .SRO / .BUP (SSAVERAW or Vmem) or a .XML save.','err'); return; }
+    if(save.crcOk===false && !confirm(`CRC mismatch in ${f.name} — the file may be corrupt. Import anyway?`)) return;
+    if(pending.mode==='import'){
+      box.importNew(pending.volId, save);
+      toast(`Imported ${sjisText(save.filename)}`,'ok');
+    }else{
+      box.overwrite(pending.volId, pending.saveId, save);
+      toast(`Replaced data (${sjisText(save.filename)}, ${fmtSize(save.dataSize)})`,'ok');
+    }
+    render();
+  }catch(err){ toast('Import failed: '+err.message,'err'); }
+  finally{ pending=null; }
+};
+
+// edit metadata modal + hex editor
+let editing=null, hexData=null, hexDirty=false;
+const HEX_MAX_RENDER=0x8000;  // cap DOM size for very large saves (bytes still fully preserved/saved)
+const hex2=v=>v.toString(16).padStart(2,'0');
+const asciiChar=v=>(v>=0x20 && v<0x7f)?String.fromCharCode(v):'.';
+
+function renderHex(){
+  const view=$('hexView'), len=hexData?hexData.length:0, shown=Math.min(len,HEX_MAX_RENDER);
+  $('hexSize').textContent=`${len} byte${len!==1?'s':''} (0x${len.toString(16)})`;
+  $('hexHint').textContent = len>shown ? `showing first ${shown} of ${len} bytes` : 'click a byte to edit';
+  let html='';
+  for(let base=0;base<shown;base+=16){
+    let hx='',asc='';
+    for(let i=0;i<16;i++){ const o=base+i;
+      if(o<shown){ hx+=`<span class="hb" data-o="${o}">${hex2(hexData[o])}</span>`; asc+=`<span class="ha" data-o="${o}">${esc(asciiChar(hexData[o]))}</span>`; }
+      else hx+='  ';
+      if(i<15) hx+=' ';
+    }
+    html+=`<div class="hexrow"><span class="hoff">${base.toString(16).padStart(6,'0')}</span>  ${hx}  ${asc}</div>`;
+  }
+  view.innerHTML = html || '<span class="hint">No data.</span>';
+}
+function hexEditCell(cell){
+  if(cell.querySelector('input')) return;
+  const o=+cell.dataset.o, prev=hex2(hexData[o]);
+  const inp=document.createElement('input'); inp.className='hexcell'; inp.value=prev; inp.maxLength=2;
+  cell.textContent=''; cell.appendChild(inp); inp.focus(); inp.select();
+  let done=false;
+  const finish=(commit,advance)=>{
+    if(done) return; done=true;
+    if(commit){ const v=parseInt(inp.value,16);
+      if(!isNaN(v) && (v&0xff)!==hexData[o]){ hexData[o]=v&0xff; hexDirty=true;
+        cell.classList.add('dirty');
+        const ha=$('hexView').querySelector(`.ha[data-o="${o}"]`); if(ha){ ha.textContent=asciiChar(hexData[o]); ha.classList.add('dirty'); } } }
+    cell.textContent=hex2(hexData[o]);
+    if(commit && advance){ const n=$('hexView').querySelector(`.hb[data-o="${o+1}"]`); if(n) hexEditCell(n); }
+  };
+  inp.addEventListener('input',()=>{ inp.value=inp.value.replace(/[^0-9a-fA-F]/g,'').slice(0,2); if(inp.value.length===2) finish(true,true); });
+  inp.addEventListener('keydown',ev=>{
+    if(ev.key==='Enter'){ ev.preventDefault(); finish(true,false); }
+    else if(ev.key==='Escape'){ ev.preventDefault(); ev.stopPropagation(); finish(false,false); }
+    else if(ev.key==='Tab'){ ev.preventDefault(); finish(true,true); }
+  });
+  inp.addEventListener('blur',()=>finish(true,false));
+}
+$('hexView').addEventListener('click',e=>{ const c=e.target.closest('.hb'); if(c) hexEditCell(c); });
+
+function openEdit(volId,saveId){
+  const s=box.saves(volId)[saveId]; editing={volId,saveId};
+  $('editTitle').textContent='Edit save';
+  $('edName').value=sjisText(s.filename); $('edComment').value=sjisText(s.comment);
+  const sel=$('edLang'); sel.innerHTML='';
+  LANGS.forEach((l,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=`${i} · ${l}`; sel.appendChild(o); });
+  if(s.language>=LANGS.length){ const o=document.createElement('option'); o.value=s.language; o.textContent='#'+s.language; sel.appendChild(o); }
+  sel.value=s.language; $('edErr').textContent='';
+  try{ hexData=box.read(volId,saveId).data.slice(); }catch(e){ hexData=new Uint8Array(0); }
+  hexDirty=false; renderHex();
+  $('editModal').classList.add('show'); $('edName').focus();
+}
+$('edCancel').onclick=()=>{ $('editModal').classList.remove('show'); editing=null; hexData=null; };
+$('edSave').onclick=()=>{
+  const name=$('edName').value.trim(); if(!name){ $('edErr').textContent='File name is required.'; return; }
+  // Encode name/comment to Shift-JIS (the on-disk encoding). 11 bytes for name, 10 for comment.
+  const en=sjisEncode(name,11), ec=sjisEncode($('edComment').value,10);
+  if(en.overflow){ $('edErr').textContent='File name is too long (max 11 bytes; Japanese characters take 2 bytes each).'; return; }
+  if(ec.overflow){ $('edErr').textContent='Comment is too long (max 10 bytes; Japanese characters take 2 bytes each).'; return; }
+  if(en.unencodable||ec.unencodable){ $('edErr').textContent='Some characters can\'t be stored in Shift-JIS (Saturn text encoding). Remove them and try again.'; return; }
+  try{
+    box.editMeta(editing.volId, editing.saveId, { filename:en.bytes, comment:ec.bytes, language:parseInt($('edLang').value,10) });
+    if(hexDirty) box.writeData(editing.volId, editing.saveId, hexData);
+    const changedData=hexDirty;
+    $('editModal').classList.remove('show'); editing=null; hexData=null; render();
+    toast(changedData?'Save updated (name/comment + data)':'Save updated','ok');
+  }catch(e){ $('edErr').textContent=e.message; }
+};
+
+// new slot modal
+$('btnNewSlot').onclick=()=>{ $('slotId').value=''; $('slotErr').textContent=''; $('slotModal').classList.add('show'); $('slotId').focus(); };
+$('slotCancel').onclick=()=>$('slotModal').classList.remove('show');
+$('slotCreate').onclick=()=>{
+  const id=$('slotId').value.trim(); if(!id){ $('slotErr').textContent='Game ID is required.'; return; }
+  try{ box.createSlot(id.slice(0,16)); $('slotModal').classList.remove('show'); render(); toast(`Created slot "${id}"`,'ok'); }
+  catch(e){ $('slotErr').textContent=e.message; }
+};
+
+// open / new / export
+function loadBuffer(buf, name){
+  try{ box=new Container(buf); fileName=name||''; render();
+    toast(`Loaded ${TYPE_NAME[box.type]} · ${name||''}`,'ok');
+  }catch(e){ toast('Failed to load: '+e.message,'err'); }
+}
+$('btnOpen').onclick=()=>$('fileOpen').click();
+$('fileOpen').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  loadBuffer(new Uint8Array(await f.arrayBuffer()), f.name); };
+
+$('btnNew').onclick=()=>{
+  if(box && !confirm('Discard the current file and start a new empty SAROO save?')) return;
+  const b=new Uint8Array(0x10000); writeFixed(b,0,'Saroo Save File',16);
+  loadBuffer(b,'SS_SAVE.BIN');
+};
+
+$('btnExport').onclick=()=>{
+  if(!box) return;
+  const name=fileName || DEFAULT_NAME[box.type];
+  download(box.bytes, name);
+  toast(`Exported ${name} (${(box.bytes.length/1024).toFixed(0)} KB)`,'ok');
+};
+
+// drag & drop
+const drop=$('drop');
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{ if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){ e.preventDefault(); drop.classList.add('hot'); }}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{ if(ev==='drop'||e.relatedTarget===null) drop.classList.remove('hot'); }));
+document.addEventListener('drop',async e=>{
+  if(!e.dataTransfer||!e.dataTransfer.files.length) return; e.preventDefault(); drop.classList.remove('hot');
+  const f=e.dataTransfer.files[0];
+  loadBuffer(new Uint8Array(await f.arrayBuffer()), f.name);
+});
+
+// modal/menu dismissal
+$('editModal').addEventListener('click',e=>{ if(e.target===$('editModal')){ $('editModal').classList.remove('show'); editing=null; hexData=null; }});
+$('slotModal').addEventListener('click',e=>{ if(e.target===$('slotModal')) $('slotModal').classList.remove('show'); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ document.querySelectorAll('.modal-bg.show').forEach(m=>m.classList.remove('show')); editing=null; hexData=null; }});
+document.addEventListener('click',e=>{ if(!e.target.closest('.menu')) closeMenus(); });
+// A fixed-positioned menu doesn't track the scrolling table/page, so dismiss it on scroll/resize.
+window.addEventListener('scroll', closeMenus, true);
+window.addEventListener('resize', closeMenus);
+
+render();
+</script>
+</body>
+</html>

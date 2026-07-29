@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAROO Cover Editor — Web</title>
+<style>
+  :root {
+    --bg:#12141a; --panel:#1b1e27; --panel2:#232734; --edge:#2f3444;
+    --txt:#e6e8ef; --muted:#9aa2b4; --accent:#4f8cff; --accent2:#3a6fd8;
+    --danger:#e2564d; --ok:#37b26b; --warn:#e0a13a;
+    --radius:10px;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body {
+    background:var(--bg); color:var(--txt);
+    font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  header {
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding:12px 18px; background:var(--panel); border-bottom:1px solid var(--edge);
+    position:sticky; top:0; z-index:20;
+  }
+  header h1 { font-size:16px; margin:0; font-weight:650; letter-spacing:.2px; }
+  header h1 small { color:var(--muted); font-weight:400; font-size:12px; margin-left:6px; }
+  .spacer { flex:1; }
+  button, .btn {
+    font:inherit; cursor:pointer; border:1px solid var(--edge); background:var(--panel2);
+    color:var(--txt); padding:7px 12px; border-radius:8px; display:inline-flex; align-items:center; gap:6px;
+    transition:background .12s,border-color .12s; text-decoration:none;
+  }
+  a.btn, a.btn:hover { color:var(--txt); }
+  a.btn.donate { color:#fff; background:#0070ba; border-color:#0070ba; }
+  a.btn.donate:hover { background:#005ea6; }
+  a.btn.donate svg { color:#ffc439; }
+  button:hover, .btn:hover { background:#2c3142; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover { background:var(--accent2); }
+  button.danger { color:#ffb9b4; border-color:#4a2b2b; }
+  button.danger:hover { background:#3a2323; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button.mini { padding:4px 8px; font-size:12px; }
+
+  main { padding:18px; max-width:1400px; margin:0 auto; }
+
+  #drop {
+    border:2px dashed var(--edge); border-radius:var(--radius); padding:48px 18px; text-align:center;
+    color:var(--muted); background:var(--panel); margin-bottom:18px;
+  }
+  #drop.hot { border-color:var(--accent); color:var(--txt); background:#1a2233; }
+  #drop b { color:var(--txt); }
+
+  .bar {
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px;
+    padding:10px 12px; background:var(--panel); border:1px solid var(--edge); border-radius:var(--radius);
+  }
+  .bar .count { color:var(--muted); }
+  .bar input[type=search]{
+    background:var(--panel2); border:1px solid var(--edge); color:var(--txt);
+    padding:6px 10px; border-radius:8px; min-width:180px;
+  }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:14px; }
+  .card {
+    background:var(--panel); border:1px solid var(--edge); border-radius:var(--radius);
+    padding:10px; display:flex; flex-direction:column; gap:8px;
+  }
+  .thumb {
+    background:
+      linear-gradient(45deg,#2a2e3a 25%,transparent 25%,transparent 75%,#2a2e3a 75%) 0 0/16px 16px,
+      linear-gradient(45deg,#2a2e3a 25%,#20242e 25%,#20242e 75%,#2a2e3a 75%) 8px 8px/16px 16px;
+    border-radius:6px; display:flex; align-items:center; justify-content:center;
+    min-height:150px; overflow:hidden;
+  }
+  .thumb canvas { image-rendering:pixelated; max-width:100%; max-height:220px; display:block; }
+  .meta { font-size:12px; }
+  .meta .serial { font-weight:650; font-size:13px; word-break:break-all; }
+  .meta .sub { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .tag { display:inline-block; padding:1px 6px; border-radius:5px; background:var(--panel2); border:1px solid var(--edge); color:var(--muted); font-size:11px; }
+  .card.invalid { border-color:#5a3030; }
+  .baddim { color:#ffb9b4; font-weight:600; }
+  .badtag { color:#ffb9b4; }
+  .card .actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:auto; }
+
+  .empty { text-align:center; color:var(--muted); padding:40px; }
+
+  /* modal */
+  .modal-bg {
+    position:fixed; inset:0; background:rgba(6,8,12,.66); display:none;
+    align-items:center; justify-content:center; z-index:50; padding:18px;
+  }
+  .modal-bg.show { display:flex; }
+  .modal {
+    background:var(--panel); border:1px solid var(--edge); border-radius:14px;
+    width:min(680px,100%); max-height:92vh; overflow:auto; padding:20px;
+  }
+  .modal h2 { margin:0 0 14px; font-size:16px; }
+  .modal .row { display:flex; gap:16px; flex-wrap:wrap; }
+  .modal .col { flex:1; min-width:220px; }
+  .preview-wrap {
+    background:
+      linear-gradient(45deg,#2a2e3a 25%,transparent 25%,transparent 75%,#2a2e3a 75%) 0 0/16px 16px,
+      linear-gradient(45deg,#2a2e3a 25%,#20242e 25%,#20242e 75%,#2a2e3a 75%) 8px 8px/16px 16px;
+    border:1px solid var(--edge); border-radius:8px; padding:10px; display:flex;
+    align-items:center; justify-content:center; min-height:210px;
+  }
+  #editPreview { image-rendering:pixelated; max-width:100%; max-height:280px; }
+  label.field { display:block; margin-bottom:12px; }
+  label.field span { display:block; color:var(--muted); font-size:12px; margin-bottom:4px; }
+  label.field input, label.field select {
+    width:100%; background:var(--panel2); border:1px solid var(--edge); color:var(--txt);
+    padding:8px 10px; border-radius:8px; font:inherit;
+  }
+  .hashwrap { display:flex; gap:6px; }
+  .hashwrap input { flex:1; font-variant-numeric:tabular-nums; text-transform:uppercase; }
+  .note { color:var(--muted); font-size:12px; margin:8px 0 0; }
+  .err { color:#ffb9b4; font-size:12px; min-height:16px; margin-top:4px; }
+  .palette { display:grid; grid-template-columns:repeat(32,1fr); gap:1px; margin-top:8px; border:1px solid var(--edge); border-radius:6px; overflow:hidden; }
+  .palette i { display:block; aspect-ratio:1; }
+  .modal .footer { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+
+  #toast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--panel2); border:1px solid var(--edge); padding:10px 16px; border-radius:8px;
+    z-index:100; opacity:0; transition:opacity .25s; pointer-events:none; max-width:90vw;
+  }
+  #toast.show { opacity:1; }
+  #toast.ok { border-color:var(--ok); } #toast.err { border-color:var(--danger); }
+
+  .hint { color:var(--muted); font-size:12px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>SAROO Cover Editor <small>web edition · by <a href="https://github.com/bucanero/" target="_blank">Bucanero</a></small></h1>
+  <a class="btn" href="https://github.com/bucanero/saroo-cover-editor" target="_blank" rel="noopener noreferrer" title="Open source repository on GitHub">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+  <a class="btn donate" href="https://paypal.me/bucanerodev" target="_blank" rel="noopener noreferrer" title="Support the developer via PayPal">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+    Support
+  </a>
+  <div class="spacer"></div>
+  <button id="btnOpen">📂 Open cover.bin</button>
+  <button id="btnNew">✨ New</button>
+  <button id="btnAdd" class="primary">➕ Add cover</button>
+  <button id="btnHash" title="Compute IP.BIN Adler-32 hash from a Saturn disc image">🎯 Disc hash…</button>
+  <button id="btnExport" class="primary">💾 Export cover.bin</button>
+</header>
+
+<main>
+  <div id="drop">
+    Drag &amp; drop a <b>cover.bin</b> here, or use <b>Open cover.bin</b>. &nbsp;New/added covers are kept in memory until you <b>Export</b>.
+  </div>
+
+  <div class="bar" id="bar" style="display:none">
+    <span class="count" id="count"></span>
+    <input type="search" id="filter" placeholder="Filter by serial / hash…">
+    <div class="spacer"></div>
+    <span class="hint">Images are stored 8-bit, 256-color · max 128×192</span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="emptyMsg" style="display:none">
+    No covers loaded. Open a <code>cover.bin</code> or add an image.<br><br>
+    <a href="#" id="lnkSample" title="Download and parse a cover.bin (~30 MB) from GitHub">Load the latest <code>cover.bin</code> from GitHub.</a>
+  </div>
+</main>
+
+<!-- Add/Edit modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <h2 id="editTitle">Add cover</h2>
+    <div class="row">
+      <div class="col" style="flex:0 0 auto">
+        <div class="preview-wrap"><canvas id="editPreview" width="128" height="192"></canvas></div>
+        <div class="palette" id="editPalette"></div>
+        <p class="note" id="editInfo"></p>
+      </div>
+      <div class="col">
+        <label class="field">
+          <span>Image file (.png / .bmp / any image)</span>
+          <input type="file" id="editFile" accept="image/*,.bmp">
+        </label>
+        <label class="field">
+          <span>Size</span>
+          <select id="editSize"></select>
+        </label>
+        <label class="field">
+          <span>Serial ID (max 11 chars, e.g. MK-81088)</span>
+          <input type="text" id="editSerial" maxlength="11" placeholder="MK-81088">
+        </label>
+        <label class="field">
+          <span>IP.BIN hash (8 hex digits)</span>
+          <div class="hashwrap">
+            <input type="text" id="editHash" maxlength="8" placeholder="AABBCCDD">
+            <button type="button" id="editHashBtn" class="mini" title="Compute from a Saturn disc image">disc…</button>
+          </div>
+        </label>
+        <div class="err" id="editErr"></div>
+      </div>
+    </div>
+    <div class="footer">
+      <button id="editCancel">Cancel</button>
+      <button id="editSave" class="primary">Save cover</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileOpen" accept=".bin,application/octet-stream" style="display:none">
+<input type="file" id="fileAdd" accept="image/*,.bmp" multiple style="display:none">
+<input type="file" id="fileDisc" accept="*/*" style="display:none">
+<div id="toast"></div>
+
+<script>
+// ============================ CODEC (verified against tools/covertool) ============================
+const MAX_COVERS = 0x4000, IDX_SIZE = 32, IDX_BYTES = MAX_COVERS*IDX_SIZE, PAL_BYTES = 256*4;
+const MAX_W = 128, MAX_H = 192;
+
+function adler32(data){ let a=1,b=0; for(let i=0;i<data.length;i++){ a=(a+data[i])%65521; b=(b+a)%65521; } return ((b<<16)|a)>>>0; }
+
+function parseCoverBin(buf){
+  const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const covers=[];
+  for(let i=0;i<MAX_COVERS;i++){
+    const base=i*IDX_SIZE;
+    if(base+IDX_SIZE>u8.length) break;
+    if(u8[base]===0) break;
+    let serial=''; for(let k=0;k<12;k++){ const c=u8[base+k]; if(c===0) break; serial+=String.fromCharCode(c); }
+    const hash=dv.getUint32(base+12,true), off=dv.getUint32(base+16,true);
+    const width=dv.getUint16(base+20,true), height=dv.getUint16(base+22,true);
+    if(off+PAL_BYTES+width*height>u8.length) throw new Error(`Cover "${serial}" points past end of file — not a valid cover.bin?`);
+    const palette=new Uint32Array(256);
+    for(let p=0;p<256;p++){ const o=off+p*4; palette[p]=((u8[o+2]<<16)|(u8[o+1]<<8)|u8[o])>>>0; }
+    const start=off+PAL_BYTES;
+    covers.push({ serial, hash, width, height, palette, indices:u8.slice(start,start+width*height) });
+  }
+  return covers;
+}
+
+function buildCoverBin(covers){
+  const chunks=[]; let offset=IDX_BYTES; const dedup=new Map(); const offsets=new Array(covers.length);
+  covers.forEach((c,i)=>{
+    const h=adler32(c.indices);
+    if(dedup.has(h)){ offsets[i]=dedup.get(h); return; }
+    const off=offset; dedup.set(h,off); offsets[i]=off;
+    const pal=new Uint8Array(PAL_BYTES);
+    for(let p=0;p<256;p++){ const v=c.palette[p]>>>0; pal[p*4]=v&255; pal[p*4+1]=(v>>8)&255; pal[p*4+2]=(v>>16)&255; pal[p*4+3]=0; }
+    chunks.push(pal,c.indices); offset+=PAL_BYTES+c.indices.length;
+  });
+  const out=new Uint8Array(offset); const dv=new DataView(out.buffer);
+  covers.forEach((c,i)=>{
+    const base=i*IDX_SIZE; const serial=String(c.serial).slice(0,11);
+    for(let k=0;k<serial.length;k++) out[base+k]=serial.charCodeAt(k)&0xff;
+    dv.setUint32(base+12,c.hash>>>0,true); dv.setUint32(base+16,offsets[i]>>>0,true);
+    dv.setUint16(base+20,c.width,true); dv.setUint16(base+22,c.height,true);
+  });
+  let o=IDX_BYTES; for(const ch of chunks){ out.set(ch,o); o+=ch.length; }
+  return out;
+}
+
+function decodeBMP8(buf){
+  const u8=buf instanceof Uint8Array?buf:new Uint8Array(buf);
+  const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+  if(u8.length<54||dv.getUint16(0,true)!==0x4d42) return null;
+  const dataOffset=dv.getUint32(0x0a,true), infoSize=dv.getUint32(0x0e,true);
+  const width=dv.getInt32(0x12,true); let height=dv.getInt32(0x16,true);
+  const bpp=dv.getUint16(0x1c,true), compression=dv.getUint32(0x1e,true);
+  if(bpp!==8||compression!==0||width<=0) return null;
+  const topDown=height<0; height=Math.abs(height);
+  const palOff=14+infoSize, palCount=Math.max(0,Math.min(256,Math.floor((dataOffset-palOff)/4)));
+  const palette=new Uint32Array(256);
+  for(let p=0;p<palCount;p++){ const o=palOff+p*4; palette[p]=((u8[o+2]<<16)|(u8[o+1]<<8)|u8[o])>>>0; }
+  const rowSize=(width+3)&~3; const indices=new Uint8Array(width*height);
+  for(let y=0;y<height;y++){ const fr=topDown?y:(height-1-y); const s=dataOffset+fr*rowSize; indices.set(u8.subarray(s,s+width),y*width); }
+  return { width, height, palette, indices };
+}
+
+function encodeBMP8(cover){
+  const {width,height,palette,indices}=cover;
+  const rowSize=(width+3)&~3, imgSize=rowSize*height, dataOffset=14+40+PAL_BYTES, fileSize=dataOffset+imgSize;
+  const out=new Uint8Array(fileSize), dv=new DataView(out.buffer);
+  dv.setUint16(0,0x4d42,true); dv.setUint32(2,fileSize,true); dv.setUint32(0x0a,dataOffset,true);
+  dv.setUint32(0x0e,40,true); dv.setInt32(0x12,width,true); dv.setInt32(0x16,height,true);
+  dv.setUint16(0x1a,1,true); dv.setUint16(0x1c,8,true); dv.setUint32(0x1e,0,true);
+  dv.setUint32(0x22,imgSize,true); dv.setUint32(0x26,0x0b13,true); dv.setUint32(0x2a,0x0b13,true); dv.setUint32(0x2e,256,true);
+  for(let p=0;p<256;p++){ const v=palette[p]>>>0; const o=0x36+p*4; out[o]=v&255; out[o+1]=(v>>8)&255; out[o+2]=(v>>16)&255; out[o+3]=0; }
+  for(let y=0;y<height;y++){ const sy=height-1-y; out.set(indices.subarray(sy*width,sy*width+width),dataOffset+y*rowSize); }
+  return out;
+}
+
+function quantize(rgba,width,height,maxColors=256){
+  const n=width*height, hist=new Map(), px=new Uint32Array(n);
+  for(let i=0;i<n;i++){
+    let r=rgba[i*4],g=rgba[i*4+1],b=rgba[i*4+2]; const a=rgba[i*4+3];
+    if(a<255){ const af=a/255, ia=1-af; r=Math.round(r*af+255*ia); g=Math.round(g*af+255*ia); b=Math.round(b*af+255*ia); }
+    const key=((r<<16)|(g<<8)|b)>>>0; px[i]=key; hist.set(key,(hist.get(key)||0)+1);
+  }
+  const colors=[]; for(const [key,count] of hist) colors.push({r:(key>>16)&255,g:(key>>8)&255,b:key&255,count,key});
+  const palette=new Uint32Array(256), map=new Map();
+  if(colors.length<=maxColors){ colors.forEach((c,i)=>{ palette[i]=c.key; map.set(c.key,i); }); }
+  else {
+    const range=(box)=>{ let a=255,b=0,c=255,d=0,e=255,f=0; for(const x of box){ if(x.r<a)a=x.r; if(x.r>b)b=x.r; if(x.g<c)c=x.g; if(x.g>d)d=x.g; if(x.b<e)e=x.b; if(x.b>f)f=x.b; } return {rr:b-a,gr:d-c,br:f-e}; };
+    const boxes=[colors];
+    while(boxes.length<maxColors){
+      let bi=-1,best=-1;
+      for(let i=0;i<boxes.length;i++){ if(boxes[i].length<2) continue; const rg=range(boxes[i]); const mr=Math.max(rg.rr,rg.gr,rg.br); let pop=0; for(const c of boxes[i]) pop+=c.count; const s=mr*pop; if(s>best){ best=s; bi=i; } }
+      if(bi<0) break;
+      const box=boxes[bi], rg=range(box); let ch='r';
+      if(rg.gr>=rg.rr&&rg.gr>=rg.br) ch='g'; else if(rg.br>=rg.rr&&rg.br>=rg.gr) ch='b';
+      box.sort((a,b)=>a[ch]-b[ch]);
+      let total=0; for(const c of box) total+=c.count; let acc=0,split=0;
+      for(let i=0;i<box.length;i++){ acc+=box[i].count; if(acc*2>=total){ split=i+1; break; } }
+      if(split<=0) split=1; if(split>=box.length) split=box.length-1;
+      boxes.splice(bi,1,box.slice(0,split),box.slice(split));
+    }
+    boxes.forEach((box,idx)=>{ let sr=0,sg=0,sb=0,sc=0; for(const c of box){ sr+=c.r*c.count; sg+=c.g*c.count; sb+=c.b*c.count; sc+=c.count; } palette[idx]=((Math.round(sr/sc)<<16)|(Math.round(sg/sc)<<8)|Math.round(sb/sc))>>>0; for(const c of box) map.set(c.key,idx); });
+  }
+  const indices=new Uint8Array(n); for(let i=0;i<n;i++) indices[i]=map.get(px[i]);
+  return { width, height, palette, indices };
+}
+
+function parseFilename(name){
+  const m=/cover_(.+)~([0-9A-Fa-f]{1,8})\.(bmp|png)$/i.exec(name);
+  if(!m) return null; return { serial:m[1].slice(0,11), hash:parseInt(m[2],16)>>>0 };
+}
+
+function discHash(u8){
+  const sig="SEGA SEGASATURN "; const match=(o)=>{ for(let k=0;k<16;k++) if(u8[o+k]!==sig.charCodeAt(k)) return false; return true; };
+  let ip=0; if(!match(0)) ip=0x10; if(!match(ip)) return null;
+  let gid=''; for(let k=0;k<16;k++){ const c=u8[ip+0x20+k]; if(c===0) break; gid+=String.fromCharCode(c); }
+  const vi=gid.lastIndexOf('V'); if(vi>=0) gid=gid.slice(0,vi);
+  const si=gid.indexOf(' '); if(si>=0) gid=gid.slice(0,si);
+  const hash=adler32(u8.subarray(ip+0x30,ip+0x30+64));
+  return { serial:gid.trim(), hash };
+}
+
+// ============================ APP STATE / HELPERS ============================
+let covers = [];   // array of cover objects (+ optional _srcCanvas, _lossless)
+const $ = (id)=>document.getElementById(id);
+
+function hex8(n){ return (n>>>0).toString(16).toUpperCase().padStart(8,'0'); }
+function fileNameFor(c,ext){ return `cover_${c.serial||'UNKNOWN'}~${hex8(c.hash)}.${ext}`; }
+
+function toast(msg,kind){ const t=$('toast'); t.textContent=msg; t.className='show '+(kind||''); clearTimeout(toast._t); toast._t=setTimeout(()=>t.className='',2600); }
+
+function coverToImageData(c){
+  const img=new ImageData(c.width,c.height);
+  for(let i=0;i<c.width*c.height;i++){ const v=c.palette[c.indices[i]]||0; img.data[i*4]=(v>>16)&255; img.data[i*4+1]=(v>>8)&255; img.data[i*4+2]=v&255; img.data[i*4+3]=255; }
+  return img;
+}
+function coverToCanvas(c){ const cv=document.createElement('canvas'); cv.width=c.width; cv.height=c.height; cv.getContext('2d').putImageData(coverToImageData(c),0,0); return cv; }
+function usedColors(c){ return new Set(c.indices).size; }
+
+function download(bytes,name,type){
+  const blob=new Blob([bytes],{type:type||'application/octet-stream'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+
+// ============================ RENDER GRID ============================
+function render(){
+  const grid=$('grid'), q=$('filter').value.trim().toLowerCase();
+  grid.innerHTML='';
+  $('bar').style.display = covers.length ? 'flex' : 'none';
+  $('emptyMsg').style.display = covers.length ? 'none' : 'block';
+  $('drop').style.display = covers.length ? 'none' : 'block';
+  const badCount = covers.filter(c=>!isValidSize(c.width,c.height)).length;
+  $('count').innerHTML = `${covers.length} cover${covers.length!==1?'s':''}` +
+    (badCount ? ` · <span class="badtag">⚠ ${badCount} invalid size</span>` : '');
+  covers.forEach((c,idx)=>{
+    if(q && !(c.serial.toLowerCase().includes(q) || hex8(c.hash).toLowerCase().includes(q))) return;
+    const bad = !isValidSize(c.width,c.height);
+    const card=document.createElement('div'); card.className='card'+(bad?' invalid':'');
+    const thumb=document.createElement('div'); thumb.className='thumb';
+    const cv=coverToCanvas(c); cv.style.width='128px'; cv.style.height=(128*c.height/c.width)+'px';
+    thumb.appendChild(cv); card.appendChild(thumb);
+    const meta=document.createElement('div'); meta.className='meta';
+    meta.innerHTML=`<div class="serial">${c.serial||'<em>no serial</em>'}</div>
+      <div class="sub">#${hex8(c.hash)} · <span class="${bad?'baddim':''}">${c.width}×${c.height}${bad?' ⚠':''}</span> · <span class="tag">${usedColors(c)} col</span></div>`;
+    card.appendChild(meta);
+    const act=document.createElement('div'); act.className='actions';
+    const mk=(label,cls,fn)=>{ const b=document.createElement('button'); b.className='mini '+(cls||''); b.textContent=label; b.onclick=fn; return b; };
+    act.appendChild(mk('Edit','',()=>openEditor(idx)));
+    act.appendChild(mk('PNG','',()=>exportPNG(c)));
+    act.appendChild(mk('BMP','',()=>download(encodeBMP8(c),fileNameFor(c,'bmp'),'image/bmp')));
+    act.appendChild(mk('Delete','danger',()=>{ if(confirm(`Remove cover "${c.serial}" (#${hex8(c.hash)})?`)){ covers.splice(idx,1); render(); toast('Cover removed'); }}));
+    card.appendChild(act);
+    grid.appendChild(card);
+  });
+}
+
+function exportPNG(c){
+  const cv=coverToCanvas(c);
+  cv.toBlob(b=>{ const url=URL.createObjectURL(b); const a=document.createElement('a'); a.href=url; a.download=fileNameFor(c,'png'); a.click(); setTimeout(()=>URL.revokeObjectURL(url),1500); },'image/png');
+}
+
+// ============================ IMAGE DECODING / RESIZING ============================
+async function decodeToSource(file){
+  // Returns { srcCanvas, lossless } where lossless = {width,height,palette,indices} if an 8-bit BMP.
+  const buf=await file.arrayBuffer();
+  const bmp=decodeBMP8(buf);
+  if(bmp){
+    const cv=document.createElement('canvas'); cv.width=bmp.width; cv.height=bmp.height;
+    cv.getContext('2d').putImageData(coverToImageData(bmp),0,0);
+    return { srcCanvas:cv, lossless:bmp };
+  }
+  // generic decode
+  let bitmap;
+  try { bitmap=await createImageBitmap(new Blob([buf],{type:file.type||'image/png'})); }
+  catch(e){ bitmap=await new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>res(img); img.onerror=rej; img.src=URL.createObjectURL(new Blob([buf])); }); }
+  const cv=document.createElement('canvas'); cv.width=bitmap.width; cv.height=bitmap.height;
+  cv.getContext('2d').drawImage(bitmap,0,0);
+  return { srcCanvas:cv, lossless:null };
+}
+
+// SAROO only supports two cover sizes. Every other dimension is invalid.
+const VALID_SIZES = [[128,192],[128,128]];
+function isValidSize(w,h){ return w===128 && (h===128 || h===192); }
+// Pick the closest valid size for a source image by aspect ratio.
+function defaultSizeMode(sw,sh){ return (sh/sw) >= (160/128) ? '128x192' : '128x128'; }
+
+// mode: 'keep' | 'lossless' | '128x192' | '128x128'
+function processSource(src, mode){
+  if(mode==='lossless' && src.lossless) return { ...src.lossless };
+  const th = mode==='128x128' ? 128 : 192; // default 128x192
+  const tw = 128;
+  const cv=document.createElement('canvas'); cv.width=tw; cv.height=th;
+  const ctx=cv.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  ctx.drawImage(src.srcCanvas,0,0,tw,th);
+  const data=ctx.getImageData(0,0,tw,th).data;
+  return quantize(data,tw,th);
+}
+
+// ============================ EDITOR MODAL ============================
+let edit = null; // { index, src, cover }
+
+function sizeOptions(src, currentW, currentH){
+  const opts=[];
+  // Lossless / keep are only offered when the source is already a valid size.
+  if(src && src.lossless && isValidSize(src.lossless.width, src.lossless.height))
+    opts.push(['lossless',`Original BMP (${src.lossless.width}×${src.lossless.height}, lossless)`]);
+  if(edit && edit.index>=0 && !src && isValidSize(currentW, currentH))
+    opts.push(['keep',`Keep current (${currentW}×${currentH})`]);
+  opts.push(['128x192','128 × 192']);
+  opts.push(['128x128','128 × 128']);
+  return opts;
+}
+
+function openEditor(index, presetSrc){
+  const isNew = index<0;
+  const cur = isNew ? null : covers[index];
+  edit = { index, src:presetSrc||null, cover: cur ? {serial:cur.serial,hash:cur.hash,width:cur.width,height:cur.height,palette:cur.palette,indices:cur.indices} : {serial:'',hash:0,width:0,height:0,palette:new Uint32Array(256),indices:new Uint8Array(0)} };
+  $('editTitle').textContent = isNew ? 'Add cover' : 'Edit cover';
+  $('editSerial').value = edit.cover.serial;
+  $('editHash').value = isNew ? '' : hex8(edit.cover.hash);
+  $('editErr').textContent='';
+  $('editFile').value='';
+  refreshSizeSelect();
+  if(edit.src) reprocessAndPreview();
+  else if(!isNew){ drawPreview(edit.cover); }
+  else { clearPreview(); }
+  $('editModal').classList.add('show');
+}
+
+function refreshSizeSelect(){
+  const sel=$('editSize'); sel.innerHTML='';
+  const cur = edit.index>=0 ? covers[edit.index] : null;
+  const opts=sizeOptions(edit.src, cur?cur.width:0, cur?cur.height:0);
+  for(const [v,label] of opts){ const o=document.createElement('option'); o.value=v; o.textContent=label; sel.appendChild(o); }
+  // Default: preserve lossless/keep when available, else pick by source aspect.
+  if(opts[0][0]==='lossless' || opts[0][0]==='keep') sel.value=opts[0][0];
+  else if(edit.src) sel.value=defaultSizeMode(edit.src.srcCanvas.width, edit.src.srcCanvas.height);
+  else sel.value=opts[0][0];
+}
+
+function clearPreview(){ const cv=$('editPreview'); cv.width=128; cv.height=192; cv.getContext('2d').clearRect(0,0,128,192); $('editPalette').innerHTML=''; $('editInfo').textContent='Choose an image file to begin.'; }
+
+function drawPreview(c){
+  const cv=$('editPreview'); cv.width=c.width; cv.height=c.height;
+  cv.style.width='min(220px,100%)'; cv.style.height='auto';
+  cv.getContext('2d').putImageData(coverToImageData(c),0,0);
+  const pal=$('editPalette'); pal.innerHTML=''; const used=usedColors(c);
+  for(let p=0;p<256;p++){ const i=document.createElement('i'); const v=c.palette[p]||0; i.style.background=`rgb(${(v>>16)&255},${(v>>8)&255},${v&255})`; pal.appendChild(i); }
+  const bad = !isValidSize(c.width,c.height);
+  $('editInfo').textContent=`${c.width}×${c.height} · ${used} colors used${bad?' · ⚠ invalid size — must be 128×128 or 128×192':''}`;
+  $('editInfo').style.color = bad ? '#ffb9b4' : '';
+}
+
+function reprocessAndPreview(){
+  if(!edit.src) return;
+  const mode=$('editSize').value;
+  const c=processSource(edit.src, mode);
+  edit.cover.width=c.width; edit.cover.height=c.height; edit.cover.palette=c.palette; edit.cover.indices=c.indices;
+  drawPreview(edit.cover);
+}
+
+$('editSize').onchange=()=>{
+  if(edit.src) reprocessAndPreview();
+  else if(edit.index>=0 && $('editSize').value!=='keep'){
+    // build a source from current cover and reprocess at the chosen size
+    const chosen=$('editSize').value;
+    edit.src={ srcCanvas:coverToCanvas(covers[edit.index]), lossless:null };
+    refreshSizeSelect(); $('editSize').value = chosen==='128x128' ? '128x128' : '128x192';
+    reprocessAndPreview();
+  }
+};
+
+$('editFile').onchange=async(e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  $('editErr').textContent='Decoding…';
+  try{
+    edit.src=await decodeToSource(f);
+    const meta=parseFilename(f.name);
+    if(meta){ if(!$('editSerial').value) $('editSerial').value=meta.serial; if(!$('editHash').value) $('editHash').value=hex8(meta.hash); }
+    refreshSizeSelect(); reprocessAndPreview(); $('editErr').textContent='';
+  }catch(err){ $('editErr').textContent='Could not decode image: '+err.message; }
+};
+
+$('editHashBtn').onclick=()=>{ discTarget='editor'; $('fileDisc').click(); };
+
+$('editCancel').onclick=()=>{ $('editModal').classList.remove('show'); edit=null; };
+
+$('editSave').onclick=()=>{
+  const serial=$('editSerial').value.trim().slice(0,11);
+  const hashStr=$('editHash').value.trim();
+  const err=$('editErr');
+  if(!edit.cover.indices.length){ err.textContent='No image loaded.'; return; }
+  if(!serial){ err.textContent='Serial ID is required.'; return; }
+  if(!/^[0-9A-Fa-f]{1,8}$/.test(hashStr)){ err.textContent='Hash must be 1–8 hex digits.'; return; }
+  if(!isValidSize(edit.cover.width,edit.cover.height)){ err.textContent=`Invalid size ${edit.cover.width}×${edit.cover.height} — SAROO covers must be 128×128 or 128×192. Pick a size above.`; return; }
+  const c={ serial, hash:parseInt(hashStr,16)>>>0, width:edit.cover.width, height:edit.cover.height, palette:edit.cover.palette, indices:edit.cover.indices };
+  if(edit.index>=0) covers[edit.index]=c; else covers.push(c);
+  $('editModal').classList.remove('show');
+  const wasNew=edit.index<0; edit=null; render();
+  toast(wasNew?'Cover added':'Cover updated','ok');
+};
+
+// ============================ FILE / TOP-LEVEL ACTIONS ============================
+async function loadCoverBin(file){
+  try{
+    const buf=await file.arrayBuffer();
+    const parsed=parseCoverBin(buf);
+    covers=parsed; render();
+    toast(`Loaded ${parsed.length} covers from ${file.name}`,'ok');
+  }catch(err){ toast('Failed to load: '+err.message,'err'); }
+}
+
+$('btnOpen').onclick=()=>$('fileOpen').click();
+$('fileOpen').onchange=e=>{ if(e.target.files[0]) loadCoverBin(e.target.files[0]); e.target.value=''; };
+
+// Sample cover.bin hosted on GitHub Releases (~30 MB).
+const SAMPLE_URL='https://bucanero.github.io/saroo-cover-editor/cover.bin';
+$('lnkSample').onclick=async(e)=>{
+  e.preventDefault();
+  if(covers.length && !confirm('Discard current covers and load the sample cover.bin?')) return;
+  const lnk=$('lnkSample'); const label=lnk.textContent; lnk.textContent='Downloading cover.bin (~30 MB)…'; lnk.style.pointerEvents='none';
+  toast('Downloading sample cover.bin (~30 MB)…');
+  try{
+    const resp=await fetch(SAMPLE_URL);
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const buf=await resp.arrayBuffer();
+    covers=parseCoverBin(buf); render();
+    toast(`Loaded ${covers.length} covers from the sample cover.bin`,'ok');
+  }catch(err){
+    toast('Could not fetch sample: '+err.message+' — download it from the GitHub release and use Open cover.bin.','err');
+  }finally{ lnk.textContent=label; lnk.style.pointerEvents=''; }
+};
+
+$('btnNew').onclick=()=>{ if(covers.length && !confirm('Discard current covers and start empty?')) return; covers=[]; render(); toast('Started empty cover set'); };
+
+$('btnAdd').onclick=()=>$('fileAdd').click();
+$('fileAdd').onchange=async e=>{
+  const files=[...e.target.files]; e.target.value='';
+  if(!files.length) return;
+  if(files.length===1){ // open editor
+    const src=await decodeToSource(files[0]);
+    openEditor(-1, src);
+    const meta=parseFilename(files[0].name);
+    if(meta){ $('editSerial').value=meta.serial; $('editHash').value=hex8(meta.hash); }
+    return;
+  }
+  // batch add with filename-derived metadata; snapped to the nearest valid size
+  let added=0, skipped=0;
+  for(const f of files){
+    try{
+      const src=await decodeToSource(f);
+      const mode = (src.lossless && isValidSize(src.lossless.width, src.lossless.height))
+        ? 'lossless' : defaultSizeMode(src.srcCanvas.width, src.srcCanvas.height);
+      const c=processSource(src, mode);
+      const meta=parseFilename(f.name);
+      c.serial=meta?meta.serial:(f.name.replace(/\.[^.]+$/,'').slice(0,11));
+      c.hash=meta?meta.hash:0;
+      covers.push({serial:c.serial,hash:c.hash,width:c.width,height:c.height,palette:c.palette,indices:c.indices});
+      added++;
+    }catch(err){ skipped++; }
+  }
+  render();
+  toast(`Added ${added} cover${added!==1?'s':''}${skipped?`, ${skipped} skipped`:''}. Edit each to set serial/hash.`,'ok');
+};
+
+$('btnExport').onclick=()=>{
+  if(!covers.length){ toast('Nothing to export','err'); return; }
+  const badSize=covers.filter(c=>!isValidSize(c.width,c.height));
+  if(badSize.length && !confirm(`${badSize.length} cover(s) are NOT 128×128 or 128×192 (e.g. "${badSize[0].serial}" ${badSize[0].width}×${badSize[0].height}). SAROO may not display them. Export anyway?`)) return;
+  const missing=covers.filter(c=>!c.serial);
+  if(missing.length && !confirm(`${missing.length} cover(s) have no serial ID and will be skipped by SAROO. Export anyway?`)) return;
+  const bytes=buildCoverBin(covers);
+  download(bytes,'cover.bin','application/octet-stream');
+  toast(`Exported cover.bin (${covers.length} covers, ${(bytes.length/1024).toFixed(0)} KB)`,'ok');
+};
+
+// disc hash helper
+let discTarget='editor';
+$('btnHash').onclick=()=>{ discTarget='toast'; $('fileDisc').click(); };
+$('fileDisc').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    const head=new Uint8Array(await f.slice(0,256).arrayBuffer());
+    const r=discHash(head);
+    if(!r){ toast('Not a SEGA SATURN disc image','err'); return; }
+    if(discTarget==='editor' && edit){ $('editSerial').value=r.serial.slice(0,11); $('editHash').value=hex8(r.hash); toast(`Disc: ${r.serial} #${hex8(r.hash)}`,'ok'); }
+    else { toast(`${r.serial} · IP hash #${hex8(r.hash)} — cover_${r.serial}~${hex8(r.hash)}.bmp`,'ok'); prompt('Disc identity (copy):', `cover_${r.serial}~${hex8(r.hash)}.bmp`); }
+  }catch(err){ toast('Failed to read disc: '+err.message,'err'); }
+};
+
+// filter
+$('filter').oninput=render;
+
+// drag & drop cover.bin
+const drop=$('drop');
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{ if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){ e.preventDefault(); drop.classList.add('hot'); }}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{ if(ev==='drop'||e.relatedTarget===null) drop.classList.remove('hot'); }));
+document.addEventListener('drop',e=>{
+  if(!e.dataTransfer||!e.dataTransfer.files.length) return; e.preventDefault(); drop.classList.remove('hot');
+  const f=e.dataTransfer.files[0];
+  if(/\.bin$/i.test(f.name)||f.name==='cover.bin') loadCoverBin(f);
+  else toast('Drop a cover.bin file (use "Add cover" for images)','err');
+});
+
+// close modal on background click / Esc
+$('editModal').addEventListener('click',e=>{ if(e.target===$('editModal')){ $('editModal').classList.remove('show'); edit=null; }});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('editModal').classList.contains('show')){ $('editModal').classList.remove('show'); edit=null; }});
+
+render();
+</script>
+</body>
+</html>
