@@ -115,6 +115,10 @@
 #define SSCMD_SMEMS    0x000c
 #define SSCMD_STARTUP  0x000d
 #define SSCMD_SELECT   0x000e
+/* saroo-stv: SDRAM image loader beyond the 16 MB FMC window, and the HW1.3
+   AA24 (SS_SCLK) CS0 address bit. */
+#define SSCMD_STVLOAD  0x0040
+#define SSCMD_ROMCTL   0x0041
 
 
 #define MSF_TO_FAD(m,s,f) ((m * 4500) + (s * 75) + f)

@@ -737,8 +737,75 @@ void ss_cmd_handle(void)
 		SS_ARG = retv;
 		SS_CMD = 0;
 		break;
+	case SSCMD_STVLOAD:
+	{
+		// saroo-stv: like FILERD, but baddr may reach the 32 MB of SDRAM behind
+		// CS0 with AA24. FPGA st_reg_ctrl[11:10] selects the 16 MB FMC bank;
+		// chunks never cross a bank and bank 0 (TMPBUFF) is restored before
+		// the result is written back.
+		FIL fp;
+		// The menu cover GIF task writes SDRAM 0x614xxxxx (CS0 0x024xxxxx);
+		// LOADDISC releases the Saturn before stopping it. Stop it first.
+		gif_decode_exit();
+		int offset = *(u32*)(TMPBUFF_ADDR+0x00);
+		u32 size   = *(u32*)(TMPBUFF_ADDR+0x04);
+		u32 baddr  = *(u32*)(TMPBUFF_ADDR+0x08) & 0x01ffffff;
+		char *name = (char*)(TMPBUFF_ADDR+0x10);
+		u32 total = 0;
+		int retv = f_open(&fp, name, FA_READ);
+		if(retv==FR_OK){
+			f_lseek(&fp, offset);
+			if(size==0)
+				size = f_size(&fp)-offset;
+			if(size>0x02000000-baddr)
+				retv = FR_INVALID_PARAMETER;
+			while(retv==FR_OK && total<size){
+				u32 addr = baddr+total;
+				u32 chunk = 0x01000000-(addr&0x00ffffff);
+				u32 rsize = 0;
+				if(chunk>size-total)
+					chunk = size-total;
+				int key = disable_irq();
+				ST_CTRL = (ST_CTRL&~0x0c00) | (((addr>>24)&3)<<10);
+				restore_irq(key);
+				retv = f_read(&fp, (u8*)(0x61000000|(addr&0x00ffffff)), chunk, &rsize);
+				total += rsize;
+				if(rsize!=chunk)
+					break;
+			}
+			int key = disable_irq();
+			ST_CTRL &= ~0x0c00;
+			restore_irq(key);
+			f_close(&fp);
+			SSLOG(_INFO, "\nSSCMD_STVLOAD: retv=%d size=%08x  %s\n", retv, total, name);
+		}
+		*(u32*)(TMPBUFF_ADDR+0x04) = total;
+		SS_ARG = -retv;
+		SS_CMD = 0;
+		break;
+	}
+	case SSCMD_ROMCTL:
+	{
+		// saroo-stv: bit0 of SS_ARG enables CS0 AA24 addressing (FPGA 06
+		// st_reg_ctrl[12]). Returns ST_CTRL bits 15..8.
+		int key = disable_irq();
+		if(SS_ARG&1)
+			ST_CTRL |= 0x1000;
+		else
+			ST_CTRL &= ~0x1000;
+		SS_ARG = (ST_CTRL>>8)&0xff;
+		restore_irq(key);
+		SS_CMD = 0;
+		break;
+	}
 	case SSCMD_STARTUP: {
 		// 土星端启动!
+		{
+			// saroo-stv: the menu always starts with legacy CS0 addressing.
+			int key = disable_irq();
+			ST_CTRL &= ~0x1c00;
+			restore_irq(key);
+		}
 
 		// 复位buffer
 		buf_fad_start = 0;
