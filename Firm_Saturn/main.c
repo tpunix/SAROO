@@ -93,6 +93,13 @@ int pad_read(void)
 			bits = (oreg[p+4]<<8) | (oreg[p+6]);
 			bits ^= 0xFFFF;
 			p += (oreg[p+2]&0x0f)*4;
+		}else if(oreg[p]==0x16){
+			/* OEM Sega 6-player multitap: use socket 1 as PAD1. */
+			if(oreg[p+2]==0x02){
+				bits = (oreg[p+4]<<8) | oreg[p+6];
+				bits ^= 0xFFFF;
+			}
+			p += 18;
 		}else{
 			p += 2;
 		}
