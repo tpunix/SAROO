@@ -1,0 +1,188 @@
+# SAROO config file
+# Available configurations:
+#   lang_id=x
+#     Select menu language:  0:Chinese  1:EN  2:PTBR  3:JA  4:FR  5:RU  6:Traditional Chinese  7:DE  8:ES  9:IT  10:PL  11:SWE
+#   debug=xxxxxxxx
+#     Various debug options
+#   auto_update:
+#     MCU automatic firmware upgrade
+#   play_delay=xxxx
+#     Delay before PLAY starts. Decimal us unit.
+#   pend_delay=xxxx
+#     Delay before PLAY ends. Decimal us unit.
+#   sector_delay=xxxx
+#     Delay after reading each sector. Decimal us unit.
+#   exmem_1M
+#     Use 1M expansion card
+#   exmem_4M
+#     Use 4M expansion card
+#   M_xxxxxxxx=xxxxxxxx
+#     Write 32-bit memory
+#   M_xxxxxxxx=xxxx
+#     Write 16-bit memory
+#   M_xxxxxxxx=xx
+#     Write 8-bit memory
+#   multi_disc="xxxx"
+#     Multi-disc game identification
+#   category="xxxx"
+#     Add a new game category
+#
+
+[global]
+lang_id = 0
+
+
+# Final Fight Revenge
+[T-1248G   V1.004]
+sector_delay = 2000
+
+
+# PUZZLE BOBBLE 3
+[T-1109G   V1.002]
+sector_delay = 4000
+
+
+# D-XHIRD
+[T-10307G  V1.002]
+sector_delay = 1000
+
+
+# TAROMARU
+[T-4804G   V1.004]
+sector_delay=2000
+
+
+# SALAMANDER-DP (Salamander Collection)
+[T-9520G   V1.010]
+sector_delay=4000
+
+
+# Princess Crown
+[T-14418G  V1.004]
+sector_delay=6000
+
+
+# ROUKA NI ITIDANTOA-RU (Sega Classics - Game Challenge - Corridor)
+[GS-9043   V1.002]
+sector_delay=4000
+
+
+# The Emblem of Justice (Japan) - Fix black screen during cutscenes
+[T-21001G  V1.003]
+sector_delay=1000
+
+
+# Nobunaga's Ambition: Lord of Darkness Power-Up Kit - Fix graphical glitches
+[T-7643G   V1.001]
+sector_delay=2000
+
+
+# Time Bokan
+[T-20607G  V1.003]
+play_delay = 2000
+
+
+# Gotha - Ismailia SenEki (Japan)
+[GS-9009   V1.000]
+play_delay = 16000
+sector_delay = 5000
+
+
+# Last Bronx
+[GS-9152   V1.113]
+play_delay = 50000
+
+
+[GS-9133   V1.003]
+play_delay = 16000
+sector_delay = 5000
+
+
+[T-31505G  V1.004]
+play_delay = 50000
+
+
+# Bug! (USA) (R) Fixed First stage problem
+[MK-81004  V1.017]
+sector_delay=1000
+
+
+# Bug! (USA) Fixed First stage problem
+[GM-81004  V1.017]
+sector_delay=1000
+
+
+# Batman Forever - The Arcade Game(Japan)
+[T-8118G   V1.000]
+play_delay = 100000
+sector_delay = 4200
+
+
+# DAYTONA USA (E)
+# Fixes advanced and export routes booting to system
+[MK_8120050V1.000]
+sector_delay=500
+
+
+# DAYTONA USA (U)
+# Fixes advanced and export routes booting to system
+[MK-81200  V1.000]
+sector_delay=500
+
+
+# DAYTONA USA (J)
+# Fixes advanced and export routes booting to system
+[GS-9013   V1.000]
+sector_delay=500
+
+
+# LAST GLADIATORS
+# Fixes black screen when leaving options
+[T-4804H   V1.000]
+sector_delay=1000
+
+
+# Riglord Saga 2
+[GS-9084   V1.100]
+play_delay = 50000
+sector_delay = 5000
+
+
+# Hop Step Idol
+[T-20507G  V1.002]
+play_delay = 5000
+pend_delay = 5000
+
+
+# Thunderhawk II
+[T-6006G   V1.001]
+sector_delay = 8000
+
+
+# Thunderhawk 2 Firestorm
+[T-11501H00V1.000]
+sector_delay = 8000
+
+
+# Thunderstrike 2
+[T-7902H   V3.000]
+sector_delay = 8000
+
+
+# Virtual Fighter (US)
+[MK-81005  V1.000]
+sector_delay = 1000
+
+# Virtual Fighter (EU)
+[MK_8100550V1.000]
+sector_delay = 1000
+
+# Virtual Fighter (JP)
+[GS-9001  V1.000]
+sector_delay = 1000
+
+
+# Magical Drop III - Toretate Zoukan-gou! (Japan) (2M)
+[T-1313G   V1.005]
+play_delay = 8000
+

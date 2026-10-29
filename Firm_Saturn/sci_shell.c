@@ -309,6 +309,7 @@ void sci_shell(void)
 
 		CMD(wtt) {
 			// 测试延时计数. 大概9000000是1秒.
+			// Test delay counter. Approximately 9000000 is 1 second.
 			int cnt = arg[0];
 			reset_timer();
 			while(cnt){

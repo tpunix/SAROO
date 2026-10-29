@@ -37,31 +37,37 @@ static int cdp_auth(void)
 
 	if(cdstat==STATUS_OPEN || cdstat==STATUS_NODISC){
 		// 开盖了
+		// Cover opened
 		return -2;
 	}
 	if(cdstat>=STATUS_RETRY){
 		// 发生错误，复位重试
+		// Error occurred, reset and retry
 		ipstat = 0;
 	}
 
 	if(ipstat==0){
 		// 复位cdblock
+		// Reset cdblock
 		cdblock_off();
 		cdblock_on(0);
 		ipstat = 1;
 	}else if(ipstat==1){
 		// 等待cdblock进入工作状态
+		// Wait for cdblock to enter working state
 		if(cdstat==STATUS_PAUSE){
 			my_bios_loadcd_init();
 			ipstat = 2;
 		}
 	}else if(ipstat==2){
 		// 等待reset_selector完成
+		// Wait for reset_selector to complete
 		if(cdstat==STATUS_PAUSE){
 			ipstat = 3;
 		}
 	}else if(ipstat>=3 && ipstat<11){
 		// 执行伪认证，重试8次
+		// Execute pseudo authentication, retry 8 times
 		int retv = jhl_auth_hack(100000);
 		if(retv==2){
 			ipstat = 12;
@@ -70,10 +76,12 @@ static int cdp_auth(void)
 		}
 	}else if(ipstat==11){
 		// 认证失败
+		// Authentication failed
 		ipstat = 0;
 		return -1;
 	}else if(ipstat>=12 && ipstat<16){
 		// 读IP，重试4次
+		// Read IP, retry 4 times
 		int retv = my_bios_loadcd_read();
 		if(retv==0){
 			ipstat = 0;
@@ -82,6 +90,7 @@ static int cdp_auth(void)
 		ipstat += 1;
 	}else{
 		// 读IP失败
+		// Failed to read IP
 		ipstat = 0;
 		return -2;
 	}
@@ -153,9 +162,11 @@ static int cdp_boot(void)
 
 	if(pad & PAD_C){
 		// SAROO启动，但用系统存档
+		// SAROO boot, but use system save
 		bios_cd_cmd(disc_type|0x80);
 	}else if(pad & PAD_A){
 		// SAROO启动
+		// SAROO boot
 		bios_cd_cmd(disc_type);
 	}
 
@@ -182,6 +193,7 @@ static int cdp_read_ip(void)
 		return status;
 	}else{
 		// 光盘
+		// Optical disc
 		return cdp_auth();
 	}
 }
@@ -219,6 +231,7 @@ static void my_0344(int and, int or)
 
 
 // 调用04c8的代码必须在内部RAM中运行。
+// Code that calls 04c8 must run in internal RAM.
 static void _call_04c8(void)
 {
 	void (*go)(void) = (void*)(0x04c8);
@@ -443,6 +456,7 @@ static void read_1st(void)
 	}
 
 	// 有些游戏没有正确初始化VDP1。这里特殊处理一下。
+	// Some games don't properly initialize VDP1. Special handling here.
 	memset((u8*)0x25c00200, 0x00, 0x80000-0x200);
 	for(int i=0; i<0x80000; i+=0x20){
 		*(u16*)(0x25c00000+i) = 0x8000;
@@ -481,6 +495,7 @@ int bios_cd_cmd(int type)
 #if 0
 	if(type!=2){
 		// 0:ISO, 4:光盘
+		// 0:ISO, 4:Optical disc
 		bios_loadcd_init();
 		while(1){
 			ip_size = bios_loadcd_read();
@@ -500,6 +515,7 @@ int bios_cd_cmd(int type)
 #endif
 	{
 		// 2: 刻录游戏盘
+		// 2: Burned game disc
 		my_bios_loadcd_init();
 		retv = my_bios_loadcd_read();
 		if(retv<0){
@@ -517,6 +533,7 @@ int bios_cd_cmd(int type)
 
 	if(type>0 && use_sys_bup==0){
 		// 光盘游戏。需要通知MCU加载SAVE。
+		// Optical disc game. Need to notify MCU to load SAVE.
 		memcpy((void*)(TMPBUFF_ADDR+0x10), (u8*)0x06002020, 16);
 		*(u8*)(TMPBUFF_ADDR+0x20) = 0;
 
@@ -527,11 +544,14 @@ int bios_cd_cmd(int type)
 
 	// 模拟执行1A3c()
 	// 跳过各种验证
+	// Simulate executing 1A3c()
+	// Skip various validations
 	memcpy((u8*)0x060002a0, (u8*)0x060020e0, 32);
 	memcpy((u8*)0x06000c00, (u8*)0x06002000, 256);
 	*(u32*)(0x06000254) = 0x6002100;
 
 	// 模拟执行18fe()
+	// Simulate executing 18fe()
 	cdc_change_dir(0, 0xffffff);
 	cdc_read_file(0, 2, 0);
 
