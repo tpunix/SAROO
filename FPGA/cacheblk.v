@@ -99,7 +99,10 @@ module cacheblk(
 		if(reset==0) begin
 			dcnt <= 0;
 		end else if(cache_invalid)begin
-			dcnt <= 0;
+			// [ABUS_EXP] Change 2: the burst now starts at the requested word
+			// and wraps within the 4-word line (sequential burst, BL=4), so the
+			// fill starts at that word too. Was: dcnt <= 0;
+			dcnt <= iaddr[2:1];
 		end else if(data_valid) begin
 			dcnt <= dcnt+1'b1;
 		end

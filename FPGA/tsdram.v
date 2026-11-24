@@ -10,6 +10,10 @@ module tsdram(
 
 	ext_refresh,
 	cmd_req,
+	cmd_prio,
+	sat_cs,
+	sat_hit,
+	stm_ok,
 	cmd_ack,
 	cmd_mask,
 	cmd_addr,
@@ -42,6 +46,10 @@ module tsdram(
 
 	input ext_refresh;
 	input [ 1:0] cmd_req;
+	input cmd_prio;		// [ABUS_EXP] 1: request is from the Saturn (served before refresh)
+	input sat_cs;		// [ABUS_EXP] Saturn CS0 active (raw, asynchronous)
+	input sat_hit;		// [ABUS_EXP] Saturn read served from the line cache (1-clock pulse)
+	output stm_ok;		// [ABUS_EXP] Change 5: memhub may start an STM32 access now
 	output cmd_ack;
 	input [ 1:0] cmd_mask;
 	input [31:0] cmd_addr;
@@ -130,31 +138,12 @@ module tsdram(
 ///////////////////////////////////////////////////////
 
 	reg[15:0] ref_count;
-	reg ref_req;
 
-	always @(negedge reset or posedge clk)
-	begin
-		if(reset==0) begin
-			ref_count <= tPOR_count[15:0];
-		end else if(ref_ack) begin
-//			ref_count <= tREF_count[15:0];
-			ref_count <= {6'b0, reg_sdram[9:0]};
-		end else if(ref_count) begin
-			ref_count <= ref_count-1'b1;
-		end
-	end
+	// [SIM] declarations moved up for ModelSim (order only)
+	reg ref_ack;
 
-
-	always @(negedge reset or posedge clk)
-	begin
-		if(reset==0) begin
-			ref_req <= 0;
-		end else if(ref_count==1 || ext_refresh) begin
-			ref_req <= 1;
-		end else if(ref_ack) begin
-			ref_req <= 0;
-		end
-	end
+	// [ABUS_EXP] Changes 1 and 4: the refresh scheduler is below the main
+	// state declarations (it needs m_state and M_POR).
 
 
 ///////////////////////////////////////////////////////
@@ -171,7 +160,6 @@ module tsdram(
 	reg[ 3:0] m_count;
 	reg m_cke;
 	reg m_oe;
-	reg ref_ack;
 	reg cmd_ack;
 
 	localparam  M_POR=0,
@@ -185,6 +173,173 @@ module tsdram(
 				M_WRITE_WAIT=8;
 
 
+///////////////////////////////////////////////////////
+// [ABUS_EXP] Refresh scheduler (Changes 1 and 4)     //
+///////////////////////////////////////////////////////
+// Original: a refresh was requested every reg_sdram clocks (7.81us, timer
+// restarted by each refresh) and on every Saturn refresh cycle (ext_refresh),
+// and in M_IDLE it always went before any waiting request.
+//
+// Now:
+// - The timer keeps running while a refresh is postponed and counts the owed
+//   refreshes in ref_debt (the timer still restarts on each refresh, so the
+//   average rate is unchanged: >= 1 per 7.81us).
+// - Owed refreshes are issued only at moments when a Saturn access is
+//   unlikely to arrive during the refresh:
+//     after_sat : right after a Saturn READ has finished in the SDRAM (the
+//                 Saturn's current cycle, its read-precharge clock and the
+//                 next access's synchroniser still have to pass). Not after
+//                 writes: no write precharge, the next access can follow;
+//     in_hit    : a Saturn read is being answered from the line cache; the
+//                 SDRAM is free for the rest of that bus cycle;
+//     quiet     : CS0 inactive for QUIET_CLKS clocks;
+//     ext_req   : a Saturn refresh cycle (FC1), when it is not accessing.
+// - When REF_DEBT_MAX refreshes are owed, refresh is forced, even ahead of a
+//   waiting Saturn request (worst case 4 x 7.81us between refreshes, well
+//   inside the SDRAM's allowance of 8 postponed refreshes).
+// - Otherwise a waiting Saturn request always goes first (Change 1).
+
+	localparam SAT_WR_EXTRA = 4'd2;	// [ABUS_EXP] Change 7, see M_IDLE
+	localparam REF_DEBT_MAX = 3'd4;
+	localparam QUIET_CLKS   = 10'd64;	// 640ns
+
+	wire in_por   = (m_state==M_POR);
+	wire ref_tick = !in_por && (ref_count==1);
+
+	reg[2:0] ref_debt;
+	reg      ext_req;
+	reg      cur_sat;		// the command being executed is the Saturn's
+	reg      after_sat;		// just back in M_IDLE after a Saturn command
+	reg[9:0] sat_quiet;
+
+	always @(negedge reset or posedge clk)
+	begin
+		if(reset==0) begin
+			ref_count <= tPOR_count[15:0];
+		end else if(ref_ack || (!in_por && ref_count<=1)) begin
+			ref_count <= {6'b0, reg_sdram[9:0]};
+		end else if(ref_count) begin
+			ref_count <= ref_count-1'b1;
+		end
+	end
+
+	always @(negedge reset or posedge clk)
+	begin
+		if(reset==0) begin
+			ref_debt <= 0;
+		end else if(ref_tick && !(ref_ack && ref_debt!=0)) begin
+			if(ref_debt!=3'd7) ref_debt <= ref_debt+1'b1;
+		end else if(!ref_tick && ref_ack && ref_debt!=0) begin
+			ref_debt <= ref_debt-1'b1;
+		end
+	end
+
+	always @(negedge reset or posedge clk)
+	begin
+		if(reset==0) begin
+			ext_req <= 0;
+		end else if(ext_refresh) begin
+			ext_req <= 1;
+		end else if(ref_ack) begin
+			ext_req <= 0;
+		end
+	end
+
+	// Saturn bus activity, from CS0 itself (most Saturn reads hit the FPGA's
+	// line cache and never reach the SDRAM, so SDRAM commands are not enough).
+	// (A slot right after CS0 goes inactive was tried and rejected in
+	// simulation: the next Saturn access can start ~35ns later and then
+	// collides with the refresh.)
+	reg[1:0] cs_sync;
+	reg[1:0] hit_win;		// clocks left in the slot after a cache hit
+
+	always @(posedge clk)
+		cs_sync <= {cs_sync[0], sat_cs};
+
+	always @(negedge reset or posedge clk)
+	begin
+		if(reset==0) begin
+			hit_win <= 0;
+			sat_quiet <= 0;
+		end else begin
+			if(sat_hit)
+				hit_win <= 2'd2;
+			else if(hit_win)
+				hit_win <= hit_win-1'b1;
+
+			if(cs_sync[1])
+				sat_quiet <= 0;
+			else if(sat_quiet!=10'h3ff)
+				sat_quiet <= sat_quiet+1'b1;
+		end
+	end
+
+	wire in_hit      = (hit_win!=0);	// Saturn cycle being served from cache: SDRAM free until it ends
+	wire ref_force   = (ref_debt>=REF_DEBT_MAX);
+	wire quiet       = (sat_quiet>=QUIET_CLKS);
+	wire ref_ok      = ext_req || (ref_debt!=0 && (after_sat || in_hit || quiet || ref_force));
+	wire sat_waiting = (cmd_req!=2'b00) && cmd_prio;
+	wire do_refresh  = ref_ok && !(sat_waiting && !ref_force);
+
+///////////////////////////////////////////////////////
+// [ABUS_EXP] Change 5: STM32 access slots            //
+///////////////////////////////////////////////////////
+// While the Saturn is using the cart with fast cycles (fast_bus, below) and
+// CS0 was active within SAT_IDLE_CLKS, an STM32 access may only start in the
+// same safe slots as owed refreshes:
+//   - up to STM_HIT_WIN clocks after a Saturn cache hit (SDRAM free for the
+//     rest of that bus cycle; one STM32 access, <=90ns, fits);
+//   - the first idle clock after a Saturn read in the SDRAM (after_sat).
+// A refresh that is owed or requested takes the slot first.
+// When the Saturn has not used CS0 for SAT_IDLE_CLKS, the STM32 is free.
+// memhub also lets a request through after it has waited STM_MAX_WAIT
+// (memhub.v), so long runs of Saturn writes (no safe slot) can't starve it.
+// The first Saturn access after an idle period can still meet an STM32
+// access in progress.
+
+	parameter  SAT_IDLE_CLKS = 10'd300;	// 3us (CS0 idle this long: STM32 free). Longer = fewer Saturn errors after pauses, less STM32 bandwidth
+	localparam STM_HIT_WIN   = 3'd6;
+
+	reg[2:0] stm_win;
+	always @(negedge reset or posedge clk)
+	begin
+		if(reset==0) begin
+			stm_win <= 0;
+		end else if(sat_hit) begin
+			stm_win <= STM_HIT_WIN;
+		end else if(stm_win) begin
+			stm_win <= stm_win-1'b1;
+		end
+	end
+
+	// Only needed when the Saturn runs fast cycles. With external WAIT on
+	// (SAROO's 0x38803880 / 0x34403440) the Saturn waits for the SDRAM anyway,
+	// so the STM32 is left alone. Fast mode = the last CS0 cycle lasted
+	// <= FAST_CYCLE_CLKS (Sega 0x23301FF0: ~140ns = 14 clocks; 0x3440: >=175ns).
+	localparam FAST_CYCLE_CLKS = 5'd16;
+	reg[4:0] cs_len;
+	reg      cs_last;
+	reg      fast_bus;
+	always @(negedge reset or posedge clk)
+	begin
+		if(reset==0) begin
+			cs_len <= 0; cs_last <= 0; fast_bus <= 0;
+		end else begin
+			cs_last <= cs_sync[1];
+			if(cs_sync[1]) begin
+				if(cs_len!=5'h1f) cs_len <= cs_len+1'b1;
+			end else begin
+				if(cs_last) fast_bus <= (cs_len <= FAST_CYCLE_CLKS);
+				cs_len <= 0;
+			end
+		end
+	end
+
+	wire sat_mode = fast_bus && (sat_quiet < SAT_IDLE_CLKS);
+	wire stm_slot = (stm_win!=0) || (after_sat && m_state==M_IDLE);
+	assign stm_ok = !sat_mode || (stm_slot && ref_debt==0 && !ext_req);
+
+
 	always @(negedge reset or posedge clk)
 	begin
 		if(reset==0) begin
@@ -195,6 +350,8 @@ module tsdram(
 			m_addr <= 13'h1fff;
 			m_oe <= 0;
 			m_cke <= 0;
+			cur_sat <= 0;
+			after_sat <= 0;
 		end else begin
 			case(m_state)
 			M_POR: begin
@@ -220,14 +377,32 @@ module tsdram(
 			M_IDLE: begin
 				m_dqm <= 2'b11;
 				m_oe <= 0;
-				if(ref_req) begin
+				after_sat <= 0;
+				if(do_refresh) begin	// [ABUS_EXP] was: if(ref_req)
 					ref_ack <= 1'b1;
+					cur_sat <= 0;
 					m_state <= M_REFERSH;
 				end else if(cmd_req==2'b10) begin
-					m_state <= M_ACTIVE;
+					cur_sat <= cmd_prio;
+					// [ABUS_EXP] Change 6c: ACTIVE issued here instead of in M_ACTIVE one clock later
+					// (ACT -> READ stays 2 clocks = tRCD through M_WAIT). Was: m_state <= M_ACTIVE;
+					m_cmd <= 4'b0011;
+					m_addr <= row_addr;
+					m_ba <= bank_addr;
+					m_count <= tRCD[3:0]-4'd2;
+					m_state <= M_WAIT;
 					m_next <= M_READ;
 				end else if(cmd_req==2'b01 || cmd_req==2'b11) begin
-					m_state <= M_ACTIVE;
+					// no after_sat slot after a Saturn write: with Sega timing
+					// (A0WPC=0) the next access can start right after it
+					cur_sat <= 0;
+					m_cmd <= 4'b0011;		// [ABUS_EXP] Change 6c, as for reads
+					m_addr <= row_addr;
+					m_ba <= bank_addr;
+					// [ABUS_EXP] Change 7: a Saturn write waits SAT_WR_EXTRA more clocks, so the write data
+					// cachebus keeps sampling (WTRACK_CLKS) is final when M_WRITE takes it
+					m_count <= tRCD[3:0]-4'd2 + (cmd_prio? SAT_WR_EXTRA : 4'd0);
+					m_state <= M_WAIT;
 					m_next <= M_WRITE;
 				end else begin
 					m_cmd <= 4'b1111;
@@ -238,8 +413,11 @@ module tsdram(
 				m_cmd <= 4'b0111;
 				if(m_count)
 					m_count <= m_count-1'b1;
-				else
+				else begin
 					m_state <= m_next;
+					// [ABUS_EXP] Change 4: mark the first M_IDLE clock after a Saturn command
+					if(m_next==M_IDLE) after_sat <= cur_sat;
+				end
 			end
 
 			M_ACTIVE: begin
