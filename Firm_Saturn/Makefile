@@ -60,7 +60,7 @@ obj/%.o :	%.c
 	$(call ECHO_CMD, "CC     ", $@, $(CC) -c $< -o $@ $(FLAGS))
 
 obj/%.o :	%.S
-	$(call ECHO_CMD, "AS     ", $@, $(AS) $< -o $@)
+	$(call ECHO_CMD, "AS     ", $@, $(CC) -c $< -o $@ $(FLAGS))
 
 clean	:
 		rm -f obj/*.o

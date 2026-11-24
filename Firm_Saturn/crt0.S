@@ -11,6 +11,8 @@
 ! binary at 0x6004000 on the Sega Saturn and begin execution there.
 !
 
+#include "abus.h"
+
 .section .text
 
 !
@@ -108,7 +110,7 @@ stack_ptr:  .long __stack_end
 bss_start:  .long __bss_start
 bss_end:    .long __bss_end
 asr0_ptr:   .long 0x25fe00b0
-asr0_val:   .long 0x38803880
+asr0_val:   .long SAROO_ASR0
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

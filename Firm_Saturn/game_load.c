@@ -223,7 +223,7 @@ static void _call_04c8(void)
 {
 	void (*go)(void) = (void*)(0x04c8);
 	go();
-	*(u32*)(0x25fe00b0) = 0x38803880;
+	*(u32*)(0x25fe00b0) = SAROO_ASR0;
 }
 
 void my_cdplayer(void)
@@ -402,13 +402,13 @@ int my_bios_loadcd_read(void)
 
 static u16 code_06b8[10] = {
 	0xd102, // mov.l #0x25fe00b0, r1
-	0xd203, // mov.l #0x38803880, r2
+	0xd203, // mov.l #SAROO_ASR0, r2
 	0x2122, // mov.l r2, @r1
 	0xd103, // mov.l next_call, r1
 	0x412b, // jmp   @r1
 	0x4f26, // lds.l @r15+, pr
 	0x25fe,0x00b0,
-	0x3880,0x3880,
+	(SAROO_ASR0>>16)&0xffff, SAROO_ASR0&0xffff,
 	// 060006cc: .long next_call
 };
 
@@ -421,11 +421,46 @@ static void my_06b0(void)
 	void (*go)(void) = (void*)0x1800;
 	go();
 
-	*(u32*)(0x25fe00b0) = 0x38803880;
+	*(u32*)(0x25fe00b0) = SAROO_ASR0;
 
 	SF = 1;
 	COMREG = 0x19;
 	while(SF&1);
+}
+
+
+/*
+ * A-Bus timing fix.
+ * Programs written for the official RAM cart (TB#47) store
+ * ASR0 = 0x23301FF0: 3 wait states and no external wait. SAROO cannot answer
+ * that fast, so the cart RAM fails as soon as the program writes it.
+ * The ASR0 write never reaches the cart, so it cannot be caught at run time;
+ * instead, before the program starts, find Sega's value in its literal pools
+ * and change it to SAROO's own timing (the value crt0.S and my_06b0 use).
+ * SH-2 32-bit constants sit in aligned literal pools, so an aligned word
+ * compare finds them. Runs before patch_game(), so saroocfg.txt M_ entries
+ * can still override it. The firmware itself runs from 0x02000000, outside
+ * the scanned range.
+ */
+#define ASR0_SEGA_RAMCART	0x23301FF0
+#define ASR0_SAROO		SAROO_ASR0
+
+static void fix_abus_timing(void)
+{
+	u32 *p   = (u32*)0x06004000;
+	u32 *end = (u32*)0x06100000;
+	int n = 0;
+
+	while(p<end){
+		if(*p==ASR0_SEGA_RAMCART){
+			printk("  ASR0 %08x at %08x -> %08x\n", ASR0_SEGA_RAMCART, (u32)p, ASR0_SAROO);
+			*p = ASR0_SAROO;
+			n += 1;
+		}
+		p += 1;
+	}
+	if(n)
+		printk("A-Bus timing: %d patched\n", n);
 }
 
 
@@ -436,6 +471,7 @@ static void read_1st(void)
 	void (*go)(void) = (void*) *(u32*)(0x06000284);
 	go();
 
+	fix_abus_timing();
 	patch_game((char*)0x06002020);
 	if(need_bup){
 		*(u32*)(0x06000358) = (u32)bup_init;

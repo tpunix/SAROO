@@ -2,6 +2,8 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
+#include "abus.h"
+
 /*****************************************************************************/
 
 typedef unsigned  char u8;
