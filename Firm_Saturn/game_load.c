@@ -429,41 +429,6 @@ static void my_06b0(void)
 }
 
 
-/*
- * A-Bus timing fix.
- * Programs written for the official RAM cart (TB#47) store
- * ASR0 = 0x23301FF0: 3 wait states and no external wait. SAROO cannot answer
- * that fast, so the cart RAM fails as soon as the program writes it.
- * The ASR0 write never reaches the cart, so it cannot be caught at run time;
- * instead, before the program starts, find Sega's value in its literal pools
- * and change it to SAROO's own timing (the value crt0.S and my_06b0 use).
- * SH-2 32-bit constants sit in aligned literal pools, so an aligned word
- * compare finds them. Runs before patch_game(), so saroocfg.txt M_ entries
- * can still override it. The firmware itself runs from 0x02000000, outside
- * the scanned range.
- */
-#define ASR0_SEGA_RAMCART	0x23301FF0
-#define ASR0_SAROO		SAROO_ASR0
-
-static void fix_abus_timing(void)
-{
-	u32 *p   = (u32*)0x06004000;
-	u32 *end = (u32*)0x06100000;
-	int n = 0;
-
-	while(p<end){
-		if(*p==ASR0_SEGA_RAMCART){
-			printk("  ASR0 %08x at %08x -> %08x\n", ASR0_SEGA_RAMCART, (u32)p, ASR0_SAROO);
-			*p = ASR0_SAROO;
-			n += 1;
-		}
-		p += 1;
-	}
-	if(n)
-		printk("A-Bus timing: %d patched\n", n);
-}
-
-
 static void read_1st(void)
 {
 	printk("Read main ...\n");
@@ -471,7 +436,6 @@ static void read_1st(void)
 	void (*go)(void) = (void*) *(u32*)(0x06000284);
 	go();
 
-	fix_abus_timing();
 	patch_game((char*)0x06002020);
 	if(need_bup){
 		*(u32*)(0x06000358) = (u32)bup_init;

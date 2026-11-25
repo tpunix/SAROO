@@ -32,11 +32,21 @@ This branch has two independent changes:
    Lines marked `[SIM]` only move declarations up so ModelSim accepts the
    files. They don't change the logic.
 
-2. **Saturn firmware (`Firm_Saturn/`)**: a fallback for the **stock** FPGA.
-   When a game loads, `fix_abus_timing()` in `game_load.c` scans
-   0x06004000–0x06100000 for the Sega value `0x23301FF0` and replaces it with
-   SAROO's own timing. The SAROO value is set in one place (`abus.h`).
-   You don't need this with the new FPGA.
+2. **Saturn firmware (`Firm_Saturn/`)**: runs everything at Sega timing.
+   **It needs the new FPGA. Don't use it with the stock FPGA.**
+   - The firmware's own A-Bus value is Sega's `0x23301FF0` (set in one place,
+     `abus.h`). SAROO used `0x38803880`.
+   - tpunix's per-game patches that `nop` a game's own timing write are
+     commented out (marked `[SEGA_ABUS]` in `game_patch.c`), so those games
+     set Sega timing themselves, as on a real console. The patches' other
+     fixes (cart type, game hacks) are unchanged. Not changed, because the
+     timing write there is mixed with other hacks: KOF95 (2nd version),
+     Pocket Fighter, and Ultraman (2MB ROM cart, `0x34403440`).
+   - The earlier `fix_abus_timing()` scan is removed.
+
+   To build firmware for the stock FPGA again, use upstream `Firm_Saturn`, or
+   build this one with `-DSAROO_ASR0=0x38803880` and the `[SEGA_ABUS]`
+   lines restored.
 
 ## Test results (one console, 2026-11-24)
 
@@ -51,6 +61,10 @@ This branch has two independent changes:
 
 Quartus: 1,704 LEs, 955 registers, timing met in all corners (worst setup
 slack 0.274 ns, on the original FSMC path).
+
+The tests above used SAROO's official v0.9 Saturn firmware (and the scan
+build). **The Sega-timing firmware on this branch has not been tested on
+hardware yet.**
 
 Not tested: other consoles. The late D13 write data may differ from console
 to console. Write data is latched about 80 ns into the cycle, and simulation
@@ -69,8 +83,11 @@ a little. Re-run RAMCART-Stress after any rebuild.
    Quartus).
 2. Copy it to `/SAROO/update/SSMaster.rbf` on the SD card and update from the
    SAROO menu (or set `auto_update=1` under `[global]` in `saroocfg.txt`).
-3. To go back, do the same with the official `SSMaster.rbf` from the
-   official SAROO release.
+3. Optional, to run everything at Sega timing: copy `ssfirm.bin` from the
+   release to `/SAROO/ssfirm.bin`. Keep your old one: the firmware is loaded
+   from the SD card at every boot, so going back is just a file swap.
+4. To go back to stock, put back the official `ssfirm.bin` **first**, then
+   flash the official `SSMaster.rbf` from the official SAROO release.
 
 ## Files
 
@@ -79,7 +96,7 @@ a little. Re-run RAMCART-Stress after any rebuild.
 | `FPGA/` | FPGA design with the changes |
 | `FPGA/ABUS_EXP_NOTES.md` | Full development log: every change, simulation tables, hardware results |
 | `FPGA/sim/` | ModelSim testbench: SCU bus model, SDRAM model with protocol checks, `run.ps1` |
-| `Firm_Saturn/` | Firmware with the A-Bus timing scan |
+| `Firm_Saturn/` | Firmware: Sega timing everywhere, A-Bus timing patches off |
 | `tools/RAMCART-Stress/` | Saturn test disc (jo engine): stress-tests a RAM cart at Sega's timing |
 
 ## License

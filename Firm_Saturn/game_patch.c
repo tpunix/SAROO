@@ -85,8 +85,8 @@ void KAITEI_DAISENSOU_patch(void)
 void DND2_patch(void)
 {
 	//*(u32*)(0x06015228) = 0x34403440;
-	*(u16*)(0x060151A6) = 0x09;
-	*(u16*)(0x060151AE) = 0x09;
+	//*(u16*)(0x060151A6) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
+	//*(u16*)(0x060151AE) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -96,7 +96,7 @@ void DND2_patch(void)
 void NOEL3_patch(void)
 {
 	//*(u32*)(0x0603525C) = 0x34403440;
-	*(u16*)(0x06035104) = 0x09;
+	//*(u16*)(0x06035104) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -107,8 +107,8 @@ void FRIENDS_patch(void)
 {
 	//*(u32*)(0x06042928) = 0x34403440;
 	//*(u32*)(0x060429B4) = 0x34403440;
-	*(u16*)(0x060428E8) = 0x09;
-	*(u16*)(0x0604298A) = 0x09;
+	//*(u16*)(0x060428E8) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
+	//*(u16*)(0x0604298A) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -118,7 +118,7 @@ void FRIENDS_patch(void)
 void ASTRA_SUPERSTARS_patch(void)
 {
 	//*(u32*)(0x060289E4) = 0x34403440;
-	*(u16*)(0x06028974) = 0x09;
+	//*(u16*)(0x06028974) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -128,7 +128,7 @@ void ASTRA_SUPERSTARS_patch(void)
 void cotton1_patch(void)
 {
 	//*(u32*)(0x06018DA8) = 0x34403440;
-	*(u16*)(0x06018D80) = 0x09;
+	//*(u16*)(0x06018D80) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -138,7 +138,7 @@ void cotton1_patch(void)
 void cotton2_patch(void)
 {
 	//*(u32*)(0x060041BC) = 0x34403440;
-	*(u16*)(0x06004194) = 0x09;
+	//*(u16*)(0x06004194) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -161,7 +161,7 @@ void POCKET_FIGHTER_patch(void)
 void SF_ZERO3_patch(void)
 {
 	//*(u32*)(0x0602B8AC) = 0x34403440;
-	*(u16*)(0x0602B7FA) = 0x09;
+	//*(u16*)(0x0602B7FA) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -172,7 +172,7 @@ void Metal_Slug_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	//*(u32*)(0x06079E18) = 0x34403440;
-	*(u16*)(0x06079DEC) = 0x09;
+	//*(u16*)(0x06079DEC) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	//*(u16*)(0x06079DF2) = 0x09;
 }
 
@@ -184,7 +184,7 @@ void Metal_Slug_A_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	//*(u32*)(0x06079FBC) = 0x34403440;
-	*(u16*)(0x06079F90) = 0x09;
+	//*(u16*)(0x06079F90) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	//*(u16*)(0x06079F96) = 0x09;
 }
 
@@ -312,7 +312,7 @@ void kof96_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	//*(u32*)(0x06058248) = 0x34403440;
-	*(u16*)(0x0605821C) = 0x09;
+	//*(u16*)(0x0605821C) = 0x09;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -323,7 +323,7 @@ void kof97_patch(void)
 {
 	if((REG32(0x6066F80)==0x2122d110)&&(REG32(0x6066FC0)==0x23301ff0)){
 		ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-		REG16(0x6066F80)=0x0009;
+		//REG16(0x6066F80)=0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	}else if((REG32(0x6002f40)==0x480b4601)&&(REG32(0x6002f44)==0x930b0303)){
 		ssctrl_set(MASK_EXMEM, CS0_RAM4M);
 
@@ -349,7 +349,7 @@ void smrsp4_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	//*(u32*)(0x6067E60) = 0x34403440;
-	*(u16*)(0x06067E34) = 0x0009;
+	//*(u16*)(0x06067E34) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -361,8 +361,8 @@ void smrsp4_patch(void)
 void smrsp3_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u16*)(0x0600D198) = 0x0009;
-	*(u16*)(0x0605AD36) = 0x0009;
+	//*(u16*)(0x0600D198) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
+	//*(u16*)(0x0605AD36) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	//*(u32*)0x0600d1d0 = 0x34403440;
 	//*(u32*)0x0605ad90 = 0x34403440;
 }
@@ -376,8 +376,8 @@ void smrsp3_patch(void)
 void REAL_BOUT_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u16*)(0x0602F5EC) = 0x0009;
-	*(u16*)(0x0607C340) = 0x0009;
+	//*(u16*)(0x0602F5EC) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
+	//*(u16*)(0x0607C340) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	//*(u32*)0x0602F6FC = 0x34403440;
 	//*(u32*)0x0607C36C = 0x34403440;
 }
@@ -391,7 +391,7 @@ void REAL_BOUT_SP_v2_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
 	//*(u32*)0x060913C4 = 0x34403440;
-	*(u16*)(0x06091398) = 0x0009;
+	//*(u16*)(0x06091398) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -403,7 +403,7 @@ void REAL_BOUT_SP_v2_patch(void)
 void REAL_BOUT_SP_v1_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u16*)(0x06091204) = 0x0009;
+	//*(u16*)(0x06091204) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	//*(u32*)0x06091230 = 0x34403440;
 }
 
@@ -416,7 +416,7 @@ void REAL_BOUT_SP_v1_patch(void)
 void srmp7_patch(void)
 {
 	//*(u32*)(0x0601121C) = 0x34403440;
-	*(u16*)(0x06011208) = 0x0009;
+	//*(u16*)(0x06011208) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -427,8 +427,8 @@ void GROOVE_ON_FIGHT_handle(void)
 {
 	//*(u32*)0x06099ABC=0x34403440;
 	//*(u32*)0x060083B0=0x34403440;
-	*(u16*)(0x6008338) = 0x0009;
-	*(u16*)(0x6099A84) = 0x0009;
+	//*(u16*)(0x6008338) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
+	//*(u16*)(0x6099A84) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	*(u32*)0x00280008=0x06004000;
 	__asm volatile("jmp @%0"::"r"(0x06004000)); 
 	__asm volatile( "nop" :: );	
@@ -438,8 +438,8 @@ void GROOVE_ON_FIGHT_patch(void)
 {
 	//*(u32*)(0x200AA4) = 0x34403440;
 	//*(u32*)(0x202EF0) = 0x34403440;
-	*(u16*)(0x200A44) = 0x0009;
-	*(u16*)(0x202EB8) = 0x0009;
+	//*(u16*)(0x200A44) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
+	//*(u16*)(0x202EB8) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	*(u32*)(0x200460) = (u32)GROOVE_ON_FIGHT_handle;
 }
 
@@ -450,7 +450,7 @@ void GROOVE_ON_FIGHT_patch(void)
 void VAMPIRE_SAVIOR_handle(void)
 {
 	//*(u32*)0x06014A64=0x34403440;
-	*(u16*)(0x6014A52) = 0x0009;
+	//*(u16*)(0x6014A52) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	__asm volatile("jmp @%0"::"r"(0x600D000)); 
 	__asm volatile ( "nop" :: );
 }
@@ -476,12 +476,12 @@ void MARVEL_SUPER_handle(void)
 
 	if((REG32(0x600B0FC) == 0x23301FF0) && (REG32(0x600B2D8) == 0x23301FF0)){
 		//日版 欧版 美版地址相同
-		REG16(0x600B0AC) = 0x0009;
-		REG16(0x600B1D4) = 0x0009;
+		//REG16(0x600B0AC) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
+		//REG16(0x600B1D4) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	}else if((REG32(0x6005F5C) == 0x23301FF0)&&(REG32(0x6005D8C) == 0x23301FF0)){
 		//日版DEMO
-		REG16(0x6005D3C) = 0x0009;
-		REG16(0x6005E6A) = 0x0009;
+		//REG16(0x6005D3C) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
+		//REG16(0x6005E6A) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	}				
 }
 
@@ -506,7 +506,7 @@ void MARVEL_SUPER_patch(void)
 void xmvsf_handle2(void)
 {
 	//*(u32*)(0x06014158) = 0x34403440;
-	*(u16*)(0x0601409C) = 0x0009;
+	//*(u16*)(0x0601409C) = 0x0009;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	__asm volatile("jmp @%0"::"r"(0x6014000)); 
 	__asm volatile ( "nop" :: );		
 }
@@ -580,10 +580,10 @@ void WAKU7_patch(void)
 void FIGHTERS_HISTORY_patch(void)
 {
 	ssctrl_set(MASK_EXMEM, CS0_RAM1M);
-	*(u16*)(0x0605002E) = 0x9;
-	*(u16*)(0x06056FEC) = 0x9;
-	*(u16*)(0x06057028) = 0x9;
-	*(u16*)(0x060570BA) = 0x9;
+	//*(u16*)(0x0605002E) = 0x9;	// [SEGA_ABUS] game keeps its own A-Bus timing
+	//*(u16*)(0x06056FEC) = 0x9;	// [SEGA_ABUS] game keeps its own A-Bus timing
+	//*(u16*)(0x06057028) = 0x9;	// [SEGA_ABUS] game keeps its own A-Bus timing
+	//*(u16*)(0x060570BA) = 0x9;	// [SEGA_ABUS] game keeps its own A-Bus timing
 	//*(u32*)0x060500C8 = 0x34403440;
 	//*(u32*)0x06057000 = 0x34403440;
 	//*(u32*)0x0605707C = 0x34403440;
@@ -597,7 +597,7 @@ void FIGHTERS_HISTORY_patch(void)
 void FINAL_FIGHT_REVENGE_patch(void)
 {
 	//*(u32*)(0x06011A6C) = 0x34403440;
-	*(u16*)(0x0601199C) = 0x9;
+	//*(u16*)(0x0601199C) = 0x9;	// [SEGA_ABUS] game keeps its own A-Bus timing
 }
 
 
@@ -901,11 +901,11 @@ void Fenrir_patch(void)
 
 void  Pia_Carrot_e_Youkoso_2_handle2(void)
 {
-	if((REG32(0x604677C)==0x23301FF0) && (REG16(0x604673C)==0x2122))
-		REG16(0x604673C) = 0x9;
+	//if((REG32(0x604677C)==0x23301FF0) && (REG16(0x604673C)==0x2122))	// [SEGA_ABUS] game keeps its own A-Bus timing
+		//REG16(0x604673C) = 0x9;	// [SEGA_ABUS] game keeps its own A-Bus timing
 
-	if((REG32(0x6046808)==0x23301FF0) && (REG16(0x60467DE)==0x2122))
-		REG16(0x60467DE)=0x9;
+	//if((REG32(0x6046808)==0x23301FF0) && (REG16(0x60467DE)==0x2122))	// [SEGA_ABUS] game keeps its own A-Bus timing
+		//REG16(0x60467DE)=0x9;	// [SEGA_ABUS] game keeps its own A-Bus timing
 
 	if((REG32(0x6046784)==0x60468F8) && (REG16(0x0604674C)==0x490b))
 		REG16(0x0604674C)=0x9;
