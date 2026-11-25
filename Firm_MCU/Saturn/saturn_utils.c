@@ -868,23 +868,34 @@ static int cover_lookup(int index)
 }
 
 
-// push n bytes (n even) into the FIFO, waiting while it is full; gives up
-// after ~0.5 s without room (the Saturn stopped reading)
+// push n bytes (n even) into the FIFO. Like fill_fifo() for CD sectors: the
+// free space is read once, then that many words are written back to back with
+// no FPGA read in between (a FIFO_STAT read before every write lost words on
+// hardware). Gives up after ~0.5 s without room (the Saturn stopped reading).
 static int cover_fifo_push(u8 *p, int n)
 {
-	int i, wait;
+	int i = 0, k, words, room, wait;
 
-	for(i=0; i<n; i+=2){
+	while(i<n){
 		wait = 0;
-		while(FIFO_STAT&0x0800){
-			if(++wait > 4000000)
+		while(1){
+			int st = FIFO_STAT;
+			room = (st&0x0800)? 0 : 2048-(st&0x07ff);
+			if(room>=64 || room>=(n-i)/2)
+				break;
+			if(++wait > 2000000)
 				return -1;
 		}
-		FIFO_DATA = *(u16*)(p+i);
+		words = (n-i)/2;
+		if(words>room)
+			words = room;
+		for(k=0; k<words; k++){
+			FIFO_DATA = *(u16*)(p+i);
+			i += 2;
+		}
 	}
 	return 0;
 }
-
 
 static u8 cover_chunk[2048];
 
