@@ -397,3 +397,19 @@ Only one console is available, so this has not been tested on another one.
 Castlevania (4MB hack) covers the rest: FMV intro plays, the full 4MB cart is
 loaded, CD audio plays, and progress saves work (Saroo backup RAM in SDRAM).
 Status: change 7 passes every test available on this console.
+
+SEGA-TIMING FIRMWARE (2026-11-25): Firm_Saturn with ASR0 = 0x23301FF0 everywhere
+and the per-game timing nops removed. Marvel Super Heroes and KOF96 (1MB cart)
+work. But boot and the SAROO menus froze now and then. The firmware runs from
+the cart area (linked at 0x02000000), so every menu instruction is fetched from
+the SDRAM over CS0, at Sega timing in that build.
+- Firmware changed: SAROO_ASR0 (boot, menus, CD player) back to 0x38803880;
+  SAROO_GAME_ASR0 = 0x23301FF0 written by the bios_set_clock_speed hook when a
+  game starts.
+- RAMCART-Stress 1.2 test 10 (CODE FROM CART: 64 KB generated SH-2 blocks
+  over the whole cart, run cached and cache-through, at Sega timing, CD load
+  on): PASS on hardware. Kronos can't run code from the cart (hangs).
+So plain code fetch at Sega timing, even with STM32 CD traffic, does not
+reproduce the menu freeze. Not covered by the stress test: the menu's own
+STM32 traffic (SD file access, data the STM32 writes into the SDRAM that the
+Saturn then reads), and CS1 at Sega timing (0x1FF0 half).

@@ -75,7 +75,9 @@ Expected results
   Real Sega or Action Replay 4 MB cart       PASS
   SAROO, stock v0.9 FPGA                     FAIL (it can't take Sega timing)
   SAROO, sega-abus-timing FPGA (change 7)    1.1: PASS (163/163 runs,
-                                             2026-11-24); test 10 is new
+                                             2026-11-24); 1.2 incl. test 10
+                                             at Sega timing, CD load on:
+                                             PASS (2026-11-25)
   Kronos (4 MB cart selected)                PASS with test 10 off (Z);
                                              test 10 hangs (see above)
 
