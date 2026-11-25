@@ -433,6 +433,14 @@ bug. The split stays. Still unexplained, since RAMCART-Stress code-from-cart
 passes at Sega timing: candidates are the menu's own STM32 traffic (SD access,
 data the STM32 writes into SDRAM for the Saturn) and CS1 at Sega timing (the
 0x1FF0 half; RAMCART-Stress only tests CS0).
+CS1 test (2026-11-25): ssfirm with SAROO_ASR0 = 0x23303880 (CS0 Sega 0x2330,
+CS1 SAROO 0x3880; otherwise identical to the release ssfirm.bin) also freezes
+in boot/menus. CS1 is not the cause: it is CS0 (the SDRAM the firmware runs
+from) at 3 waits with external wait off. Most likely a rare late answer to an
+instruction fetch while the STM32 is busy with menu work (SD reads, game
+list/cover data written into SDRAM), a load RAMCART-Stress does not create.
+The fix, if wanted, is in the FPGA; games are unaffected (they run from work
+RAM). The release keeps SAROO timing for the menus.
 
 EXTRA RAM (2026-11-25): the FPGA maps the whole 16 MB CS0 window onto SDRAM, so
 0x22800000-0x22FFFFFF (8 MB above the 4 MB cart) is RAM on any SAROO. YZB's

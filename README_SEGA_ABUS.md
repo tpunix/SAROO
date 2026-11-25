@@ -40,7 +40,9 @@ This branch has two independent changes:
      firmware runs from the cart area, and with Sega timing there too, boot
      and the menus froze now and then. Retested with the delay-loop fix
      below (2026-11-25): Sega timing in the boot and menus still freezes, so
-     the split is needed.
+     the split is needed. It also freezes with Sega timing on CS0 only
+     (`0x23303880`), so the cause is the cart area the firmware runs from,
+     not CS1. Games don't run from the cart, so they aren't affected.
    - tpunix's per-game patches that `nop` a game's own timing write are
      commented out (marked `[SEGA_ABUS]` in `game_patch.c`), so those games
      set Sega timing themselves, as on a real console. The patches' other
