@@ -532,5 +532,6 @@ Background music (CD audio over I2S) is not involved and keeps playing.
 Built: mcuapp.bin with Keil MDK 5.43 (0 errors, 0 warnings),
 ssfirm.bin with make / build_menu_wram.ps1.
 Hardware (2026-11-25, both new files): the menu works and covers are shown.
-Still to confirm: no 1 s pause on entering the list (i.e. the FIFO path, not
-the fallback), games without a cover, background music, starting a game.
+Games start normally. No bgsound.pcm on this SD card, so background music is
+not tested. Still to confirm: no 1 s pause on entering the list (the FIFO
+path, not the fallback), games without a cover.
