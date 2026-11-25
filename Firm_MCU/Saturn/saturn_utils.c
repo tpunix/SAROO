@@ -917,7 +917,7 @@ void cover_send(int index)
 	hdr[0] = 'C';  hdr[1] = 'V';
 	hdr[2] = w>>8; hdr[3] = w;
 	hdr[4] = h>>8; hdr[5] = h;
-	hdr[6] = 0;    hdr[7] = 0;
+	hdr[6] = 0xA5; hdr[7] = 0x5A;	// check pattern (diagnostics)
 	if(cover_fifo_push(hdr, 8)==0 && w && h){
 		int left = 0x0400 + w*h;
 		f_lseek(&cover_fp, offset);
@@ -932,6 +932,7 @@ void cover_send(int index)
 		}
 	}
 
+	SS_ARG = h;		// diagnostics: the height the STM32 used
 	SS_CMD = 0;
 }
 

@@ -227,7 +227,7 @@ static int fifo_count(void)
 }
 
 /* [COVER_FIFO] diagnostics, shown on the status line (temporary) */
-static int cd_max, cd_magic, cd_cmd, cd_stage, cd_left, cd_stat0;
+static int cd_max, cd_magic, cd_cmd, cd_stage, cd_left, cd_stat0, cd_w1, cd_w2, cd_w3, cd_arg;
 
 /* 1: cover in COVER_BUF, 0: no cover, -1: failed, -2: no answer at all */
 static int cover_fetch(int index, int *pw, int *ph)
@@ -262,7 +262,7 @@ static int cover_fetch(int index, int *pw, int *ph)
 	int w = CDC_DPORT;
 	int h = CDC_DPORT;
 	n = CDC_DPORT;
-	cd_magic = magic;
+	cd_magic = magic; cd_w1 = w; cd_w2 = h; cd_w3 = n;
 	if(magic!=0x4356 || w>512 || h>256){
 		cd_cmd = SS_CMD;
 		return -1;
@@ -293,6 +293,7 @@ static int cover_fetch(int index, int *pw, int *ph)
 	reset_timer();
 	while(SS_CMD && get_timer()<MS2TICK(COVER_DATA_MS));
 	cd_cmd = SS_CMD;
+	cd_arg = SS_ARG;
 
 	*pw = w;
 	*ph = h;
@@ -316,8 +317,8 @@ static void cover_update(int index)
 	   m = first header word ('CV' = 4356), c = SS_CMD after, f = SS_STAT before */
 	{
 		char dbuf[64];
-		snprintf(dbuf, 64, "CV r%d s%d n%d m%04x %dx%d c%04x f%04x L%d",
-			retv, cd_stage, cd_max, cd_magic&0xffff, w, h, cd_cmd&0xffff, cd_stat0&0xffff, cd_left);
+		snprintf(dbuf, 64, "CV r%d s%d %04x %04x %04x %04x a%d c%04x f%04x",
+			retv, cd_stage, cd_magic&0xffff, cd_w1&0xffff, cd_w2&0xffff, cd_w3&0xffff, cd_arg, cd_cmd&0xffff, cd_stat0&0xffff);
 		menu_status(&sel_menu, dbuf);
 	}
 	if(retv>0){
