@@ -48,6 +48,52 @@ This branch has two independent changes:
    build this one with `-DSAROO_ASR0=0x38803880` and the `[SEGA_ABUS]`
    lines restored.
 
+### Games whose timing patch is off
+
+These games now set Sega's timing (`0x23301FF0`) themselves, as on a real
+console. Their other patches (1MB/4MB cart type, KOF97's 4MB-version code
+changes) still apply.
+
+| Game | Serial(s) |
+|---|---|
+| Dungeons & Dragons Collection (Disc 2) | T-1245G |
+| Noel 3 | T-22205G |
+| Friends | T-20109G |
+| Astra Superstars | T-1521G |
+| Magical Night Dreams: Cotton 1 | T-9906G |
+| Magical Night Dreams: Cotton 2 | T-9904G |
+| Street Fighter Zero 3 | T-1246G |
+| Metal Slug v1.002 | T-3111G |
+| Metal Slug v1.005 | T-3111G |
+| King of Fighters '96 | T-3108G |
+| King of Fighters '97 (1MB-cart version) | T-3121G, T-4401G |
+| Samurai Spirits 3 | T-3104G |
+| Samurai Spirits 4: Amakusa Kourin | T-3116G |
+| Real Bout Garou Densetsu | T-3105G |
+| Real Bout Garou Densetsu Special v1.001 | T-3119G |
+| Real Bout Garou Densetsu Special v1.002 (Rev A) | T-3119G |
+| Super Real Mahjong P7 | T-16509G |
+| Super Real Mahjong P7 SP | T-16510G |
+| Gouketsuji Ichizoku 3: Groove on Fight | T-14411G |
+| Vampire Savior | T-1229G |
+| Marvel Super Heroes | T-1215G (JP), T-1214H (US), T-7032H (EU), 6106664 (JP demo) |
+| X-Men vs. Street Fighter | T-1226G |
+| Fighter's History Dynamite | GS-9107 |
+| Final Fight Revenge | T-1248G |
+| Pia Carrot e Youkoso!! 2 | T-20114G |
+
+Timing patch left as it was:
+
+| Game | Serial(s) | Why | Runs at |
+|---|---|---|---|
+| King of Fighters '95 | MK-81088, T-3101G | Timing write mixed with other code changes in one version | Sega timing (firmware value) |
+| Pocket Fighter | T-1230G | tpunix rewrote that code instead of using a `nop` | Sega timing (firmware value) |
+| Ultraman | T-13308G | 2MB ROM cart; the firmware sets the timing itself | `0x34403440` |
+
+None of these games has been tested with this firmware yet. Patch lines in
+`saroocfg.txt` are applied after the built-in patches and can still block a
+game's timing write.
+
 ## Test results (one console, 2026-11-24)
 
 | Test | Result |
