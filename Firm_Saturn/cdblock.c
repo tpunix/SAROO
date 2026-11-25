@@ -761,7 +761,7 @@ int jhl_auth_hack(int delay)
 
 	int old = 0xffffffff;
 	while(1){
-		for(int i=0; i<100000; i++){ }
+		for(int i=0; i<100000; i++){ __asm volatile("":::"memory"); }	// keep the delay: newer gcc deletes empty loops
 		cdc_get_status(&status);
 		if(status!=old){
 			printk("stat: %04x\n", status);

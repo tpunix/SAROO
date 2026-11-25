@@ -45,7 +45,7 @@ void logo_trans(void)
 
 	for(i=0; i<16; i++){
 		MZCTL = (i<<12) | (i<<8) | 0x0001;
-		for(j=0; j<300000; j++){};
+		for(j=0; j<300000; j++){ __asm volatile("":::"memory"); }	// keep the delay: newer gcc deletes empty loops
 	}
 
 	memcpy((void*)VDP2_VRAM+0x4000, logo_dat+32, size_logo_dat-32);
@@ -66,16 +66,16 @@ void logo_trans(void)
 
 	for(i=14; i>=0; i--){
 		MZCTL = (i<<12) | (i<<8) | 0x0001;
-		for(j=0; j<300000; j++){};
+		for(j=0; j<300000; j++){ __asm volatile("":::"memory"); }	// keep the delay: newer gcc deletes empty loops
 	}
 	MZCTL = 0;
 
-	for(j=0; j<5000000; j++){};
+	for(j=0; j<5000000; j++){ __asm volatile("":::"memory"); }	// keep the delay: newer gcc deletes empty loops
 
 	CCCTL = 0x0001;
 	for(i=0; i<32; i++){
 		CCRNA = i;
-		for(j=0; j<300000; j++){};
+		for(j=0; j<300000; j++){ __asm volatile("":::"memory"); }	// keep the delay: newer gcc deletes empty loops
 	}
 	CCCTL = 0x0000;
 

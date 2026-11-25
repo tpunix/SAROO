@@ -46,6 +46,11 @@ This branch has two independent changes:
      timing write there is mixed with other hacks: KOF95 (2nd version),
      Pocket Fighter, and Ultraman (2MB ROM cart, `0x34403440`).
    - The earlier `fix_abus_timing()` scan is removed.
+   - Builds with a newer GCC (8.4 here): five empty delay loops (the
+     Sega→SAROO boot animation in `conio.c`, a CD status poll in
+     `cdblock.c`) now contain `__asm volatile("":::"memory")`, as tpunix
+     already does elsewhere, so the compiler keeps them. Without it the boot
+     animation runs in an instant and looks skipped.
 
    To build firmware for the stock FPGA again, use upstream `Firm_Saturn`, or
    build this one with `-DSAROO_ASR0=0x38803880` and the `[SEGA_ABUS]`
