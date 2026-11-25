@@ -18,7 +18,7 @@ typedef long long s64;
 
 
 #define in_isr()        __get_IPSR()
-#define disable_irq()   __disable_irq()
+#define disable_irq()   ({ uint32_t _pm = __get_PRIMASK(); __disable_irq(); _pm; })  /* returns the old PRIMASK, as restore_irq() expects */
 #define restore_irq(pm) __set_PRIMASK(pm)
 
 #define NOTHING()    __asm volatile("")

@@ -861,6 +861,12 @@ void ss_cmd_handle(void)
 		}
 		break;
 	}
+	case SSCMD_COVER:
+		// [COVER_FIFO] the Saturn is in the game list: no background GIF; send
+		// the cover through the CD FIFO (clears SS_CMD when done)
+		gif_decode_exit();
+		cover_send(SS_ARG);
+		break;
 	default:
 		SSLOG(_INFO, "[SS] unkonw cmd: %04x\n", cmd);
 		break;

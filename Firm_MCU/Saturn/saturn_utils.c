@@ -807,4 +807,147 @@ _no_cover:
 
 
 /******************************************************************************/
+// [COVER_FIFO] Covers sent to the Saturn through the CD data FIFO.
+//
+// SSCMD_COVER (0x0050), SS_ARG = game index: the cover is looked up as in
+// load_cover(), then streamed into the FPGA's CD FIFO: a 16-byte header
+// ('C','V', width, height, both big-endian, then 0), then the 1 KB palette and
+// width*height pixels read straight from cover.bin, padded to a multiple of 4
+// bytes. No cover: the header with width = height = 0. SS_CMD is cleared when
+// everything is in the FIFO. The Saturn pops it from its CD data port
+// (0x25818000) with 32-bit reads, as cdc_trans_data() does: 16-bit reads of
+// that port lose words on hardware.
+// Nothing is written to the SDRAM for the picture, so the Saturn reads
+// nothing from the cart for it either. The CD data interrupt stays off, so
+// the CD transfer code (trans_handle) is not involved; the background music
+// (CD audio over I2S) keeps playing.
+
+static int cover_lookup(int index)
+{
+	int retv;
+
+	if(cover_inited<=0 || index<0 || index>=total_disc)
+		return -1;
+
+	int *ip_cache = ip_cache_table[category_current];
+	if(ip_cache==NULL){
+		ip_cache_table[category_current] = ip_cache_ptr;
+		ip_cache = ip_cache_ptr;
+		ip_cache_ptr += total_disc;
+	}
+
+	int chdr = ip_cache[index];
+	if(chdr==0){
+		u8 ipbuf[256];
+		char gid[20];
+
+		retv = get_disc_ip(index, ipbuf);
+		if(retv<0){
+			ip_cache[index] = -1;
+			return -1;
+		}
+
+		u8 *ip = ipbuf;
+		if(strncmp((char*)ipbuf, "SEGA SEGASATURN ", 16)){
+			ip = ipbuf+0x10;
+		}
+
+		memcpy(gid, ip+0x20, 16);
+		gid[16] = 0;
+		char *p = strrchr(gid, 'V');
+		if(p)
+			*p = 0;
+		p = strchr(gid, ' ');
+		if(p)
+			*p = 0;
+
+		int fsum = adler32(ip+0x30, 64);
+		chdr = find_cover(gid, fsum);
+		ip_cache[index] = (chdr<0)? -1 : chdr;
+	}
+
+	return chdr;
+}
+
+
+// push n bytes (n even) into the FIFO. Like fill_fifo() for CD sectors: the
+// free space is read once, then that many words are written back to back with
+// no FPGA read in between (a FIFO_STAT read before every write lost words on
+// hardware). Gives up after ~0.5 s without room (the Saturn stopped reading).
+static int cover_fifo_push(u8 *p, int n)
+{
+	int i = 0, k, words, room, wait;
+
+	while(i<n){
+		wait = 0;
+		while(1){
+			int st = FIFO_STAT;
+			room = (st&0x0800)? 0 : 2048-(st&0x07ff);
+			if(room>=64 || room>=(n-i)/2)
+				break;
+			if(++wait > 2000000)
+				return -1;
+		}
+		words = (n-i)/2;
+		if(words>room)
+			words = room;
+		for(k=0; k<words; k++){
+			FIFO_DATA = *(u16*)(p+i);
+			i += 2;
+		}
+	}
+	return 0;
+}
+
+static u8 cover_chunk[2048];
+
+void cover_send(int index)
+{
+	int w = 0, h = 0, offset = 0;
+	u8 hdr[16];
+	u32 nread;
+
+	int chdr = cover_lookup(index&0x7fff);
+	if(chdr>0){
+		w = *(u16*)(chdr+0x14);
+		h = *(u16*)(chdr+0x16);
+		offset = *(int*)(chdr+0x10);
+		if(w<=0 || h<=0 || w*h > 512*256){
+			w = 0;
+			h = 0;
+		}
+	}
+	printk("\nCover %04x: %dx%d\n", index, w, h);
+
+	// FIFO: STM32 -> Saturn, data interrupt off, empty
+	int key = disable_irq();
+	ST_CTRL &= ~(STIRQ_DAT|0x0200);
+	ST_CTRL |=  0x0100;
+	ST_CTRL &= ~0x0100;
+	restore_irq(key);
+	FIFO_RCNT = 0;
+
+	// header, 16 bytes: 'C','V', width, height (big-endian), 10 bytes 0
+	memset(hdr, 0, sizeof(hdr));
+	hdr[0] = 'C';  hdr[1] = 'V';
+	hdr[2] = w>>8; hdr[3] = w;
+	hdr[4] = h>>8; hdr[5] = h;
+	// the Saturn reads the CD data port 32 bits at a time: whole longs only
+	if(cover_fifo_push(hdr, 16)==0 && w && h){
+		int left = (0x0400 + w*h + 3)&~3;
+		f_lseek(&cover_fp, offset);
+		while(left>0){
+			int n = (left>2048)? 2048 : left;
+			if(f_read(&cover_fp, cover_chunk, n, &nread)!=FR_OK)
+				memset(cover_chunk, 0, n);
+			if(cover_fifo_push(cover_chunk, n))
+				break;
+			left -= n;
+		}
+	}
+
+	SS_CMD = 0;
+}
+
+/******************************************************************************/
 

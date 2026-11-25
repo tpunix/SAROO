@@ -223,7 +223,7 @@ static void _call_04c8(void)
 {
 	void (*go)(void) = (void*)(0x04c8);
 	go();
-	*(u32*)(0x25fe00b0) = 0x38803880;
+	*(u32*)(0x25fe00b0) = SAROO_ASR0;
 }
 
 void my_cdplayer(void)
@@ -402,13 +402,13 @@ int my_bios_loadcd_read(void)
 
 static u16 code_06b8[10] = {
 	0xd102, // mov.l #0x25fe00b0, r1
-	0xd203, // mov.l #0x38803880, r2
+	0xd203, // mov.l #SAROO_GAME_ASR0, r2
 	0x2122, // mov.l r2, @r1
 	0xd103, // mov.l next_call, r1
 	0x412b, // jmp   @r1
 	0x4f26, // lds.l @r15+, pr
 	0x25fe,0x00b0,
-	0x3880,0x3880,
+	(SAROO_GAME_ASR0>>16)&0xffff, SAROO_GAME_ASR0&0xffff,
 	// 060006cc: .long next_call
 };
 
@@ -421,7 +421,7 @@ static void my_06b0(void)
 	void (*go)(void) = (void*)0x1800;
 	go();
 
-	*(u32*)(0x25fe00b0) = 0x38803880;
+	*(u32*)(0x25fe00b0) = SAROO_GAME_ASR0;
 
 	SF = 1;
 	COMREG = 0x19;

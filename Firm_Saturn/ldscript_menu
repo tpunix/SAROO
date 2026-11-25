@@ -1,0 +1,62 @@
+/*
+ * [MENU_WRAM] Menu image: stored in the cart after the resident image,
+ * copied by crt0 to low work RAM and run there, so the menu fetches no code
+ * and keeps no variables or stack in the cart.
+ *
+ * It sits at the top of low work RAM (0x002C0000-0x002FFFFF) so that BINs
+ * loaded at the start of it (0x00200000) don't overwrite it while loading.
+ * The resident image's entry points and variables come from obj/res_syms.elf
+ * (the resident ELF cut down to them, linked with --just-symbols).
+ */
+
+OUTPUT_FORMAT("elf32-sh")
+SECTIONS
+{
+	. = 0x002C0000;
+	__menu_start = .;
+
+	/* read by crt0 */
+	.menu_hdr :
+	{
+		LONG(0x4D454E55)						/* 'MENU' */
+		LONG(__main)							/* entry: _main() */
+		LONG(__menu_start)						/* run address */
+		LONG(__menu_load_end - __menu_start)	/* bytes to copy */
+		LONG(__bss_start)
+		LONG(__bss_end)							/* also the stack top */
+		LONG(0)
+		LONG(0)
+	}
+	.text :
+	{
+		*(.text)
+	}
+	.rodata :
+	{
+		*(.rodata)
+		*(.rodata.*)
+	}
+	.data :
+	{
+		*(.data)
+		*(.data.*)
+	}
+	. = ALIGN(4);
+	__menu_load_end = .;
+
+	.bss (NOLOAD) :
+	{
+		__bss_start = .;
+		*(.bss)
+		*(.bss.*)
+		*(COMMON)
+		. = ALIGN(4);
+		__stack_start = .;
+		. = . + 16384;
+		__stack_end = .;
+		__bss_end = .;
+	}
+	ASSERT(__bss_end <= 0x00300000, "menu image does not fit in low work RAM")
+
+	/DISCARD/ : { *(.comment) }
+}

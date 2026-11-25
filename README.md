@@ -1,4 +1,8 @@
 
+> **Unofficial fork.** Branch `sega-abus-timing` adds an experimental FPGA
+> change for Sega's RAM-cart A-Bus timing. See [README_SEGA_ABUS.md](README_SEGA_ABUS.md).
+> The original project is [tpunix/SAROO](https://github.com/tpunix/SAROO).
+
 ### SAROO is a HDLoader for SEGA Saturn.
 
 SAROO是一个土星光驱模拟器。SAROO插在卡槽上，实现原主板的CDBLOCK的功能，从SD卡装载游戏并运行。

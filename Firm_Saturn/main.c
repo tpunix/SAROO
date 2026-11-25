@@ -15,40 +15,15 @@
 /**********************************************************/
 
 u32 mcu_ver;
-u32 debug_flag;
-int bios_type;
 
-/**********************************************************/
-
-
-u32 BE32(void *ptr)
-{
-	u8 *b = (u8*)ptr;
-	return (b[0]<<24) | (b[1]<<16) | (b[2]<<8) | b[3];
-}
-
-
-u32 LE16(void *ptr)
-{
-	u8 *b = (u8*)ptr;
-	return (b[1]<<8) | b[0];
-}
-
-
-u32 LE32(void *ptr)
-{
-	u8 *b = (u8*)ptr;
-	return (b[3]<<24) | (b[2]<<16) | (b[1]<<8) | b[0];
-}
-
-void LE32W(void *ptr, u32 val)
-{
-	u8 *b = (u8*)ptr;
-	b[0] = (val>> 0)&0xff;
-	b[1] = (val>> 8)&0xff;
-	b[2] = (val>>16)&0xff;
-	b[3] = (val>>24)&0xff;
-}
+/* [MENU_WRAM] the resident (cart) image's own copies of these, at addresses
+ * the build takes from the resident link (res_syms.ld) */
+extern u32 res_debug_flag;
+extern int res_bios_type;
+extern int res_to_stm32;
+extern void (*res_printk_putc)(int ch);
+extern void res_sci_putc(int ch);
+/* [MENU_WRAM] debug_flag, bios_type, BE32/LE16/LE32/LE32W: moved to res_util.c */
 
 
 /**********************************************************/
@@ -146,289 +121,7 @@ void pad_init(void)
 }
 
 
-/**********************************************************/
-
-int smpc_cmd(int cmd)
-{
-	printk("SMPC_CMD(%02x) ...\n", cmd);
-	// wait busy state
-	while(SF&0x01);
-
-	SF = 0x01;
-	COMREG = cmd;
-	while(SF&0x01);
-
-	printk("    done. SS=%02x\n", SR);
-	return SR;
-}
-
-/**********************************************************/
-
-
-void stm32_puts(char *str)
-{
-	u32 stm32_base = TMPBUFF_ADDR;
-	int len;
-
-	len = strlen(str);
-	LE32W((void*)(stm32_base+0), len);
-
-	memcpy((void*)stm32_base+0x10, str, len+1);
-
-	SS_CMD = 0x0001;
-	while(SS_CMD);
-}
-
-
-/**********************************************************/
-
-#if 0
-const int HZ = 1000000;
-
-void reset_timer(void)
-{
-	SS_TIMER = 0;
-}
-
-u32 get_timer(void)
-{
-	return SS_TIMER;
-}
-
-#else
-
-const int HZ = 208496; /* for NTSC: 320 lines mode */
-static int timer_base;
-
-void reset_timer(void)
-{
-	timer_base = 0;
-	TCR = 0x02;
-	FRCH = 0;
-	FRCL = 0;
-}
-
-u32 get_timer(void)
-{
-	int s1, s2, th, tl;
-	while(1){
-		s1 = FTCSR&0x02;
-		th = FRCH;
-		tl = FRCL;
-		s2 = FTCSR&0x02;
-		if(s1==s2)
-			break;
-	}
-
-	th = (th<<8) | tl;
-	if(s2&0x02){
-		timer_base += 65536;
-		FTCSR = 0;
-	}
-
-	return timer_base+th;
-}
-
-#endif
-
-
-void usleep(u32 us)
-{
-	u32 now, end;
-
-	if(us==0)
-		us = 1;
-	end = (us*HZ)/1000000;
-
-	reset_timer();
-	while(1){
-		now = get_timer();
-		if(now>=end)
-			break;
-	}
-}
-
-void msleep(u32 ms)
-{
-	u32 now, end;
-
-	if(ms==0)
-		ms = 1;
-	end = (ms*HZ)/1000;
-
-	reset_timer();
-	while(1){
-		now = get_timer();
-		if(now>=end)
-			break;
-	}
-}
-
-/**********************************************************/
-
-// clk = 26874880
-// bps = ((clk/32)/n)/(BRR+1)
-
-void sci_init(void)
-{
-	SCR = 0x00;     /* set TE,RE to 0 */
-	SMR = 0x00;     /* set SMR to 8n1 async mode */
-//	BRR = 0x15;     /* set BRR to 9600 bps */
-//	BRR = 0x01;     /* set BRR to 104980 bps */
-	BRR = 0x00;     /* set BRR to 209960 bps */
-	SCR = 0xcd;     /* set TIE RIE MPIE TEIE CKE1 CKE0 */
-	SCR = 0x31;     /* set TE RE to 1 */
-
-	printk_putc = sci_putc;
-}
-
-void sci_putc(int ch)
-{
-	while((SSR&0x80)==0);
-	TDR = ch;
-	SSR &= 0x7f;
-}
-
-int sci_getc(int timeout)
-{
-	int ch;
-
-	timeout *= 1500;
-	while(timeout){
-		if(SSR&0x40){
-			ch = RDR;
-			SSR &= 0xbf;
-			return ch;
-		}
-		timeout -= 1;
-	}
-
-	return -1;
-}
-
-
-/**********************************************************/
-
-
-void cpu_dmemcpy(void *dst, void *src, int size, int ch)
-{
-	int chcr = 0x5a11;
-
-	if(((u32)src&0xfff8703f)==0x25800000){
-		// CDBLOCK的DATA_PORT
-		chcr &= 0xcfff;
-	}
-
-	while((CHCR0&0x03)==0x01);
-	CHCR0 = 0;
-	DMAOR = 1;
-
-	SAR0 = (u32)src;
-	DAR0 = (u32)dst;
-	TCR0 = (size+3)>>2;
-	CHCR0 = chcr;
-}
-
-#if 1
-void scu_dmemcpy(void *dst, void *src, int size, int ch)
-{
-	volatile SCUDMA_REG *sdma = (SCUDMA_REG *)(SCU_DMA_BASE+ch*0x20);
-	int mask  = 0x0030;
-	int maskh = 0x0001;
-
-	if(ch>0){ mask <<= 4; maskh <<= 1; }
-	if(ch>1){ mask <<= 4; maskh   = 0; }
-	mask |= maskh<<16;
-	while(SDSTAT&mask); // 等待传输结束
-
-	sdma->src = (u32)src;
-	sdma->dst = (u32)dst;
-	sdma->count = size;
-	sdma->addv = (((u32)dst&0x00f00000)==0) ? 0x102 : 0x101;
-	sdma->mode = 0x07;
-	sdma->enable = 0x101;
-}
-
-#else
-
-void scu_dmemcpy(void *dst, void *src, int size, int ch)
-{
-	while(SDSTAT&0x10030); // 等待传输结束
-
-	SD0R = (u32)src;
-	SD0W = (u32)dst;
-	SD0C = size;
-	SD0AD = (((u32)dst&0x00f00000)==0) ? 0x102 : 0x101;
-	SD0MD = 0x07;
-	SD0EN = 0x101;
-}
-
-#endif
-
-/**********************************************************/
-
-int read_file (char *name, int offset, int size, void *buf)
-{
-	LE32W((void*)(TMPBUFF_ADDR+0x00), offset);
-	LE32W((void*)(TMPBUFF_ADDR+0x04), size);
-	strcpy((void*)(TMPBUFF_ADDR+0x10), name);
-
-	u32 bus_addr = (u32)buf & 0x0fffffff;
-	if(bus_addr>=0x02000000 && bus_addr<0x03000000){
-		// buf位于MCU和SS可以直接访问的空间内。
-		LE32W((void*)(TMPBUFF_ADDR+0x08), bus_addr);
-	}else{
-		// buf不可直接访问，必须中转。
-		LE32W((void*)(TMPBUFF_ADDR+0x08), TMPBUFF_ADDR+0x0100);
-	}
-
-
-	SS_ARG = 0;
-	SS_CMD = SSCMD_FILERD;
-	while(SS_CMD);
-
-	int retv = (signed short)SS_ARG;
-	if(retv<0)
-		return retv;
-
-	size = LE32((void*)(TMPBUFF_ADDR+0x04));
-	if(bus_addr<0x02000000 || bus_addr>=0x03000000){
-		memcpy(buf, (void*)(TMPBUFF_ADDR+0x0100), size);
-	}
-
-	return size;
-}
-
-
-int write_file(char *name, int offset, int size, void *buf)
-{
-	LE32W((void*)(TMPBUFF_ADDR), offset);
-	LE32W((void*)(TMPBUFF_ADDR+0x04), size);
-	strcpy((void*)(TMPBUFF_ADDR+0x10), name);
-
-	u32 bus_addr = (u32)buf & 0x0fffffff;
-	if(bus_addr>=0x02000000 && bus_addr<0x03000000){
-		// buf位于MCU和SS可以直接访问的空间内。
-		LE32W((void*)(TMPBUFF_ADDR+0x08), bus_addr);
-	}else{
-		// buf不可直接访问，必须中转。
-		LE32W((void*)(TMPBUFF_ADDR+0x08), TMPBUFF_ADDR+0x0100);
-		memcpy((void*)(TMPBUFF_ADDR+0x0100), buf, size);
-	}
-
-
-	SS_ARG = 0;
-	SS_CMD = SSCMD_FILEWR;
-	while(SS_CMD);
-
-	int retv = (signed short)SS_ARG;
-	if(retv<0)
-		return retv;
-
-	size = LE32((void*)(TMPBUFF_ADDR+0x04));
-	return size;
-}
-
+/* [MENU_WRAM] smpc_cmd, stm32_puts, timers, usleep/msleep, sci_*, cpu/scu_dmemcpy, read_file, write_file: moved to res_util.c */
 
 /**********************************************************/
 
@@ -500,17 +193,153 @@ int mem_test(int size)
 static int last_w, last_h, last_f;
 static int cover_top = 1;
 
+// [SEGA_ABUS] Debounced cover select: a cursor move only records the game;
+// SSCMD_SELECT (which makes the STM32 load the cover into SDRAM) is sent once
+// the cursor has rested SELECT_DELAY frames. Fast scrolling then causes no
+// STM32 SDRAM traffic, which froze the menu at Sega cart timing.
+#define SELECT_DELAY 15
+static int sel_pending = -1;
+static int sel_frames;
+static int sel_vblank;
+
+/*
+ * [COVER_FIFO] Covers through the CD data FIFO (needs an mcuapp.bin with
+ * SSCMD_COVER). The STM32 streams an 8-byte header ('C','V', width, height),
+ * the 1 KB palette and the pixels into the FPGA's CD FIFO; the menu pops them
+ * from the CD data port into high work RAM and draws them from there. The
+ * picture never goes through the SDRAM, so the menu reads nothing from the
+ * cart for it, and in the game list the menu doesn't read the cart at all.
+ * This is the only way covers are loaded: if a cover doesn't come, the
+ * empty frame is shown. If the STM32 doesn't answer at all (an mcuapp.bin
+ * without SSCMD_COVER), the menu stops asking for this session: no covers.
+ */
+#define COVER_BUF   ((u8*)0x060C0000)	/* high work RAM: the SCU DMA can't read low work RAM */
+#define CDC_DPORT   REG16(0x25818000)	/* CD data port: pops the FIFO */
+#define COVER_FIRST_MS  3000	/* header: the STM32 may read the game's disc image first */
+#define COVER_DATA_MS   1000	/* longest gap in the data */
+static int cover_off;			/* the STM32 never answered: no covers this session */
+static int in_list;
+
+static int fifo_count(void)
+{
+	int s = SS_STAT;
+	return (s&0x0800)? 2048 : (s&0x07ff);
+}
+
+/* The CD data port must be read 32 bits at a time, as cdc_trans_data() does:
+   16-bit reads lost a word on hardware. */
+#define CDC_DPORT32 (*(volatile u32*)0x25818000)
+
+/* 1: cover in COVER_BUF, 0: no cover, -1: failed, -2: no answer at all */
+static int cover_fetch(int index, int *pw, int *ph)
+{
+	int n, longs, k;
+	u32 *p, v;
+	u16 hdr[8];
+
+	/* nothing old left in the FIFO (no wait for SS_CMD==0: the STM32 never
+	   clears it after SSCMD_STARTUP or SSCMD_SELECT; cover_send() resets the
+	   FIFO itself before it sends) */
+	while(fifo_count()>=2)
+		v = CDC_DPORT32;
+	while(fifo_count())
+		n = CDC_DPORT;
+
+	SS_ARG = index;
+	SS_CMD = SSCMD_COVER;
+
+	/* header: 8 words = 4 longs */
+	reset_timer();
+	while(fifo_count()<8){
+		if(get_timer()>MS2TICK(COVER_FIRST_MS))
+			return -2;
+	}
+	for(k=0; k<8; k+=2){
+		v = CDC_DPORT32;
+		hdr[k]   = v>>16;
+		hdr[k+1] = v;
+	}
+	int w = hdr[1];
+	int h = hdr[2];
+	if(hdr[0]!=0x4356 || w>512 || h>256)
+		return -1;
+
+	longs = (w && h)? (0x0400 + w*h + 3)/4 : 0;
+	p = (u32*)COVER_BUF;
+	reset_timer();
+	while(longs){
+		n = fifo_count()/2;
+		if(n==0){
+			if(get_timer()>MS2TICK(COVER_DATA_MS))
+				return -1;
+			continue;
+		}
+		reset_timer();
+		if(n>longs)
+			n = longs;
+		longs -= n;
+		while(n--)
+			*p++ = CDC_DPORT32;
+	}
+	reset_timer();
+	while(SS_CMD && get_timer()<MS2TICK(COVER_DATA_MS));
+
+	*pw = w;
+	*ph = h;
+	return (w && h)? 1 : 0;
+}
+
+static void draw_image(int flag, u8 *src, int src_llen, int img_w, int img_h, int img_x, int img_y, int adj_x, int adj_y);
+
+static void cover_update(int index)
+{
+	int w = 0, h = 0;
+	int retv = (cover_off)? -3 : cover_fetch(index, &w, &h);
+	if(retv==-2)
+		cover_off = 1;
+
+	if(retv>0){
+		u8 *pal = COVER_BUF;
+		for(int i=0; i<256; i++){
+			nbg1_set_cram(i, pal[2], pal[1], pal[0]);
+			pal += 4;
+		}
+		draw_image(3, COVER_BUF+0x0400, w, w, h, 0, 0, 176, (h>128)? 24 : 88);
+	}else{
+		memset(COVER_BUF, 0, 128*128);
+		draw_image(4, COVER_BUF, 128, 128, 128, 0, 0, 176, 88);
+	}
+}
+
+static void select_poll(void)
+{
+	int vb = (TVSTAT&0x0008)? 1 : 0;
+	if(vb && !sel_vblank && sel_pending>=0 && sel_frames<SELECT_DELAY)
+		sel_frames++;
+	sel_vblank = vb;
+
+	// no SS_CMD==0 check: the STM32 never clears SS_CMD after SSCMD_SELECT
+	if(sel_pending>=0 && sel_frames>=SELECT_DELAY){
+		int index = sel_pending;
+		sel_pending = -1;
+		cover_update(index);
+	}
+}
+
 void gif_timer(void)
 {
+	select_poll();
+
 	if((TVSTAT&0x0008)==0)
+		return;
+
+	/* [COVER_FIFO] in the game list the covers come through the FIFO: nothing
+	   to poll in the cart */
+	if(in_list)
 		return;
 
 	int gif_flag = *(u8*)0x22400000;
 	if(gif_flag){
-		u8 *dst = (u8*)(VDP2_VRAM+0x20000);
-		u8 *src = (u8*)(0x22401000);
-		int src_llen = (gif_flag>=3)? 128 : 512;
-
 		int img_w = LE16((u8*)0x22400004);
 		int img_h = LE16((u8*)0x22400006);
 		int img_x = (short)LE16((u8*)0x22400008);
@@ -518,6 +347,30 @@ void gif_timer(void)
 		int adj_x = (short)LE16((u8*)0x2240000c);
 		int adj_y = (short)LE16((u8*)0x2240000e);
 		//printk("img: (%d,%d) %dx%d\n", img_x, img_y, img_w, img_h);
+
+		draw_image(gif_flag, (u8*)(0x22401000), (gif_flag>=3)? 128 : 512,
+			img_w, img_h, img_x, img_y, adj_x, adj_y);
+		*(u8*)0x22400000 = 0;
+	}
+
+	int pal_flag = *(u8*)0x22400002;
+	if(pal_flag){
+		int i;
+		u8 *pal = (u8*)0x22400100;
+		for(i=0; i<256; i++){
+			nbg1_set_cram(i, pal[2], pal[1], pal[0]);
+			pal += 4;
+		}
+		*(u8*)0x22400002 = 0;
+	}
+}
+
+
+/* [COVER_FIFO] the drawing part of gif_timer, unchanged, for both sources */
+static void draw_image(int gif_flag, u8 *src, int src_llen, int img_w, int img_h, int img_x, int img_y, int adj_x, int adj_y)
+{
+	{
+		u8 *dst = (u8*)(VDP2_VRAM+0x20000);
 
 		//if( (last_f!=gif_flag) ){
 		//	printk("gflag: %d\n", gif_flag);
@@ -577,18 +430,6 @@ void gif_timer(void)
 		}
 		//int end = get_timer();
 		//printk("gt: %d ms\n", TICK2MS(end-start));
-		*(u8*)0x22400000 = 0;
-	}
-
-	int pal_flag = *(u8*)0x22400002;
-	if(pal_flag){
-		int i;
-		u8 *pal = (u8*)0x22400100;
-		for(i=0; i<256; i++){
-			nbg1_set_cram(i, pal[2], pal[1], pal[0]);
-			pal += 4;
-		}
-		*(u8*)0x22400002 = 0;
 	}
 }
 
@@ -657,8 +498,24 @@ static void fill_selmenu(void)
 static void select_notify(int index)
 {
 	if(sel_mode==0){
-		SS_ARG = page*MENU_ITEMS + index;
-		SS_CMD = SSCMD_SELECT;
+		if(index & (SELECT_ENTER|SELECT_EXIT)){
+			// entering / leaving the list: send now, drop any pending move
+			sel_pending = -1;
+			if(index & SELECT_ENTER){
+				// [COVER_FIFO] SSCMD_COVER also stops the background GIF
+				in_list = 1;
+				cover_update(page*MENU_ITEMS + (index & ~SELECT_ENTER));
+			}else{
+				// leaving the list: SSCMD_SELECT restarts the background GIF
+				in_list = 0;
+				SS_ARG = page*MENU_ITEMS + index;
+				SS_CMD = SSCMD_SELECT;
+			}
+		}else{
+			// cursor move: send later (select_poll, from gif_timer)
+			sel_pending = page*MENU_ITEMS + index;
+			sel_frames = 0;
+		}
 	}
 }
 
@@ -1174,6 +1031,13 @@ int _main(void)
 	}else{
 		printk_putc = NULL;
 	}
+
+	/* [MENU_WRAM] hand the debug settings to the resident copy, which runs the
+	 * game start and the save hooks (plain data writes: no cart code runs) */
+	res_debug_flag  = debug_flag;
+	res_bios_type   = bios_type;
+	res_to_stm32    = to_stm32;
+	res_printk_putc = (printk_putc==sci_putc)? res_sci_putc : NULL;
 
 	cdblock_off();
 
