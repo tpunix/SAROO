@@ -32,10 +32,13 @@ This branch has two independent changes:
    Lines marked `[SIM]` only move declarations up so ModelSim accepts the
    files. They don't change the logic.
 
-2. **Saturn firmware (`Firm_Saturn/`)**: runs everything at Sega timing.
+2. **Saturn firmware (`Firm_Saturn/`)**: runs games at Sega timing.
    **It needs the new FPGA. Don't use it with the stock FPGA.**
-   - The firmware's own A-Bus value is Sega's `0x23301FF0` (set in one place,
-     `abus.h`). SAROO used `0x38803880`.
+   - Games start at Sega's `0x23301FF0` (`SAROO_GAME_ASR0` in `abus.h`,
+     written by the clock-speed hook when the game starts). The SAROO boot,
+     menus and CD player stay at SAROO's `0x38803880` (`SAROO_ASR0`): the
+     firmware runs from the cart area, and with Sega timing there too, boot
+     and the menus froze now and then.
    - tpunix's per-game patches that `nop` a game's own timing write are
      commented out (marked `[SEGA_ABUS]` in `game_patch.c`), so those games
      set Sega timing themselves, as on a real console. The patches' other
