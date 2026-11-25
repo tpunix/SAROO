@@ -549,3 +549,5 @@ made no difference); 16-bit reads of the CD data port were. With 32-bit reads
 arrived complete and in order and the cover drew (KOF96, 128x128, 2026-11-25).
 Final: 16-byte header ('CV', width, height, zeros), data padded to 4 bytes,
 32-bit reads; diagnostics removed.
+Clean build on hardware (mcuapp B1A2F472, ssfirm 4169F622, 2026-11-25): covers
+shown while scrolling, games start; working.
