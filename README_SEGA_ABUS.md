@@ -38,10 +38,9 @@ This branch has two independent changes:
      written by the clock-speed hook when the game starts). The SAROO boot,
      menus and CD player stay at SAROO's `0x38803880` (`SAROO_ASR0`): the
      firmware runs from the cart area, and with Sega timing there too, boot
-     and the menus froze now and then. That build also lacked the delay-loop
-     fix below, which turned out to be the cause of the freezes (see below),
-     so the split may no longer be needed; it is kept until Sega timing in
-     the menus is tested again with the fixed loops.
+     and the menus froze now and then. Retested with the delay-loop fix
+     below (2026-11-25): Sega timing in the boot and menus still freezes, so
+     the split is needed.
    - tpunix's per-game patches that `nop` a game's own timing write are
      commented out (marked `[SEGA_ABUS]` in `game_patch.c`), so those games
      set Sega timing themselves, as on a real console. The patches' other
@@ -55,8 +54,8 @@ This branch has two independent changes:
      already does elsewhere, so the compiler keeps them. Without it the boot
      animation runs in an instant and looks skipped, and boot and the menus
      freeze now and then (the CD status poll runs with no delay). With the
-     loops back, the freezes and the animation problem are gone (tested
-     2026-11-25).
+     loops back and the menus at SAROO timing, the freezes and the animation
+     problem are gone (tested 2026-11-25).
 
    To build firmware for the stock FPGA again, use upstream `Firm_Saturn`, or
    build this one with `-DSAROO_ASR0=0x38803880` and the `[SEGA_ABUS]`

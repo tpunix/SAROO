@@ -425,6 +425,14 @@ so the freezes blamed on Sega timing in the menus were most likely the missing
 delays (cdblock.c status poll with no wait), not the cart timing. The
 menu/game ASR0 split stays until Sega timing in the menus is retested with the
 fixed loops.
+Retest (2026-11-25): ssfirm built with SAROO_ASR0 = 0x23301FF0 (Sega timing
+from power-on, delay loops fixed; differs from the release ssfirm.bin only in
+the two ASR0 words, crt0.S and _call_04c8) still freezes. So Sega timing for
+the firmware's own code does cause freezes, separately from the delay-loop
+bug. The split stays. Still unexplained, since RAMCART-Stress code-from-cart
+passes at Sega timing: candidates are the menu's own STM32 traffic (SD access,
+data the STM32 writes into SDRAM for the Saturn) and CS1 at Sega timing (the
+0x1FF0 half; RAMCART-Stress only tests CS0).
 
 EXTRA RAM (2026-11-25): the FPGA maps the whole 16 MB CS0 window onto SDRAM, so
 0x22800000-0x22FFFFFF (8 MB above the 4 MB cart) is RAM on any SAROO. YZB's
