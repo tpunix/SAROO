@@ -23,6 +23,17 @@
 *   7 CHECKER16  0x5555 / 0xAAAA, 16-bit accesses
 *   8 RETENTION  write, wait 3 seconds, verify
 *   9 DMA SH2    SH-2 DMA to the cart and back
+*  10 CODE       (1.2) SH-2 code run FROM the cart, like the SAROO firmware
+*                (it runs at 0x02000000, in the cart area): each frame a
+*                64 KB block of generated code is written to the next part of
+*                the cart and called through the cache (cache-line fills,
+*                cache purged first) and once cache-through (one read per
+*                instruction); the result is checked, then the block is read
+*                back as data. A bad instruction fetch can crash the CPU: if
+*                the screen stops during test 10, that is the failure.
+*
+* All runs (1.2): ALL RUNS counts errors over every run, and the first run
+* that failed stays on screen until START (START also restarts the counts).
 *
 * CD LOAD (C button, on by default): LOAD.BIN (128 KB) is read from the
 * disc in the background again and again, 16 KB per frame, and checked.
@@ -54,6 +65,9 @@
 #define RANDOM_FRAMES   120u            /* frames of random accesses */
 #define RANDOM_OPS      4096u           /* write/read/read triples per frame */
 #define LOAD_SIZE       KB(128)         /* LOAD.BIN */
+#define CODE_SIZE       KB(64)          /* code block per frame (the SH-2 cache is 4 KB) */
+#define CODE_CALLS      4u              /* cached calls per frame (plus one cache-through call) */
+#define SH2_CCR         (*(volatile unsigned char *)0xFFFFFE92u)   /* cache control register */
 
 typedef struct
 {
@@ -62,14 +76,14 @@ typedef struct
 }                       bank_t;
 
 enum { KIND_NONE, KIND_1MB, KIND_4MB, KIND_UNKNOWN };
-enum { T_PROBE, T_ALIAS, T_ADDR, T_CACHED, T_RANDOM, T_INV, T_CHK16, T_RETAIN, T_DMA, T_COUNT };
+enum { T_PROBE, T_ALIAS, T_ADDR, T_CACHED, T_RANDOM, T_INV, T_CHK16, T_RETAIN, T_DMA, T_CODE, T_COUNT };
 enum { S_PENDING, S_RUNNING, S_PASS, S_FAIL };
-enum { PH_START, PH_FILL, PH_WAIT, PH_VERIFY, PH_RANDOM, PH_DONE, PH_NOCART };
+enum { PH_START, PH_FILL, PH_WAIT, PH_VERIFY, PH_RANDOM, PH_CODE, PH_DONE, PH_NOCART };
 
 static const char *const test_name[T_COUNT] =
 {
     "PROBE 16/32", "ALIASING", "ADDRESS", "CACHED READ", "RANDOM W/R", "INVERTED", "CHECKER 16BIT",
-    "RETENTION 3S", "DMA SH2"
+    "RETENTION 3S", "DMA SH2", "CODE FROM CART"
 };
 
 static bank_t           banks[2];
@@ -95,6 +109,21 @@ static int              first_test;
 
 static unsigned int     run_count;
 static unsigned int     pass_count;
+
+/* All runs since power-on or the last START (1.2) */
+static unsigned int     all_errors;
+static unsigned int     all_read;
+static unsigned int     all_stored;
+static unsigned int     all_other;
+static unsigned int     fail_runs;
+static unsigned int     fail_run;       /* first run that failed (0: none yet) */
+static int              fail_test;
+static unsigned int     fail_addr;
+static unsigned int     fail_exp;
+static unsigned int     fail_got;
+
+/* Test 10 */
+static unsigned int     code_calls;     /* calls made this run */
 static unsigned int     run_start_vbl;
 static unsigned int     run_frames;
 static int              auto_loop = 1;
@@ -122,7 +151,7 @@ static unsigned int     cd_start_fail;
 
 /* Read by a debugger: magic, id, kind, total errors, first fail (address, expected, got, test), runs, passed
    runs, done, CD loads, CD errors */
-volatile unsigned int   cart_res[16];
+volatile unsigned int   cart_res[20];   /* 1.2: [16] all-run errors, [17] failed runs, [18] first failed run, [19] code calls */
 
 /* ---- helpers ------------------------------------------------------- */
 static void             bus_settle(void)
@@ -612,6 +641,160 @@ static void             run_dma(const unsigned int index)
         run_dma_at(addr_of(total_bytes - DMA_SIZE), 0x33);
 }
 
+/* ---- test 10: code run from the cart ------------------------------- */
+/* SH-2 opcodes used (all on r0, so a call can't touch anything else) */
+#define OP_MOV_R4_R0    0x6043u         /* mov r4,r0 (the argument) */
+#define OP_ADD_R0       0x7000u         /* add #imm,r0 */
+#define OP_ROTL_R0      0x4004u         /* rotl r0 */
+#define OP_NOT_R0       0x6007u         /* not r0,r0 */
+#define OP_RTS          0x000Bu
+#define OP_NOP          0x0009u
+
+typedef unsigned int    (*code_fn)(unsigned int);
+
+static void             cache_purge(void)
+{
+    const unsigned int  sr = __jo_core_disable_interrupts();
+    const unsigned char ccr = SH2_CCR;
+
+    SH2_CCR = 0x10;                     /* CP: purge every line (and cache off for a moment) */
+    SH2_CCR = ccr;
+    __jo_core_restore_interrupts(sr);
+}
+
+/* Writes the code block at `base` (cache-through address) and returns what it computes for `seed`. Every
+   instruction word changes from run to run and from block to block. */
+static unsigned int     code_write(const unsigned int base, const unsigned int seed)
+{
+    volatile unsigned int   *w = (volatile unsigned int *)base;
+    const unsigned int  words = CODE_SIZE / 2u;
+    unsigned int        h = seed ^ base;
+    unsigned int        r0 = seed;
+    unsigned int        i;
+    unsigned int        hi = OP_MOV_R4_R0;
+
+    for (i = 1; i < words; i++)
+    {
+        unsigned int        op;
+
+        if (i == words - 2u)
+            op = OP_RTS;
+        else if (i == words - 1u)
+            op = OP_NOP;
+        else
+        {
+            h = h * 1103515245u + 12345u;
+            switch ((h >> 16) % 3u)
+            {
+            case 0:
+                op = OP_ADD_R0 | ((h >> 8) & 0xFFu);
+                r0 += (unsigned int)(int)(signed char)(op & 0xFFu);
+                break;
+            case 1:
+                op = OP_ROTL_R0;
+                r0 = (r0 << 1) | (r0 >> 31);
+                break;
+            default:
+                op = OP_NOT_R0;
+                r0 = ~r0;
+                break;
+            }
+        }
+        if (i & 1u)
+            *w++ = (hi << 16) | op;     /* big-endian: the even word is the high half */
+        else
+            hi = op;
+    }
+    return (r0);
+}
+
+/* Reads the block back as data: wrong words here are STORED/READ errors of the code itself */
+static void             code_verify(const unsigned int base, const unsigned int seed)
+{
+    const volatile unsigned int *w = (const volatile unsigned int *)base;
+    const unsigned int  words = CODE_SIZE / 2u;
+    unsigned int        h = seed ^ base;
+    unsigned int        i;
+    unsigned int        hi = OP_MOV_R4_R0;
+
+    for (i = 1; i < words; i++)
+    {
+        unsigned int        op;
+
+        if (i == words - 2u)
+            op = OP_RTS;
+        else if (i == words - 1u)
+            op = OP_NOP;
+        else
+        {
+            h = h * 1103515245u + 12345u;
+            switch ((h >> 16) % 3u)
+            {
+            case 0:
+                op = OP_ADD_R0 | ((h >> 8) & 0xFFu);
+                break;
+            case 1:
+                op = OP_ROTL_R0;
+                break;
+            default:
+                op = OP_NOT_R0;
+                break;
+            }
+        }
+        if (i & 1u)
+        {
+            const unsigned int  a = base + (i - 1u) * 2u;
+            const unsigned int  expected = (hi << 16) | op;
+            const unsigned int  got = w[(i - 1u) / 2u];
+
+            if (got != expected)
+                record_error(a, expected, got);
+        }
+        else
+            hi = op;
+    }
+}
+
+static void             run_code_block(const unsigned int index)
+{
+    const unsigned int  base = addr_of(index * CODE_SIZE);
+    const unsigned int  seed = run_seed ^ (index * 0x9E3779B9u);
+    const unsigned int  expected = code_write(base, seed);
+    const code_fn       cached = (code_fn)(base & 0x0FFFFFFFu);
+    const code_fn       uncached = (code_fn)base;
+    unsigned int        n;
+    unsigned int        got;
+    unsigned int        bad_runs = 0;
+    unsigned int        before;
+
+    for (n = 0; n < CODE_CALLS; n++)
+    {
+        cache_purge();
+        got = cached(seed);
+        ++code_calls;
+        if (got != expected)
+        {
+            record_error_x(base, expected, expected, got, 0);   /* counted as OTHER for now */
+            ++bad_runs;
+        }
+    }
+    got = uncached(seed);
+    ++code_calls;
+    if (got != expected)
+    {
+        record_error_x(base, expected, expected, got, 0);
+        ++bad_runs;
+    }
+    before = total_errors;
+    code_verify(base, seed);
+    /* Wrong result but the code in the RAM is right: an instruction was fetched wrong (READ BAD) */
+    if (bad_runs && total_errors == before)
+    {
+        cls_other -= bad_runs;
+        cls_read += bad_runs;
+    }
+}
+
 /* ---- sequencer ----------------------------------------------------- */
 static void             publish(const unsigned int done)
 {
@@ -631,6 +814,23 @@ static void             publish(const unsigned int done)
     cart_res[13] = cls_read;
     cart_res[14] = cls_stored;
     cart_res[15] = cls_other;
+    cart_res[16] = all_errors;
+    cart_res[17] = fail_runs;
+    cart_res[18] = fail_run;
+    cart_res[19] = code_calls;
+}
+
+/* START: forget every earlier run */
+static void             reset_all_runs(void)
+{
+    run_count = 0;
+    pass_count = 0;
+    all_errors = 0;
+    all_read = 0;
+    all_stored = 0;
+    all_other = 0;
+    fail_runs = 0;
+    fail_run = 0;
 }
 
 static void             start_run(void)
@@ -653,6 +853,7 @@ static void             start_run(void)
     first_stored_addr = 0;
     first_stored_val = 0;
     dma_timeout = 0;
+    code_calls = 0;
     cur_test = 0;
     pos = 0;
     ++run_count;
@@ -679,6 +880,22 @@ static void             finish_test(void)
         run_frames = jo_core_get_vblank_count() - run_start_vbl;
         if (total_errors == 0)
             ++pass_count;
+        else
+        {
+            ++fail_runs;
+            if (fail_run == 0)
+            {
+                fail_run = run_count;
+                fail_test = first_test;
+                fail_addr = first_addr;
+                fail_exp = first_exp;
+                fail_got = first_got;
+            }
+        }
+        all_errors += total_errors;
+        all_read += cls_read;
+        all_stored += cls_stored;
+        all_other += cls_other;
         publish(1);
     }
 }
@@ -694,7 +911,12 @@ static void             step(void)
     cd_kick();
     if (phase == PH_DONE || phase == PH_NOCART)
     {
-        if (jo_is_pad1_key_down(JO_KEY_START) || (auto_loop && phase == PH_DONE))
+        if (jo_is_pad1_key_down(JO_KEY_START))
+        {
+            reset_all_runs();
+            start_run();
+        }
+        else if (auto_loop && phase == PH_DONE)
             start_run();
         return;
     }
@@ -719,6 +941,17 @@ static void             step(void)
         }
         run_dma(pos);
         if (++pos >= DMA_LOCATIONS || dma_timeout)
+            finish_test();
+        return;
+    case T_CODE:
+        if (phase == PH_START)
+        {
+            pos = 0;
+            phase = PH_CODE;
+            return;
+        }
+        run_code_block(pos);
+        if (++pos >= total_bytes / CODE_SIZE)
             finish_test();
         return;
     case T_CACHED:
@@ -806,7 +1039,7 @@ static void             draw(void)
     unsigned int        percent;
 
     jo_set_printf_color_index(JO_COLOR_INDEX_White);
-    jo_printf(1, 1, "RAM CART STRESS 1.1        RUN %u", run_count);
+    jo_printf(1, 1, "RAM CART STRESS 1.2        RUN %u", run_count);
     switch (cart_kind)
     {
     case KIND_4MB:
@@ -863,11 +1096,11 @@ static void             draw(void)
 
     /* CD load */
     jo_set_printf_color_index(JO_COLOR_INDEX_White);
-    jo_printf(1, 14, "CD LOAD %s  LOADS %-6u", cd_load_on ? "ON " : "OFF", cd_loads);
+    jo_printf(1, 15, "CD LOAD %s  LOADS %-6u", cd_load_on ? "ON " : "OFF", cd_loads);
     if (cd_errors || cd_start_fail)
-        jo_printf_with_color(26, 14, JO_COLOR_INDEX_Red, "BAD %u/%u   ", cd_errors, cd_start_fail);
+        jo_printf_with_color(26, 15, JO_COLOR_INDEX_Red, "BAD %u/%u   ", cd_errors, cd_start_fail);
     else
-        jo_printf_with_color(26, 14, JO_COLOR_INDEX_Green, "DATA OK   ");
+        jo_printf_with_color(26, 15, JO_COLOR_INDEX_Green, "DATA OK   ");
 
     /* Progress of the current test */
     jo_set_printf_color_index(JO_COLOR_INDEX_White);
@@ -876,50 +1109,57 @@ static void             draw(void)
         percent = 100;
     if (cur_test == T_DMA && phase != PH_DONE)
     {
-        jo_printf(1, 15, "%-14s TRANSFER %u OF %u   ", test_name[cur_test],
+        jo_printf(1, 16, "%-14s TRANSFER %u OF %u   ", test_name[cur_test],
                   pos < DMA_LOCATIONS ? pos + 1 : DMA_LOCATIONS, DMA_LOCATIONS);
-        draw_bar(16, (pos * 100u) / DMA_LOCATIONS);
+        draw_bar(17, (pos * 100u) / DMA_LOCATIONS);
     }
     else if (phase == PH_RANDOM)
     {
-        jo_printf(1, 15, "%-14s ACCESSING %4u   ", test_name[cur_test], pos);
-        draw_bar(16, (pos * 100u) / RANDOM_FRAMES);
+        jo_printf(1, 16, "%-14s ACCESSING %4u   ", test_name[cur_test], pos);
+        draw_bar(17, (pos * 100u) / RANDOM_FRAMES);
+    }
+    else if (phase == PH_CODE)
+    {
+        const unsigned int  blocks = total_bytes / CODE_SIZE;
+
+        jo_printf(1, 16, "%-14s BLOCK %2u OF %2u  ", test_name[cur_test], pos < blocks ? pos + 1 : blocks, blocks);
+        draw_bar(17, (pos * 100u) / blocks);
     }
     else
     {
         switch (phase)
         {
         case PH_FILL:
-            jo_printf(1, 15, "%-14s WRITING   %4u KB", test_name[cur_test], pos >> 10);
+            jo_printf(1, 16, "%-14s WRITING   %4u KB", test_name[cur_test], pos >> 10);
             break;
         case PH_VERIFY:
-            jo_printf(1, 15, "%-14s VERIFYING %4u KB", test_name[cur_test], pos >> 10);
+            jo_printf(1, 16, "%-14s VERIFYING %4u KB", test_name[cur_test], pos >> 10);
             break;
         case PH_WAIT:
             {
                 const int   left = (int)(wait_until - jo_core_get_vblank_count());
 
-                jo_printf(1, 15, "%-14s WAITING   %4d   ", test_name[cur_test], left > 0 ? left : 0);
+                jo_printf(1, 16, "%-14s WAITING   %4d   ", test_name[cur_test], left > 0 ? left : 0);
                 percent = left > 0 ? 100u - ((unsigned int)left * 100u) / RETAIN_FRAMES : 100u;
             }
             break;
         case PH_DONE:
-            jo_printf(1, 15, "ALL TESTS DONE                    ");
+            jo_printf(1, 16, "ALL TESTS DONE                    ");
             percent = 100;
             break;
         default:
-            jo_printf(1, 15, "%-14s                   ", test_name[cur_test]);
+            jo_printf(1, 16, "%-14s                   ", test_name[cur_test]);
             break;
         }
-        draw_bar(16, percent);
+        draw_bar(17, percent);
     }
 
     /* Errors */
     if (total_errors)
     {
         jo_set_printf_color_index(JO_COLOR_INDEX_Red);
-        jo_printf(1, 18, "ERRORS %u", total_errors);
-        jo_printf(1, 19, "FIRST AT %08X  TEST %d", first_addr, first_test + 1);
+        jo_printf(1, 18, "ERRORS %-8u", total_errors);
+        jo_printf(1, 19, "FIRST AT %08X  TEST %d ", first_addr, first_test + 1);
         jo_printf(1, 20, "EXPECTED %08X GOT %08X", first_exp, first_got);
         /* Re-read check: is the wrong value in the RAM (STORED) or was only the read wrong (READ)? */
         jo_printf_with_color(1, 24, JO_COLOR_INDEX_Yellow, "READ BAD %-4u STORED BAD %-4u OTHER %-3u",
@@ -932,8 +1172,22 @@ static void             draw(void)
     else
     {
         jo_set_printf_color_index(JO_COLOR_INDEX_White);
-        jo_printf(1, 18, "ERRORS 0");
+        jo_printf(1, 18, "ERRORS 0       ");
+        if (fail_run)
+        {
+            /* This run is clean, but an earlier one failed: keep its details on screen until START */
+            jo_printf_with_color(1, 19, JO_COLOR_INDEX_Yellow, "RUN %u FAILED: TEST %d AT %08X ", fail_run,
+                                 fail_test + 1, fail_addr);
+            jo_printf_with_color(1, 20, JO_COLOR_INDEX_Yellow, "EXPECTED %08X GOT %08X", fail_exp, fail_got);
+            jo_printf_with_color(1, 24, JO_COLOR_INDEX_Yellow, "ALL: READ %-4u STORED %-4u OTHER %-4u",
+                                 all_read, all_stored, all_other);
+        }
     }
+    /* All runs since power-on or START */
+    if (all_errors)
+        jo_printf_with_color(17, 18, JO_COLOR_INDEX_Red, "ALL RUNS %u IN %u RUNS ", all_errors, fail_runs);
+    else
+        jo_printf_with_color(17, 18, JO_COLOR_INDEX_Green, "ALL RUNS 0          ");
 
     if (phase == PH_DONE)
     {
@@ -947,7 +1201,7 @@ static void             draw(void)
     jo_set_printf_color_index(JO_COLOR_INDEX_White);
     jo_printf(1, 22, "TIME %u FRAMES   ", run_frames);
     jo_printf(1, 23, "RUNS PASSED %u OF %u   ", pass_count, phase == PH_DONE ? run_count : run_count - 1);
-    jo_printf(1, 25, "START: RUN AGAIN  A: LOOP %s  C: CD", auto_loop ? "ON " : "OFF");
+    jo_printf(1, 25, "START: RESTART  A: LOOP %s  C: CD", auto_loop ? "ON " : "OFF");
     jo_printf(1, 26, "B: SETUP NEXT RUN %s",
               init_mode == INIT_TB47 ? "SEGA TB47" : init_mode == INIT_AUTO ? "AUTO     " : "NONE     ");
 }
