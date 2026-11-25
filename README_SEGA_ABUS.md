@@ -54,13 +54,35 @@ This branch has two independent changes:
      or the CD player. Helpers both sides use moved unchanged into
      `res_util.c`, which is linked into both images, so the cart code never
      calls into work RAM (which a game overwrites). The menu still reads
-     data from the cart (game list, covers after the STM32's ready flag, CJK
-     font); a bad read there would be a wrong character or pixel.
+     some data from the cart (game list, CJK font, the animated background
+     outside the game list); a bad read there would be a wrong character or
+     pixel. Covers no longer come through the cart (next point).
 
      Build with `make` (two-pass link: the resident image, then the menu
      against its symbols with `--just-symbols`, then the resident image
      again with the menu inside) or, on Windows, `build_menu_wram.ps1`; both
      give the same `ssfirm.bin`.
+   - **Covers through the CD data FIFO**, not the SDRAM (needs the
+     `mcuapp.bin` from this branch, see below). With `SAROO_EN` set, the
+     FPGA's CD-block emulation (registers at `0x25890000`, data port
+     `0x25818000`, `cdcfifo`) works alongside the SAROO registers
+     (`0x25897xxx`), and CD data goes STM32 RAM → FIFO → Saturn without
+     touching the SDRAM. New command `SSCMD_COVER` (`0x0050`):
+     - STM32 (`Firm_MCU/Saturn/saturn_utils.c`, `cover_send()`): looks the
+       cover up as before, then pushes a 16-byte header (`'C','V'`, width,
+       height) and the palette and pixels into the FIFO, read straight from
+       `cover.bin` (padded to 4 bytes). No cover: the header with size 0.
+       The CD data interrupt stays off, so the CD transfer code isn't
+       involved, and background music (CD audio over I²S) keeps playing.
+     - Saturn (`Firm_Saturn/main.c`, `cover_fetch()`): pops the data from
+       the CD data port as the FIFO fills, **32 bits at a time** as
+       `cdc_trans_data()` does (16-bit reads lost a word on hardware), into
+       high work RAM (`0x060C0000`; the SCU DMA can't read low work RAM),
+       and draws it from there.
+
+     In the game list the menu doesn't touch the cart at all. There is no
+     fallback: if a cover doesn't come, the empty frame is shown; with an
+     `mcuapp.bin` that doesn't know `SSCMD_COVER`, there are no covers.
    - **Debounced covers** (`select_poll()` in `main.c`): a cursor move in the
      game list only records the game; the cover is requested from the STM32
      once the cursor has rested for 15 frames (~¼ s). Entering and leaving
@@ -180,6 +202,7 @@ power-on, debounced covers), 2026-11-25, change 7 FPGA, `cover.bin` in place:
 | King of Fighters '96 (1MB cart) | OK |
 | Castlevania 4MB hack; save, reload after a power cycle | OK |
 | CD player; reset from a game back to the menu | OK |
+| Covers through the CD FIFO (with this branch's `mcuapp.bin`): covers while scrolling, games start | OK |
 
 Marvel Super Heroes also worked with the earlier Sega-timing build.
 
@@ -248,6 +271,12 @@ Result: 62,600 bytes, same vector table as the official v0.9 build. The
 bootloader loads `/SAROO/mcuapp.bin` from the SD card at every power-up, so
 trying one is a file swap.
 
+`Firm_MCU` on this branch is tpunix's current source plus the `disable_irq()`
+fix above and `SSCMD_COVER` (covers through the CD FIFO, `cover_send()` in
+`Saturn/saturn_utils.c`). Built this way it is 63,368 bytes. Note the source
+encodings: `saturn_main.c` and `cdc.h` are UTF-8, `saturn_utils.c` and
+`cdimg.c` are GBK; edit them in their own encoding.
+
 ## Installing
 
 > **The SAROO FPGA update has no verify step and no fallback.** If the
@@ -259,9 +288,12 @@ trying one is a file swap.
    Quartus).
 2. Copy it to `/SAROO/update/SSMaster.rbf` on the SD card and update from the
    SAROO menu (or set `auto_update=1` under `[global]` in `saroocfg.txt`).
-3. Optional, to run everything at Sega timing: copy `ssfirm.bin` from the
-   release to `/SAROO/ssfirm.bin`. Keep your old one: the firmware is loaded
-   from the SD card at every boot, so going back is just a file swap.
+3. Optional, to run everything at Sega timing: copy `ssfirm.bin` **and**
+   `mcuapp.bin` from the release to `/SAROO/`. They belong together: this
+   `ssfirm.bin` gets its covers through `SSCMD_COVER`, which only this
+   `mcuapp.bin` has (with an older one there are no covers). Keep your old
+   ones: both are loaded from the SD card at every power-up, so going back is
+   just a file swap.
 4. To go back to stock, put back the official `ssfirm.bin` **first**, then
    flash the official `SSMaster.rbf` from the official SAROO release.
 
@@ -272,7 +304,8 @@ trying one is a file swap.
 | `FPGA/` | FPGA design with the changes |
 | `FPGA/ABUS_EXP_NOTES.md` | Full development log: every change, simulation tables, hardware results |
 | `FPGA/sim/` | ModelSim testbench: SCU bus model, SDRAM model with protocol checks, `run.ps1` |
-| `Firm_Saturn/` | Firmware: menu in work RAM, Sega timing everywhere, A-Bus timing patches off |
+| `Firm_Saturn/` | Firmware: menu in work RAM, covers through the CD FIFO, Sega timing everywhere, A-Bus timing patches off |
+| `Firm_MCU/` | STM32 firmware (tpunix master) + `disable_irq()` fix + `SSCMD_COVER` |
 | `tools/RAMCART-Stress/` | Saturn test disc (jo engine): stress-tests a RAM cart at Sega's timing |
 
 ## License
