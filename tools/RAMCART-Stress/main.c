@@ -80,15 +80,30 @@ typedef struct
 }                       bank_t;
 
 enum { KIND_NONE, KIND_1MB, KIND_4MB, KIND_UNKNOWN };
-enum { T_PROBE, T_ALIAS, T_ADDR, T_CACHED, T_RANDOM, T_INV, T_CHK16, T_RETAIN, T_DMA, T_CODE, T_XRAM, T_COUNT };
-enum { S_PENDING, S_RUNNING, S_PASS, S_FAIL, S_SKIP, S_NOSAROO };
+enum { T_PROBE, T_ALIAS, T_ADDR, T_CACHED, T_RANDOM, T_INV, T_CHK16, T_RETAIN, T_DMA, T_CODE, T_XRAM, T_AA24, T_COUNT };
+enum { S_PENDING, S_RUNNING, S_PASS, S_FAIL, S_SKIP, S_NOSAROO, S_NOROMCTL, S_MIRROR, S_UNSTABLE };
 enum { PH_START, PH_FILL, PH_WAIT, PH_VERIFY, PH_RANDOM, PH_CODE, PH_XRAM, PH_DONE, PH_NOCART };
 
 static const char *const test_name[T_COUNT] =
 {
     "PROBE 16/32", "ALIASING", "ADDRESS", "CACHED READ", "RANDOM W/R", "INVERTED", "CHECKER 16BIT",
-    "RETENTION 3S", "DMA SH2", "CODE FROM CART", "SAROO XRAM 8MB"
+    "RETENTION 3S", "DMA SH2", "CODE FROM CART", "SAROO XRAM 8MB", "AA24 HIGH 16MB"
 };
+
+/* Test 12 (1.4): newer SAROO boards can route cart address line AA24 to the FPGA (its SS_SCLK pin). The MCU
+   command ROMCTL (0x41, SS_ARG bit 0) makes the FPGA use it as SDRAM address bit 24, so 0x23000000-0x23FFFFFF is
+   another 16 MB instead of a mirror of 0x22000000. On boards where that pin is the CD audio clock it must stay
+   off: the test detects this first and switches ROMCTL off again. */
+#define SS_CMD_REG      (*(volatile unsigned short *)0x25897010u)
+#define SS_ARG_REG      (*(volatile unsigned short *)0x25897014u)
+#define SSCMD_ROMCTL    0x0041u
+#define AA24_BASE       0x23000000u
+#define AA24_SIZE       KB(16384)
+#define AA24_PAIRS      64u
+static int              aa24_on;        /* 1: this program switched ROMCTL on and must switch it off */
+static unsigned int     aa24_seen[3];   /* detection: pairs separate / mirrored / other */
+static unsigned int     xr_base;        /* region of tests 11 and 12 */
+static unsigned int     xr_size;
 
 /* Test 11 (1.3): the SAROO maps its SDRAM over the whole 16 MB cart window, so 0x22800000-0x22FFFFFF (8 MB above
    the 4 MB cart) is RAM too. Nothing in the SAROO firmware uses it; YZB's "Saroo only" hacks keep game data there.
@@ -880,12 +895,12 @@ static bool             run_xram_frame(void)
     switch (xram_stage)
     {
     case XR_FILL:
-        for (a = XRAM_BASE + pos, end = a + CHUNK; a < end; a += 4)
+        for (a = xr_base + pos, end = a + CHUNK; a < end; a += 4)
             *(volatile unsigned int *)a = pattern_xram(a);
         break;
     case XR_VERIFY:
         /* Through the cache, a 16-byte line at a time (purged first), like game code reading its data */
-        for (a = XRAM_BASE + pos, end = a + CHUNK; a < end; a += 16)
+        for (a = xr_base + pos, end = a + CHUNK; a < end; a += 16)
         {
             const unsigned int  cached = a & 0x0FFFFFFFu;
             unsigned int        k;
@@ -904,8 +919,8 @@ static bool             run_xram_frame(void)
     case XR_RANDOM:
         for (i = 0; i < RANDOM_OPS; i++)
         {
-            const unsigned int  ra = XRAM_BASE + (xorshift() & (XRAM_SIZE - 4u));
-            const unsigned int  rb = XRAM_BASE + (xorshift() & (XRAM_SIZE - 4u));
+            const unsigned int  ra = xr_base + (xorshift() & (xr_size - 4u));
+            const unsigned int  rb = xr_base + (xorshift() & (xr_size - 4u));
             unsigned int        got;
 
             *(volatile unsigned int *)ra = pattern_xram_rnd(ra);
@@ -923,7 +938,7 @@ static bool             run_xram_frame(void)
         }
         return (false);
     default:
-        for (a = XRAM_BASE + pos, end = a + CHUNK; a < end; a += 4)
+        for (a = xr_base + pos, end = a + CHUNK; a < end; a += 4)
         {
             const unsigned int  got = *(volatile unsigned int *)a;
 
@@ -933,13 +948,79 @@ static bool             run_xram_frame(void)
         break;
     }
     pos += CHUNK;
-    if (pos < XRAM_SIZE)
+    if (pos < xr_size)
         return (false);
     pos = 0;
     if (xram_stage == XR_FINAL)
         return (true);
     ++xram_stage;
     return (false);
+}
+
+/* ---- test 12: AA24, the upper 16 MB ------------------------------- */
+/* Sends ROMCTL to the SAROO's MCU. Returns its answer (ST_CTRL bits 15..8), or -1 if it didn't answer: an MCU
+   firmware without ROMCTL only logs the command and never clears SS_CMD. */
+static int              romctl(const int on)
+{
+    unsigned int        n;
+
+    SS_ARG_REG = (unsigned short)(on ? 1 : 0);
+    SS_CMD_REG = SSCMD_ROMCTL;
+    for (n = 0; n < 400000u; n++)
+    {
+        if (SS_CMD_REG == 0)
+        {
+            aa24_on = on;
+            return (SS_ARG_REG & 0xFFu);
+        }
+    }
+    SS_CMD_REG = 0;                     /* give up: free the command register again */
+    return (-1);
+}
+
+/* Switches AA24 on and checks that 0x23400000+ is RAM of its own. Only addresses 4 MB and more into either 16 MB
+   half are written (cart / extra RAM, or unused SDRAM): never the SAROO's own first 4 MB, whatever the pin does.
+   Returns S_PASS (AA24 works, left on), or S_NOROMCTL / S_MIRROR / S_UNSTABLE (left off). */
+static int              aa24_detect(void)
+{
+    const int           answer = romctl(1);
+    unsigned int        k;
+    unsigned int        r;
+
+    aa24_seen[0] = aa24_seen[1] = aa24_seen[2] = 0;
+    if (answer < 0)
+        return (S_NOROMCTL);
+    if ((answer & 0x10) == 0)           /* the FPGA control bit (st_reg_ctrl[12]) didn't stick */
+    {
+        romctl(0);
+        return (S_NOROMCTL);
+    }
+    for (k = 0; k < AA24_PAIRS; k++)
+    {
+        const unsigned int  lo = 0x22400000u + k * 0x10000u;
+        const unsigned int  hi = lo + 0x01000000u;
+        const unsigned int  vlo = 0xA5000000u | (k << 8) | run_count;
+        const unsigned int  vhi = 0x5A000000u | (k << 8) | run_count;
+
+        *(volatile unsigned int *)lo = vlo;
+        *(volatile unsigned int *)hi = vhi;
+        for (r = 0; r < 4; r++)
+        {
+            const unsigned int  glo = *(volatile unsigned int *)lo;
+            const unsigned int  ghi = *(volatile unsigned int *)hi;
+
+            if (glo == vlo && ghi == vhi)
+                ++aa24_seen[0];
+            else if (glo == vhi && ghi == vhi)
+                ++aa24_seen[1];
+            else
+                ++aa24_seen[2];
+        }
+    }
+    if (aa24_seen[0] == AA24_PAIRS * 4u)
+        return (S_PASS);
+    romctl(0);
+    return (aa24_seen[1] == AA24_PAIRS * 4u ? S_MIRROR : S_UNSTABLE);
 }
 
 /* ---- sequencer ----------------------------------------------------- */
@@ -1001,6 +1082,8 @@ static void             start_run(void)
     first_stored_val = 0;
     dma_timeout = 0;
     code_calls = 0;
+    if (aa24_on)
+        romctl(0);                      /* never leave AA24 on between runs */
     cur_test = 0;
     pos = 0;
     ++run_count;
@@ -1125,12 +1208,47 @@ static void             step(void)
                 return;
             }
             pos = 0;
+            xr_base = XRAM_BASE;
+            xr_size = XRAM_SIZE;
             xram_stage = XR_FILL;
             phase = PH_XRAM;
             return;
         }
         if (run_xram_frame())
             finish_test();
+        return;
+    case T_AA24:
+        if (phase == PH_START)
+        {
+            int         result;
+
+            if (!is_saroo())
+            {
+                finish_test();
+                if (test_errors[T_AA24] == 0)
+                    test_status[T_AA24] = S_NOSAROO;
+                return;
+            }
+            result = aa24_detect();
+            if (result != S_PASS)
+            {
+                finish_test();
+                if (test_errors[T_AA24] == 0)
+                    test_status[T_AA24] = result;
+                return;
+            }
+            pos = 0;
+            xr_base = AA24_BASE;
+            xr_size = AA24_SIZE;
+            xram_stage = XR_FILL;
+            phase = PH_XRAM;
+            return;
+        }
+        if (run_xram_frame())
+        {
+            romctl(0);
+            finish_test();
+        }
         return;
     case T_CACHED:
         /* Only reads: straight to the verify phase */
@@ -1217,14 +1335,14 @@ static void             draw(void)
     unsigned int        percent;
 
     jo_set_printf_color_index(JO_COLOR_INDEX_White);
-    jo_printf(1, 1, "RAM CART STRESS 1.3        RUN %u", run_count);
+    jo_printf(1, 1, "RAM CART STRESS 1.4        RUN %u", run_count);
     switch (cart_kind)
     {
     case KIND_4MB:
-        jo_printf(1, 2, "CART ID %02X  EXTENDED RAM 4MB (32MBIT)", cart_id);
+        jo_printf(1, 2, "CART %02X 4MB ", cart_id);
         break;
     case KIND_1MB:
-        jo_printf(1, 2, "CART ID %02X  EXTENDED RAM 1MB (8MBIT)", cart_id);
+        jo_printf(1, 2, "CART %02X 1MB ", cart_id);
         break;
     case KIND_UNKNOWN:
         jo_printf(1, 2, "CART ID %02X  NOT A SEGA RAM CARTRIDGE", cart_id);
@@ -1245,33 +1363,43 @@ static void             draw(void)
     }
 
     if (init_applied)
-        jo_printf_with_color(1, 3, JO_COLOR_INDEX_Yellow, "TIMING THIS RUN: SEGA ASR0 %08X ", SEGA_ASR0);
+        jo_printf_with_color(14, 2, JO_COLOR_INDEX_Yellow, "TIMING: SEGA %08X   ", SEGA_ASR0);
     else
-        jo_printf_with_color(1, 3, JO_COLOR_INDEX_White, "TIMING THIS RUN: UNCHANGED (NO SETUP)");
+        jo_printf_with_color(14, 2, JO_COLOR_INDEX_White, "TIMING: UNCHANGED      ");
 
     for (i = 0; i < T_COUNT; i++)
     {
         jo_set_printf_color_index(JO_COLOR_INDEX_White);
-        jo_printf(1, 4 + i, "%d %-14s", i + 1, test_name[i]);
+        jo_printf(1, 3 + i, "%d %-14s", i + 1, test_name[i]);
         switch (test_status[i])
         {
         case S_RUNNING:
-            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Yellow, "RUNNING         ");
+            jo_printf_with_color(18, 3 + i, JO_COLOR_INDEX_Yellow, "RUNNING         ");
             break;
         case S_PASS:
-            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Green, "PASS            ");
+            jo_printf_with_color(18, 3 + i, JO_COLOR_INDEX_Green, "PASS            ");
             break;
         case S_FAIL:
-            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Red, "FAIL %-10u ", test_errors[i]);
+            jo_printf_with_color(18, 3 + i, JO_COLOR_INDEX_Red, "FAIL %-10u ", test_errors[i]);
             break;
         case S_SKIP:
-            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Yellow, "OFF (Z)         ");
+            jo_printf_with_color(18, 3 + i, JO_COLOR_INDEX_Yellow, "OFF (Z)         ");
             break;
         case S_NOSAROO:
-            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Yellow, "NO SAROO        ");
+            jo_printf_with_color(18, 3 + i, JO_COLOR_INDEX_Yellow, "NO SAROO        ");
+            break;
+        case S_NOROMCTL:
+            jo_printf_with_color(18, 3 + i, JO_COLOR_INDEX_Yellow, "MCU: NO ROMCTL  ");
+            break;
+        case S_MIRROR:
+            jo_printf_with_color(18, 3 + i, JO_COLOR_INDEX_Yellow, "NO AA24 (MIRROR)");
+            break;
+        case S_UNSTABLE:
+            jo_printf_with_color(18, 3 + i, JO_COLOR_INDEX_Yellow, "UNSTABLE %u/%u/%u", aa24_seen[0], aa24_seen[1],
+                                 aa24_seen[2]);
             break;
         default:
-            jo_printf(18, 4 + i, "-               ");
+            jo_printf(18, 3 + i, "-               ");
             break;
         }
     }
@@ -1313,13 +1441,15 @@ static void             draw(void)
 
         if (xram_stage == XR_RANDOM)
         {
-            jo_printf(1, 16, "XRAM %08X %s %4u   ", XRAM_BASE, stage_name[xram_stage], pos);
+            jo_printf(1, 16, "%s %08X %s %4u    ", cur_test == T_AA24 ? "AA24" : "XRAM", xr_base,
+                      stage_name[xram_stage], pos);
             draw_bar(17, (pos * 100u) / XRAM_RND_FRAMES);
         }
         else
         {
-            jo_printf(1, 16, "XRAM %08X %s %4u KB", XRAM_BASE + pos, stage_name[xram_stage], pos >> 10);
-            draw_bar(17, (pos >> 10) * 100u / (XRAM_SIZE >> 10));
+            jo_printf(1, 16, "%s %08X %s %5u KB", cur_test == T_AA24 ? "AA24" : "XRAM", xr_base + pos,
+                      stage_name[xram_stage], pos >> 10);
+            draw_bar(17, (pos >> 10) * 100u / (xr_size >> 10));
         }
     }
     else

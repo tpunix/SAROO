@@ -1,5 +1,9 @@
-RAMCART-Stress 1.3 - RAM cartridge stress test at Sega's own cart timing
+RAMCART-Stress 1.4 - RAM cartridge stress test at Sega's own cart timing
 =========================================================================
+1.4: test 12 AA24 HIGH 16MB: switches on the SAROO's AA24 cart address line
+     (MCU command ROMCTL), checks it, then tests 0x23000000-0x23FFFFFF.
+     Results: PASS / NO AA24 (MIRROR) / UNSTABLE a/b/c / MCU: NO ROMCTL.
+     The cart line and timing line are now one line.
 1.3: test 11 SAROO XRAM 8MB: the extra SDRAM a SAROO maps above the 4 MB
      cart (0x22800000-0x22FFFFFF), as used by YZB's "Saroo only" hacks.
 1.2: test 10 CODE FROM CART (SH-2 code run from the cart, like the SAROO
@@ -45,6 +49,20 @@ What it does
   (8 MB, a pattern made from each address), VERIFYING (through the cache,
   line by line), RANDOM (write A / read B / read A), CHECKING. Never
   touches 0x22000000-0x223FFFFF, the SAROO's own RAM (firmware, saves).
+- 12 AA24 HIGH 16MB (SAROO only): newer SAROO boards can route cart
+  address line AA24 to the FPGA. The SAROO MCU command ROMCTL (0x41, the
+  saroo-stv firmware) turns it on, and 0x23000000-0x23FFFFFF becomes 16 MB
+  of its own instead of a copy of 0x22000000. Detection first: 64 pairs at
+  0x2240xxxx / 0x2340xxxx (only 4 MB and more into either half: never the
+  SAROO's own RAM), each read 4 times:
+    all separate  -> AA24 works: fill / verify / random / check 16 MB
+    all mirrored  -> NO AA24 (MIRROR): the board doesn't route AA24
+    mixed         -> UNSTABLE separate/mirrored/other: the pin is something
+                     else (on older boards, the CD audio clock)
+    no answer     -> MCU: NO ROMCTL: the MCU firmware is older
+  ROMCTL is switched off again in every case, at the end of the test and at
+  the start of every run. If the console hangs in test 12, power it off and
+  on (the SAROO switches ROMCTL off at power-up and in its menu).
 - CD LOAD: LOAD.BIN (128 KB) is read from the disc in the background
   continuously (16 KB per frame) and checked. On a SAROO that keeps the
   STM32 busy on the same SDRAM while the cart is hammered.
