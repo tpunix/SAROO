@@ -475,7 +475,7 @@ never clears SS_CMD after SSCMD_SELECT (a first build with the check loaded
 only the first cover). SAROO_ASR0 is now 0x23301FF0 (Sega timing from
 power-on). Fast scrolling with covers: no freeze. One console only.
 
-MENU IN WORK RAM (2026-11-25, branch menu-wram, NOT YET RUN ON HARDWARE): the
+MENU IN WORK RAM (2026-11-25, branch menu-wram): the
 menu freezes at Sega timing came from the menu running from the cart while the
 STM32 writes the SDRAM (cover loading). Firm_Saturn now builds two images:
 - resident (cart, 0x02000000, ldscript_res): sysid, crt0 (boot stub), and what
@@ -500,3 +500,6 @@ both give the same ssfirm.bin (484,246 bytes, SHA-256 85D6A41F...).
 Placement: top of low work RAM so BINs loaded at 0x00200000 don't overwrite
 the menu while loading; the 64-byte BIOS trampoline at 0x00280000 used at
 game start is below it.
+Hardware (2026-11-25, change 7 FPGA, Sega timing from power-on, cover.bin in
+place): boots, boot animation OK, fast scrolling through the menu with covers:
+no freezes. Game start, saves, CD player and reset still to test.
