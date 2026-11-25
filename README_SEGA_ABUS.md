@@ -37,6 +37,30 @@ This branch has two independent changes:
    - Sega's `0x23301FF0` from power-on: the SAROO boot, menus and CD player
      (`SAROO_ASR0` in `abus.h`) and games (`SAROO_GAME_ASR0`, written by the
      clock-speed hook when the game starts).
+   - **The menu runs from Saturn work RAM**, not from the cart. `ssfirm.bin`
+     holds two images:
+     - a resident one that runs from the cart (`ldscript_res`): the boot
+       stub, the IP header, and what games call after they start (game start
+       in `game_load.c`, save emulation in `game_save.c`, game patches in
+       `game_patch.c`), with its own copies of the helpers they use;
+     - the menu (`ldscript_menu`), linked for low work RAM
+       (`0x002C0000–0x002D2600`, code, data, variables and stack), stored at
+       the end of the resident image.
+
+     At power-on the boot stub (`crt0.S`) copies the menu at SAROO timing
+     (the cart can hold the CPU, so the copy is always right), compares it
+     with the cart word by word (copies again on a difference), switches to
+     Sega timing and starts it. The menu calls the cart only to start a game
+     or the CD player. Helpers both sides use moved unchanged into
+     `res_util.c`, which is linked into both images, so the cart code never
+     calls into work RAM (which a game overwrites). The menu still reads
+     data from the cart (game list, covers after the STM32's ready flag, CJK
+     font); a bad read there would be a wrong character or pixel.
+
+     Build with `make` (two-pass link: the resident image, then the menu
+     against its symbols with `--just-symbols`, then the resident image
+     again with the menu inside) or, on Windows, `build_menu_wram.ps1`; both
+     give the same `ssfirm.bin`.
    - **Debounced covers** (`select_poll()` in `main.c`): a cursor move in the
      game list only records the game; the cover is requested from the STM32
      once the cursor has rested for 15 frames (~¼ s). Entering and leaving
@@ -52,7 +76,9 @@ This branch has two independent changes:
      (`0x23303880`, CS1 ruled out); with `cover.bin` removed it didn't
      freeze; fast scrolling with covers froze; with the debounce, fast
      scrolling with covers doesn't freeze. Games don't run from the cart and
-     the CD buffer is in the STM32's own RAM, so games weren't affected.
+     the CD buffer is in the STM32's own RAM, so games weren't affected. With
+     the menu in work RAM as well, the menu fetches no code from the cart at
+     all.
 
      For the earlier split (SAROO timing in the menus, Sega timing in games)
      build with `-DSAROO_ASR0=0x38803880`.
@@ -144,8 +170,18 @@ Quartus: 1,704 LEs, 955 registers, timing met in all corners (worst setup
 slack 0.274 ns, on the original FSMC path).
 
 The tests above used SAROO's official v0.9 Saturn firmware (and the scan
-build). The Sega-timing firmware on this branch has only had a first test:
-Marvel Super Heroes and KOF96 work (see the game list above).
+build). The firmware on this branch (menu in work RAM, Sega timing from
+power-on, debounced covers), 2026-11-25, change 7 FPGA, `cover.bin` in place:
+
+| Test | Result |
+|---|---|
+| Cold boot, Sega→SAROO animation | OK |
+| Fast scrolling through the game list with covers | no freezes |
+| King of Fighters '96 (1MB cart) | OK |
+| Castlevania 4MB hack; save, reload after a power cycle | OK |
+| CD player; reset from a game back to the menu | OK |
+
+Marvel Super Heroes also worked with the earlier Sega-timing build.
 
 Not tested: other consoles. The late D13 write data may differ from console
 to console. Write data is latched about 80 ns into the cycle, and simulation
@@ -236,7 +272,7 @@ trying one is a file swap.
 | `FPGA/` | FPGA design with the changes |
 | `FPGA/ABUS_EXP_NOTES.md` | Full development log: every change, simulation tables, hardware results |
 | `FPGA/sim/` | ModelSim testbench: SCU bus model, SDRAM model with protocol checks, `run.ps1` |
-| `Firm_Saturn/` | Firmware: Sega timing everywhere, A-Bus timing patches off |
+| `Firm_Saturn/` | Firmware: menu in work RAM, Sega timing everywhere, A-Bus timing patches off |
 | `tools/RAMCART-Stress/` | Saturn test disc (jo engine): stress-tests a RAM cart at Sega's timing |
 
 ## License
