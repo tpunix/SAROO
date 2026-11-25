@@ -502,5 +502,5 @@ the menu while loading; the 64-byte BIOS trampoline at 0x00280000 used at
 game start is below it.
 Hardware (2026-11-25, change 7 FPGA, Sega timing from power-on, cover.bin in
 place): boots, boot animation OK, fast scrolling through the menu with covers:
-no freezes. King of Fighters '96 (1MB cart) starts and works. Castlevania
-4MB, saves, CD player and reset still to test.
+no freezes. King of Fighters '96 (1MB cart) starts and works; Castlevania 4MB
+hack works. Saves, CD player and reset still to test.
