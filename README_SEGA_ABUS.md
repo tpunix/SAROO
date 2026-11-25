@@ -203,8 +203,16 @@ power-on, debounced covers), 2026-11-25, change 7 FPGA, `cover.bin` in place:
 | Castlevania 4MB hack; save, reload after a power cycle | OK |
 | CD player; reset from a game back to the menu | OK |
 | Covers through the CD FIFO (with this branch's `mcuapp.bin`): covers while scrolling, games start | OK |
+| YZB's *D&D Shadow over Mystara (Saroo only)* hack (loads ~15MB into the cart at start) | OK, see note |
 
 Marvel Super Heroes also worked with the earlier Sega-timing build.
+
+Note on the *Shadow over Mystara (Saroo only)* hack: it saves to the console's own internal
+backup memory, not to the SAROO's emulated save memory (its code has no call through the BIOS
+save vector that the SAROO hooks). With an unformatted internal memory it shows a warning
+(本体RAM … 初期化されていません) and drops to the CD player, on any SAROO firmware including the
+official v0.9. Formatting the console's internal memory in the BIOS memory manager fixes it.
+The unhacked game works with the SAROO's emulated saves as usual.
 
 Not tested: other consoles. The late D13 write data may differ from console
 to console. Write data is latched about 80 ns into the cycle, and simulation
