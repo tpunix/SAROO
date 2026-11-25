@@ -31,6 +31,10 @@
 *                instruction); the result is checked, then the block is read
 *                back as data. A bad instruction fetch can crash the CPU: if
 *                the screen stops during test 10, that is the failure.
+*  11 XRAM       (1.3, SAROO only) the 8 MB the SAROO maps above the 4 MB cart,
+*                0x22800000-0x22FFFFFF (used by YZB's "Saroo only" hacks):
+*                fill, verify through the cache, random write/read, check.
+*                Skipped ("NO SAROO") when the SAROO ID isn't found.
 *
 * All runs (1.2): ALL RUNS counts errors over every run, and the first run
 * that failed stays on screen until START (START also restarts the counts).
@@ -76,15 +80,25 @@ typedef struct
 }                       bank_t;
 
 enum { KIND_NONE, KIND_1MB, KIND_4MB, KIND_UNKNOWN };
-enum { T_PROBE, T_ALIAS, T_ADDR, T_CACHED, T_RANDOM, T_INV, T_CHK16, T_RETAIN, T_DMA, T_CODE, T_COUNT };
-enum { S_PENDING, S_RUNNING, S_PASS, S_FAIL, S_SKIP };
-enum { PH_START, PH_FILL, PH_WAIT, PH_VERIFY, PH_RANDOM, PH_CODE, PH_DONE, PH_NOCART };
+enum { T_PROBE, T_ALIAS, T_ADDR, T_CACHED, T_RANDOM, T_INV, T_CHK16, T_RETAIN, T_DMA, T_CODE, T_XRAM, T_COUNT };
+enum { S_PENDING, S_RUNNING, S_PASS, S_FAIL, S_SKIP, S_NOSAROO };
+enum { PH_START, PH_FILL, PH_WAIT, PH_VERIFY, PH_RANDOM, PH_CODE, PH_XRAM, PH_DONE, PH_NOCART };
 
 static const char *const test_name[T_COUNT] =
 {
     "PROBE 16/32", "ALIASING", "ADDRESS", "CACHED READ", "RANDOM W/R", "INVERTED", "CHECKER 16BIT",
-    "RETENTION 3S", "DMA SH2", "CODE FROM CART"
+    "RETENTION 3S", "DMA SH2", "CODE FROM CART", "SAROO XRAM 8MB"
 };
+
+/* Test 11 (1.3): the SAROO maps its SDRAM over the whole 16 MB cart window, so 0x22800000-0x22FFFFFF (8 MB above
+   the 4 MB cart) is RAM too. Nothing in the SAROO firmware uses it; YZB's "Saroo only" hacks keep game data there.
+   0x22000000-0x223FFFFF is the SAROO's own (firmware, save RAM): never touched. */
+#define XRAM_BASE       0x22800000u
+#define XRAM_SIZE       KB(8192)
+#define SAROO_ID        (*(volatile unsigned short *)0x25807000u)   /* "SR" on a SAROO */
+#define XRAM_RND_FRAMES 60u
+enum { XR_FILL, XR_VERIFY, XR_RANDOM, XR_FINAL };
+static int              xram_stage;
 
 static bank_t           banks[2];
 static int              bank_count;
@@ -840,6 +854,94 @@ static void             run_code_block(const unsigned int index)
     }
 }
 
+/* ---- test 11: SAROO extra RAM above the 4 MB cart ------------------ */
+static __jo_force_inline unsigned int   pattern_xram(const unsigned int addr)
+{
+    return (pattern32(T_XRAM, addr) ^ 0x5A0F3C69u);
+}
+
+static __jo_force_inline unsigned int   pattern_xram_rnd(const unsigned int addr)
+{
+    return (pattern_xram(addr) ^ 0x0F0FF0F0u);
+}
+
+static bool             is_saroo(void)
+{
+    return (SAROO_ID == 0x5253u);
+}
+
+/* One frame of test 11. Returns true when the test is finished. */
+static bool             run_xram_frame(void)
+{
+    unsigned int        a;
+    unsigned int        end;
+    unsigned int        i;
+
+    switch (xram_stage)
+    {
+    case XR_FILL:
+        for (a = XRAM_BASE + pos, end = a + CHUNK; a < end; a += 4)
+            *(volatile unsigned int *)a = pattern_xram(a);
+        break;
+    case XR_VERIFY:
+        /* Through the cache, a 16-byte line at a time (purged first), like game code reading its data */
+        for (a = XRAM_BASE + pos, end = a + CHUNK; a < end; a += 16)
+        {
+            const unsigned int  cached = a & 0x0FFFFFFFu;
+            unsigned int        k;
+
+            *(volatile unsigned int *)(0x40000000u | cached) = 0;
+            for (k = 0; k < 4; k++)
+            {
+                const unsigned int  expected = pattern_xram(a + k * 4u);
+                const unsigned int  got = ((const volatile unsigned int *)cached)[k];
+
+                if (got != expected)
+                    record_error(a + k * 4u, expected, got);
+            }
+        }
+        break;
+    case XR_RANDOM:
+        for (i = 0; i < RANDOM_OPS; i++)
+        {
+            const unsigned int  ra = XRAM_BASE + (xorshift() & (XRAM_SIZE - 4u));
+            const unsigned int  rb = XRAM_BASE + (xorshift() & (XRAM_SIZE - 4u));
+            unsigned int        got;
+
+            *(volatile unsigned int *)ra = pattern_xram_rnd(ra);
+            got = *(volatile unsigned int *)rb;
+            if (got != pattern_xram(rb) && got != pattern_xram_rnd(rb))
+                record_error_x(rb, pattern_xram_rnd(rb), pattern_xram(rb), got, 4);
+            got = *(volatile unsigned int *)ra;
+            if (got != pattern_xram_rnd(ra))
+                record_error(ra, pattern_xram_rnd(ra), got);
+        }
+        if (++pos >= XRAM_RND_FRAMES)
+        {
+            pos = 0;
+            xram_stage = XR_FINAL;
+        }
+        return (false);
+    default:
+        for (a = XRAM_BASE + pos, end = a + CHUNK; a < end; a += 4)
+        {
+            const unsigned int  got = *(volatile unsigned int *)a;
+
+            if (got != pattern_xram(a) && got != pattern_xram_rnd(a))
+                record_error_x(a, pattern_xram_rnd(a), pattern_xram(a), got, 4);
+        }
+        break;
+    }
+    pos += CHUNK;
+    if (pos < XRAM_SIZE)
+        return (false);
+    pos = 0;
+    if (xram_stage == XR_FINAL)
+        return (true);
+    ++xram_stage;
+    return (false);
+}
+
 /* ---- sequencer ----------------------------------------------------- */
 static void             publish(const unsigned int done)
 {
@@ -1011,6 +1113,25 @@ static void             step(void)
         if (++pos >= total_bytes / CODE_SIZE)
             finish_test();
         return;
+    case T_XRAM:
+        if (phase == PH_START)
+        {
+            if (!is_saroo())
+            {
+                /* Not a SAROO: the extra RAM isn't there, don't touch it */
+                finish_test();
+                if (test_errors[T_XRAM] == 0)
+                    test_status[T_XRAM] = S_NOSAROO;
+                return;
+            }
+            pos = 0;
+            xram_stage = XR_FILL;
+            phase = PH_XRAM;
+            return;
+        }
+        if (run_xram_frame())
+            finish_test();
+        return;
     case T_CACHED:
         /* Only reads: straight to the verify phase */
         if (phase == PH_START)
@@ -1096,16 +1217,14 @@ static void             draw(void)
     unsigned int        percent;
 
     jo_set_printf_color_index(JO_COLOR_INDEX_White);
-    jo_printf(1, 1, "RAM CART STRESS 1.2        RUN %u", run_count);
+    jo_printf(1, 1, "RAM CART STRESS 1.3        RUN %u", run_count);
     switch (cart_kind)
     {
     case KIND_4MB:
         jo_printf(1, 2, "CART ID %02X  EXTENDED RAM 4MB (32MBIT)", cart_id);
-        jo_printf(1, 3, "RAM 4096 KB AT %08X", banks[0].base);
         break;
     case KIND_1MB:
         jo_printf(1, 2, "CART ID %02X  EXTENDED RAM 1MB (8MBIT)", cart_id);
-        jo_printf(1, 3, "RAM 2 X 512 KB AT %08X %08X", banks[0].base, banks[1].base);
         break;
     case KIND_UNKNOWN:
         jo_printf(1, 2, "CART ID %02X  NOT A SEGA RAM CARTRIDGE", cart_id);
@@ -1126,30 +1245,33 @@ static void             draw(void)
     }
 
     if (init_applied)
-        jo_printf_with_color(1, 4, JO_COLOR_INDEX_Yellow, "TIMING THIS RUN: SEGA ASR0 %08X ", SEGA_ASR0);
+        jo_printf_with_color(1, 3, JO_COLOR_INDEX_Yellow, "TIMING THIS RUN: SEGA ASR0 %08X ", SEGA_ASR0);
     else
-        jo_printf_with_color(1, 4, JO_COLOR_INDEX_White, "TIMING THIS RUN: UNCHANGED (NO SETUP)");
+        jo_printf_with_color(1, 3, JO_COLOR_INDEX_White, "TIMING THIS RUN: UNCHANGED (NO SETUP)");
 
     for (i = 0; i < T_COUNT; i++)
     {
         jo_set_printf_color_index(JO_COLOR_INDEX_White);
-        jo_printf(1, 5 + i, "%d %-14s", i + 1, test_name[i]);
+        jo_printf(1, 4 + i, "%d %-14s", i + 1, test_name[i]);
         switch (test_status[i])
         {
         case S_RUNNING:
-            jo_printf_with_color(18, 5 + i, JO_COLOR_INDEX_Yellow, "RUNNING         ");
+            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Yellow, "RUNNING         ");
             break;
         case S_PASS:
-            jo_printf_with_color(18, 5 + i, JO_COLOR_INDEX_Green, "PASS            ");
+            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Green, "PASS            ");
             break;
         case S_FAIL:
-            jo_printf_with_color(18, 5 + i, JO_COLOR_INDEX_Red, "FAIL %-10u ", test_errors[i]);
+            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Red, "FAIL %-10u ", test_errors[i]);
             break;
         case S_SKIP:
-            jo_printf_with_color(18, 5 + i, JO_COLOR_INDEX_Yellow, "OFF (Z)         ");
+            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Yellow, "OFF (Z)         ");
+            break;
+        case S_NOSAROO:
+            jo_printf_with_color(18, 4 + i, JO_COLOR_INDEX_Yellow, "NO SAROO        ");
             break;
         default:
-            jo_printf(18, 5 + i, "-               ");
+            jo_printf(18, 4 + i, "-               ");
             break;
         }
     }
@@ -1184,6 +1306,21 @@ static void             draw(void)
 
         jo_printf(1, 16, "%-14s BLOCK %2u OF %2u  ", test_name[cur_test], pos < blocks ? pos + 1 : blocks, blocks);
         draw_bar(17, (pos * 100u) / blocks);
+    }
+    else if (phase == PH_XRAM)
+    {
+        static const char *const stage_name[4] = { "WRITING  ", "VERIFYING", "RANDOM   ", "CHECKING " };
+
+        if (xram_stage == XR_RANDOM)
+        {
+            jo_printf(1, 16, "XRAM %08X %s %4u   ", XRAM_BASE, stage_name[xram_stage], pos);
+            draw_bar(17, (pos * 100u) / XRAM_RND_FRAMES);
+        }
+        else
+        {
+            jo_printf(1, 16, "XRAM %08X %s %4u KB", XRAM_BASE + pos, stage_name[xram_stage], pos >> 10);
+            draw_bar(17, (pos >> 10) * 100u / (XRAM_SIZE >> 10));
+        }
     }
     else
     {

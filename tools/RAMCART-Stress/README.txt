@@ -1,5 +1,7 @@
-RAMCART-Stress 1.2 - RAM cartridge stress test at Sega's own cart timing
+RAMCART-Stress 1.3 - RAM cartridge stress test at Sega's own cart timing
 =========================================================================
+1.3: test 11 SAROO XRAM 8MB: the extra SDRAM a SAROO maps above the 4 MB
+     cart (0x22800000-0x22FFFFFF), as used by YZB's "Saroo only" hacks.
 1.2: test 10 CODE FROM CART (SH-2 code run from the cart, like the SAROO
      firmware), and error totals over all runs (ALL RUNS).
 1.1: errors are re-read and classified as READ BAD / STORED BAD / OTHER.
@@ -36,6 +38,13 @@ What it does
   SELFTEST): OK proves the test program itself computes the right answer.
   EMULATORS: Kronos can't run code from the cart area and hangs at
   "UNCACHED"; press Z to switch test 10 off there.
+- 11 SAROO XRAM 8MB: a SAROO maps its SDRAM over the whole 16 MB cart
+  window, so 0x22800000-0x22FFFFFF is RAM too (nothing in the SAROO
+  firmware uses it). Only runs when the SAROO ID ("SR" at 0x25807000) is
+  found, otherwise shows NO SAROO and touches nothing. Stages: WRITING
+  (8 MB, a pattern made from each address), VERIFYING (through the cache,
+  line by line), RANDOM (write A / read B / read A), CHECKING. Never
+  touches 0x22000000-0x223FFFFF, the SAROO's own RAM (firmware, saves).
 - CD LOAD: LOAD.BIN (128 KB) is read from the disc in the background
   continuously (16 KB per frame) and checked. On a SAROO that keeps the
   STM32 busy on the same SDRAM while the cart is hammered.
