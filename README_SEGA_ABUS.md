@@ -90,7 +90,9 @@ Timing patch left as it was:
 | Pocket Fighter | T-1230G | tpunix rewrote that code instead of using a `nop` | Sega timing (firmware value) |
 | Ultraman | T-13308G | 2MB ROM cart; the firmware sets the timing itself | `0x34403440` |
 
-None of these games has been tested with this firmware yet. Patch lines in
+Tested with this firmware on the change 7 FPGA (2026-11-25): **Marvel Super
+Heroes** and **King of Fighters '96** work (both 1MB-cart games). The others
+are not tested yet. Patch lines in
 `saroocfg.txt` are applied after the built-in patches and can still block a
 game's timing write.
 
@@ -109,8 +111,8 @@ Quartus: 1,704 LEs, 955 registers, timing met in all corners (worst setup
 slack 0.274 ns, on the original FSMC path).
 
 The tests above used SAROO's official v0.9 Saturn firmware (and the scan
-build). **The Sega-timing firmware on this branch has not been tested on
-hardware yet.**
+build). The Sega-timing firmware on this branch has only had a first test:
+Marvel Super Heroes and KOF96 work (see the game list above).
 
 Not tested: other consoles. The late D13 write data may differ from console
 to console. Write data is latched about 80 ns into the cycle, and simulation
