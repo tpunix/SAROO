@@ -226,20 +226,16 @@ static int fifo_count(void)
 	return (s&0x0800)? 2048 : (s&0x07ff);
 }
 
-/* [COVER_FIFO] diagnostics, shown on the status line (temporary) */
-static int cd_stage, cd_cmd, cd_arg;
-static u16 cd_hdr[8];
-
-#define CDC_DPORT32 (*(volatile u32*)0x25818000)	/* 32-bit reads, as cdc_trans_data() does */
+/* The CD data port must be read 32 bits at a time, as cdc_trans_data() does:
+   16-bit reads lost a word on hardware. */
+#define CDC_DPORT32 (*(volatile u32*)0x25818000)
 
 /* 1: cover in COVER_BUF, 0: no cover, -1: failed, -2: no answer at all */
 static int cover_fetch(int index, int *pw, int *ph)
 {
 	int n, longs, k;
 	u32 *p, v;
-
-	cd_stage = 0; cd_cmd = 0; cd_arg = 0;
-	for(k=0; k<8; k++) cd_hdr[k] = 0;
+	u16 hdr[8];
 
 	/* nothing old left in the FIFO (no wait for SS_CMD==0: the STM32 never
 	   clears it after SSCMD_STARTUP or SSCMD_SELECT; cover_send() resets the
@@ -253,38 +249,29 @@ static int cover_fetch(int index, int *pw, int *ph)
 	SS_CMD = SSCMD_COVER;
 
 	/* header: 8 words = 4 longs */
-	cd_stage = 1;
 	reset_timer();
 	while(fifo_count()<8){
-		if(get_timer()>MS2TICK(COVER_FIRST_MS)){
-			cd_cmd = SS_CMD;
+		if(get_timer()>MS2TICK(COVER_FIRST_MS))
 			return -2;
-		}
 	}
-	cd_stage = 2;
 	for(k=0; k<8; k+=2){
 		v = CDC_DPORT32;
-		cd_hdr[k]   = v>>16;
-		cd_hdr[k+1] = v;
+		hdr[k]   = v>>16;
+		hdr[k+1] = v;
 	}
-	int w = cd_hdr[1];
-	int h = cd_hdr[2];
-	if(cd_hdr[0]!=0x4356 || w>512 || h>256){
-		cd_cmd = SS_CMD;
+	int w = hdr[1];
+	int h = hdr[2];
+	if(hdr[0]!=0x4356 || w>512 || h>256)
 		return -1;
-	}
 
-	cd_stage = 3;
 	longs = (w && h)? (0x0400 + w*h + 3)/4 : 0;
 	p = (u32*)COVER_BUF;
 	reset_timer();
 	while(longs){
 		n = fifo_count()/2;
 		if(n==0){
-			if(get_timer()>MS2TICK(COVER_DATA_MS)){
-				cd_cmd = SS_CMD;
+			if(get_timer()>MS2TICK(COVER_DATA_MS))
 				return -1;
-			}
 			continue;
 		}
 		reset_timer();
@@ -294,19 +281,15 @@ static int cover_fetch(int index, int *pw, int *ph)
 		while(n--)
 			*p++ = CDC_DPORT32;
 	}
-	cd_stage = 4;
 	reset_timer();
 	while(SS_CMD && get_timer()<MS2TICK(COVER_DATA_MS));
-	cd_cmd = SS_CMD;
-	cd_arg = SS_ARG;
 
 	*pw = w;
 	*ph = h;
 	return (w && h)? 1 : 0;
 }
-static void draw_image(int flag, u8 *src, int src_llen, int img_w, int img_h, int img_x, int img_y, int adj_x, int adj_y);
 
-extern MENU_DESC sel_menu;
+static void draw_image(int flag, u8 *src, int src_llen, int img_w, int img_h, int img_x, int img_y, int adj_x, int adj_y);
 
 static void cover_update(int index)
 {
@@ -315,17 +298,6 @@ static void cover_update(int index)
 	if(retv==-2)
 		cover_off = 1;
 
-	/* [COVER_FIFO] diagnostics on the status line (temporary):
-	   r = result (1 cover, 0 none, -1 bad data, -2 no answer, -3 off),
-	   s = stage reached, n = most FIFO words seen while waiting,
-	   m = first header word ('CV' = 4356), c = SS_CMD after, f = SS_STAT before */
-	{
-		char dbuf[64];
-		snprintf(dbuf, 64, "%d%d %04x %04x %04x %02x %02x %02x %02x %02x a%d %02x",
-			retv, cd_stage, cd_hdr[0], cd_hdr[1], cd_hdr[2], cd_hdr[3]&0xff, cd_hdr[4]&0xff, cd_hdr[5]&0xff,
-			cd_hdr[6]&0xff, cd_hdr[7]&0xff, cd_arg, cd_cmd&0xff);
-		menu_status(&sel_menu, dbuf);
-	}
 	if(retv>0){
 		u8 *pal = COVER_BUF;
 		for(int i=0; i<256; i++){

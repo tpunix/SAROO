@@ -542,3 +542,10 @@ Changed: no fallback at all (covers only through the FIFO; on failure the
 empty frame); timeouts on the FRT timer (header 3 s, data gaps 1 s); if the
 STM32 never answers, no covers for the session; no wait for SS_CMD==0 before
 the request (STARTUP and SELECT never clear it).
+Diagnostics found the fault: the third header word was lost or a read popped
+two words. The STM32 side was not it (burst writes without FIFO_STAT reads
+made no difference); 16-bit reads of the CD data port were. With 32-bit reads
+(as cdc_trans_data() does) and the transfer padded to longs, a marker header
+arrived complete and in order and the cover drew (KOF96, 128x128, 2026-11-25).
+Final: 16-byte header ('CV', width, height, zeros), data padded to 4 bytes,
+32-bit reads; diagnostics removed.

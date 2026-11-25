@@ -810,11 +810,13 @@ _no_cover:
 // [COVER_FIFO] Covers sent to the Saturn through the CD data FIFO.
 //
 // SSCMD_COVER (0x0050), SS_ARG = game index: the cover is looked up as in
-// load_cover(), then streamed into the FPGA's CD FIFO: an 8-byte header
-// ('C','V', width, height, both big-endian, 2 bytes 0), then the 1 KB palette
-// and width*height pixels, read straight from cover.bin. No cover: the header
-// with width = height = 0. SS_CMD is cleared when everything is in the FIFO.
-// The Saturn pops the words from its CD data port (0x25818000) as they come.
+// load_cover(), then streamed into the FPGA's CD FIFO: a 16-byte header
+// ('C','V', width, height, both big-endian, then 0), then the 1 KB palette and
+// width*height pixels read straight from cover.bin, padded to a multiple of 4
+// bytes. No cover: the header with width = height = 0. SS_CMD is cleared when
+// everything is in the FIFO. The Saturn pops it from its CD data port
+// (0x25818000) with 32-bit reads, as cdc_trans_data() does: 16-bit reads of
+// that port lose words on hardware.
 // Nothing is written to the SDRAM for the picture, so the Saturn reads
 // nothing from the cart for it either. The CD data interrupt stays off, so
 // the CD transfer code (trans_handle) is not involved; the background music
@@ -925,15 +927,11 @@ void cover_send(int index)
 	restore_irq(key);
 	FIFO_RCNT = 0;
 
-	// header, 16 bytes: 'C','V', width, height (big-endian), then the markers
-	// 1111 2222 3333 4444 5555 (diagnostics: shows which word is lost)
+	// header, 16 bytes: 'C','V', width, height (big-endian), 10 bytes 0
+	memset(hdr, 0, sizeof(hdr));
 	hdr[0] = 'C';  hdr[1] = 'V';
 	hdr[2] = w>>8; hdr[3] = w;
 	hdr[4] = h>>8; hdr[5] = h;
-	for(int k=0; k<5; k++){
-		hdr[6+k*2] = 0x11*(k+1);
-		hdr[7+k*2] = 0x11*(k+1);
-	}
 	// the Saturn reads the CD data port 32 bits at a time: whole longs only
 	if(cover_fifo_push(hdr, 16)==0 && w && h){
 		int left = (0x0400 + w*h + 3)&~3;
@@ -948,7 +946,6 @@ void cover_send(int index)
 		}
 	}
 
-	SS_ARG = h;		// diagnostics: the height the STM32 used
 	SS_CMD = 0;
 }
 
