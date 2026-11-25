@@ -226,11 +226,17 @@ static int fifo_count(void)
 	return (s&0x0800)? 2048 : (s&0x07ff);
 }
 
+/* [COVER_FIFO] diagnostics, shown on the status line (temporary) */
+static int cd_max, cd_magic, cd_cmd, cd_stage, cd_left, cd_stat0;
+
 /* 1: cover in COVER_BUF, 0: no cover, -1: failed, -2: no answer at all */
 static int cover_fetch(int index, int *pw, int *ph)
 {
 	int n, words;
 	u16 *p;
+
+	cd_max = 0; cd_magic = 0; cd_stage = 0; cd_left = 0;
+	cd_stat0 = SS_STAT;
 
 	/* nothing old left in the FIFO (no wait for SS_CMD==0: the STM32 never
 	   clears it after SSCMD_STARTUP or SSCMD_SELECT; cover_send() resets the
@@ -241,26 +247,39 @@ static int cover_fetch(int index, int *pw, int *ph)
 	SS_ARG = index;
 	SS_CMD = SSCMD_COVER;
 
+	cd_stage = 1;
 	reset_timer();
-	while(fifo_count()<4){
-		if(get_timer()>MS2TICK(COVER_FIRST_MS))
+	while((n=fifo_count())<4){
+		if(n>cd_max) cd_max = n;
+		if(get_timer()>MS2TICK(COVER_FIRST_MS)){
+			cd_cmd = SS_CMD;
 			return -2;
+		}
 	}
+	if(n>cd_max) cd_max = n;
+	cd_stage = 2;
 	int magic = CDC_DPORT;
 	int w = CDC_DPORT;
 	int h = CDC_DPORT;
 	n = CDC_DPORT;
-	if(magic!=0x4356 || w>512 || h>256)
+	cd_magic = magic;
+	if(magic!=0x4356 || w>512 || h>256){
+		cd_cmd = SS_CMD;
 		return -1;
+	}
 
+	cd_stage = 3;
 	words = (w && h)? (0x0400 + w*h + 1)/2 : 0;
 	p = (u16*)COVER_BUF;
 	reset_timer();
 	while(words){
 		n = fifo_count();
 		if(n==0){
-			if(get_timer()>MS2TICK(COVER_DATA_MS))
+			if(get_timer()>MS2TICK(COVER_DATA_MS)){
+				cd_left = words;
+				cd_cmd = SS_CMD;
 				return -1;
+			}
 			continue;
 		}
 		reset_timer();
@@ -270,8 +289,10 @@ static int cover_fetch(int index, int *pw, int *ph)
 		while(n--)
 			*p++ = CDC_DPORT;
 	}
+	cd_stage = 4;
 	reset_timer();
 	while(SS_CMD && get_timer()<MS2TICK(COVER_DATA_MS));
+	cd_cmd = SS_CMD;
 
 	*pw = w;
 	*ph = h;
@@ -280,12 +301,25 @@ static int cover_fetch(int index, int *pw, int *ph)
 
 static void draw_image(int flag, u8 *src, int src_llen, int img_w, int img_h, int img_x, int img_y, int adj_x, int adj_y);
 
+extern MENU_DESC sel_menu;
+
 static void cover_update(int index)
 {
 	int w = 0, h = 0;
-	int retv = (cover_off)? -1 : cover_fetch(index, &w, &h);
+	int retv = (cover_off)? -3 : cover_fetch(index, &w, &h);
 	if(retv==-2)
 		cover_off = 1;
+
+	/* [COVER_FIFO] diagnostics on the status line (temporary):
+	   r = result (1 cover, 0 none, -1 bad data, -2 no answer, -3 off),
+	   s = stage reached, n = most FIFO words seen while waiting,
+	   m = first header word ('CV' = 4356), c = SS_CMD after, f = SS_STAT before */
+	{
+		char dbuf[64];
+		snprintf(dbuf, 64, "CV r%d s%d n%d m%04x %dx%d c%04x f%04x L%d",
+			retv, cd_stage, cd_max, cd_magic&0xffff, w, h, cd_cmd&0xffff, cd_stat0&0xffff, cd_left);
+		menu_status(&sel_menu, dbuf);
+	}
 	if(retv>0){
 		u8 *pal = COVER_BUF;
 		for(int i=0; i<256; i++){
