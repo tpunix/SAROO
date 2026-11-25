@@ -474,3 +474,29 @@ rested 15 frames. Enter/exit are sent at once. No SS_CMD==0 check: the STM32
 never clears SS_CMD after SSCMD_SELECT (a first build with the check loaded
 only the first cover). SAROO_ASR0 is now 0x23301FF0 (Sega timing from
 power-on). Fast scrolling with covers: no freeze. One console only.
+
+MENU IN WORK RAM (2026-11-25, branch menu-wram, NOT YET RUN ON HARDWARE): the
+menu freezes at Sega timing came from the menu running from the cart while the
+STM32 writes the SDRAM (cover loading). Firm_Saturn now builds two images:
+- resident (cart, 0x02000000, ldscript_res): sysid, crt0 (boot stub), and what
+  games call after they start: game_load.c, game_save.c, game_patch.c, plus
+  their own copies of res_util.c (helpers moved unchanged out of main.c and
+  sci_shell.c), cdblock.c, string.c, printk.c, ubr_debug.c, libc/libgcc;
+- menu (low work RAM 0x002C0000-0x002D2600, ldscript_menu): everything else,
+  with its own copies of the same helpers, its variables and its 16 KB stack.
+  Stored at the end of the resident image (menu_blob.S, 51,824 bytes).
+crt0 copies the menu to work RAM at SAROO timing (0x38803880, external WAIT
+on), re-reads the cart and compares every word (copies again on a
+difference), clears both BSS areas, purges the SH-2 cache, sets SAROO_ASR0
+(Sega 0x23301FF0) and jumps to the menu. The menu reaches resident code only
+through bios_cd_cmd / my_cdplayer (game and CD player start) and writes the
+resident copies of debug_flag, bios_type, to_stm32 and printk_putc once at
+start-up (plain data writes). A scan of the menu image found no other
+reference into the cart's code area. The menu still reads data from the cart:
+the game list, covers (after the STM32's frame flag), the CJK font. A misread
+there is a wrong character or pixel, not a crash.
+Build: make (two-pass link, objcopy --just-symbols) or build_menu_wram.ps1;
+both give the same ssfirm.bin (484,246 bytes, SHA-256 85D6A41F...).
+Placement: top of low work RAM so BINs loaded at 0x00200000 don't overwrite
+the menu while loading; the 64-byte BIOS trampoline at 0x00280000 used at
+game start is below it.

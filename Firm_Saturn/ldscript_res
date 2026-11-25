@@ -1,0 +1,68 @@
+/*
+ * [MENU_WRAM] Resident image: runs from the cart (0x02000000).
+ *
+ * Holds the boot stub (crt0), the IP header (sysid) and the code a game calls
+ * after it has started (game start, save emulation, game patches), with its
+ * own copies of the helpers it needs. The menu image (menu_blob.S) is stored
+ * after all of it, at __menu_lma; crt0 copies it to work RAM and runs it
+ * there. The output is padded to 128 KB; font_cjk.bin follows (0x02020000).
+ *
+ * Based on: Sega Saturn USB flash cart ROM linker script, Anders Montonen,
+ * 2012 (after Bart Trzynadlowski). Public domain.
+ */
+
+OUTPUT_FORMAT("elf32-sh")
+SECTIONS
+{
+	. = 0x02000000;
+	__ip_start = .;
+	.text :
+	{
+		KEEP(*(.sysid))
+		*crt0.o(.text)		/* right after sysid: the function table at 0x02000f04 */
+		*(.text)
+	}
+	.rodata :
+	{
+		*(.rodata)
+		*(.rodata.*)
+	}
+	.data :
+	{
+		*(.data)
+		*(.data.*)
+	}
+	. = ALIGN(16);
+	__ip_end = .;
+	__ip_len = __ip_end - __ip_start;
+
+	/* the menu image, last, so it moves no resident address */
+	__menu_lma = .;
+	.menu_blob :
+	{
+		KEEP(*(.menu_blob))
+	}
+	__menu_lma_end = .;
+	ASSERT(__menu_lma_end <= 0x0201C000, "menu image runs into the resident BSS")
+
+	/* the resident image's variables: a fixed area at the end of the 128 KB
+	   code area (nothing is loaded there; the padding below keeps it zero) */
+	.bss 0x0201C000 (NOLOAD) :
+	{
+		__bss_start = .;
+		*(.bss)
+		*(.bss.*)
+		*(COMMON)
+		__bss_end = .;
+	}
+	ASSERT(__bss_end <= 0x0201FFFC, "resident BSS too big")
+
+	/* pad the binary to 128 KB: font_cjk.bin is appended at 0x02020000 */
+	. = __ip_start + 0x20000 - 4;
+	.pad_128k :
+	{
+		LONG(0);
+	}
+
+	/DISCARD/ : { *(.comment) }
+}

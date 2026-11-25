@@ -49,12 +49,60 @@ _next_start:
 	shll2   r0
 	ldc     r0,sr
 
-	! set ASR0
+	! [MENU_WRAM] The menu runs from Saturn work RAM, not from the cart: this
+	! stub copies it there. The copy runs at SAROO's own cart timing (external
+	! WAIT on: the cart can hold the CPU, so every read is right whatever the
+	! STM32 is doing); Sega's timing is set after it, just before the menu
+	! starts. Only the resident game-side code (game start, save hooks) still
+	! runs from the cart.
 	mov.l   asr0_ptr, r0
-	mov.l	asr0_val, r1
+	mov.l	asr0_safe, r1
 	mov.l	r1, @r0
 	mov		#0x13, r1
 	mov.l	r1, @(8,r0)
+
+	! Menu image header at __menu_lma (cart), see ldscript_menu:
+	!   +0 'MENU'  +4 entry  +8 run address  +12 size (bytes, x4)
+	!   +16 bss start  +20 bss end (= stack top)
+_copy_menu:
+	mov.l	menu_lma, r4		! r4 = source (cart)
+	mov.l	@(8,r4), r5			! r5 = destination (work RAM)
+	mov.l	@(12,r4), r6		! r6 = size
+	mov		r4, r1
+	mov		r5, r2
+	mov		r6, r3
+1:
+	mov.l	@r1+, r0
+	mov.l	r0, @r2
+	add		#4, r2
+	add		#-4, r3
+	cmp/pl	r3
+	bt		1b
+
+	! check: read the cart again and compare every word with the copy
+	mov		r4, r1
+	mov		r5, r2
+	mov		r6, r3
+2:
+	mov.l	@r1+, r0
+	mov.l	@r2+, r7
+	cmp/eq	r0, r7
+	bf		_copy_menu			! different: copy again
+	add		#-4, r3
+	cmp/pl	r3
+	bt		2b
+
+	! clear the menu's BSS (work RAM)
+	mov.l	@(16,r4), r0
+	mov.l	@(20,r4), r1
+	mov		#0, r2
+3:
+	cmp/hs	r1, r0
+	bt		4f
+	mov.b	r2, @r0
+	bra		3b
+	add		#1, r0
+4:
 
 !	! Relocate self
 !	mova	_real, r0
@@ -75,22 +123,37 @@ _next_start:
 !	bf		1b
 
 _clear_bss:
-	! Clear BSS
+	! Clear the resident image's BSS (cart)
 	mov.l   bss_start,r0
 	mov.l   bss_end,r1
 	mov     #0,r2
 1:
-	mov.b   r2,@r0
-	add     #1,r0
 	cmp/hs  r1,r0
-	bf		1b
+	bt		2f
+	mov.b   r2,@r0
+	bra		1b
+	add     #1,r0
+2:
 
-    ! Set initial stack pointer. Stack is from 0x6002000-0x6003FFF
-    mov.l   stack_ptr,r15
-    ! Jump to _main()
-    mov.l   main_ptr,r0
-    jsr		@r0
-    nop
+	! [MENU_WRAM] purge the SH-2 cache (keeps it on or off as it was), so no
+	! line from before the copy is used for the menu's code
+	mov.l	ccr_ptr, r1
+	mov.b	@r1, r0
+	or		#0x10, r0
+	mov.b	r0, @r1
+
+	! Sega's cart timing from here on
+	mov.l   asr0_ptr, r0
+	mov.l	asr0_val, r1
+	mov.l	r1, @r0
+
+	! stack at the top of the menu's BSS (work RAM); jump to the menu's
+	! _main() in work RAM
+	mov.l	menu_lma, r4
+	mov.l	@(20,r4), r15
+	mov.l	@(4,r4), r0
+	jsr		@r0
+	nop
 
     ! Once _main() has terminated, disable interrupts and loop infinitely
     mov     #0xf,r0
@@ -105,12 +168,13 @@ end:
 
 start_ptr:  .long start
 end_ptr:    .long __ip_end
-main_ptr:   .long __main
-stack_ptr:  .long __stack_end
+menu_lma:   .long __menu_lma
 bss_start:  .long __bss_start
 bss_end:    .long __bss_end
 asr0_ptr:   .long 0x25fe00b0
 asr0_val:   .long SAROO_ASR0
+asr0_safe:  .long 0x38803880	! SAROO timing, external WAIT on (for the copy)
+ccr_ptr:    .long 0xfffffe92	! SH-2 cache control register
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
