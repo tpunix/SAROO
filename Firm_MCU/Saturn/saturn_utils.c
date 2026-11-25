@@ -902,7 +902,7 @@ static u8 cover_chunk[2048];
 void cover_send(int index)
 {
 	int w = 0, h = 0, offset = 0;
-	u8 hdr[8];
+	u8 hdr[16];
 	u32 nread;
 
 	int chdr = cover_lookup(index&0x7fff);
@@ -925,19 +925,24 @@ void cover_send(int index)
 	restore_irq(key);
 	FIFO_RCNT = 0;
 
+	// header, 16 bytes: 'C','V', width, height (big-endian), then the markers
+	// 1111 2222 3333 4444 5555 (diagnostics: shows which word is lost)
 	hdr[0] = 'C';  hdr[1] = 'V';
 	hdr[2] = w>>8; hdr[3] = w;
 	hdr[4] = h>>8; hdr[5] = h;
-	hdr[6] = 0xA5; hdr[7] = 0x5A;	// check pattern (diagnostics)
-	if(cover_fifo_push(hdr, 8)==0 && w && h){
-		int left = 0x0400 + w*h;
+	for(int k=0; k<5; k++){
+		hdr[6+k*2] = 0x11*(k+1);
+		hdr[7+k*2] = 0x11*(k+1);
+	}
+	// the Saturn reads the CD data port 32 bits at a time: whole longs only
+	if(cover_fifo_push(hdr, 16)==0 && w && h){
+		int left = (0x0400 + w*h + 3)&~3;
 		f_lseek(&cover_fp, offset);
 		while(left>0){
 			int n = (left>2048)? 2048 : left;
-			int n2 = (n+1)&~1;
-			if(f_read(&cover_fp, cover_chunk, n2, &nread)!=FR_OK)
-				memset(cover_chunk, 0, n2);
-			if(cover_fifo_push(cover_chunk, n2))
+			if(f_read(&cover_fp, cover_chunk, n, &nread)!=FR_OK)
+				memset(cover_chunk, 0, n);
+			if(cover_fifo_push(cover_chunk, n))
 				break;
 			left -= n;
 		}

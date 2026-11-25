@@ -227,67 +227,72 @@ static int fifo_count(void)
 }
 
 /* [COVER_FIFO] diagnostics, shown on the status line (temporary) */
-static int cd_max, cd_magic, cd_cmd, cd_stage, cd_left, cd_stat0, cd_w1, cd_w2, cd_w3, cd_arg;
+static int cd_stage, cd_cmd, cd_arg;
+static u16 cd_hdr[8];
+
+#define CDC_DPORT32 (*(volatile u32*)0x25818000)	/* 32-bit reads, as cdc_trans_data() does */
 
 /* 1: cover in COVER_BUF, 0: no cover, -1: failed, -2: no answer at all */
 static int cover_fetch(int index, int *pw, int *ph)
 {
-	int n, words;
-	u16 *p;
+	int n, longs, k;
+	u32 *p, v;
 
-	cd_max = 0; cd_magic = 0; cd_stage = 0; cd_left = 0;
-	cd_stat0 = SS_STAT;
+	cd_stage = 0; cd_cmd = 0; cd_arg = 0;
+	for(k=0; k<8; k++) cd_hdr[k] = 0;
 
 	/* nothing old left in the FIFO (no wait for SS_CMD==0: the STM32 never
 	   clears it after SSCMD_STARTUP or SSCMD_SELECT; cover_send() resets the
 	   FIFO itself before it sends) */
+	while(fifo_count()>=2)
+		v = CDC_DPORT32;
 	while(fifo_count())
 		n = CDC_DPORT;
 
 	SS_ARG = index;
 	SS_CMD = SSCMD_COVER;
 
+	/* header: 8 words = 4 longs */
 	cd_stage = 1;
 	reset_timer();
-	while((n=fifo_count())<4){
-		if(n>cd_max) cd_max = n;
+	while(fifo_count()<8){
 		if(get_timer()>MS2TICK(COVER_FIRST_MS)){
 			cd_cmd = SS_CMD;
 			return -2;
 		}
 	}
-	if(n>cd_max) cd_max = n;
 	cd_stage = 2;
-	int magic = CDC_DPORT;
-	int w = CDC_DPORT;
-	int h = CDC_DPORT;
-	n = CDC_DPORT;
-	cd_magic = magic; cd_w1 = w; cd_w2 = h; cd_w3 = n;
-	if(magic!=0x4356 || w>512 || h>256){
+	for(k=0; k<8; k+=2){
+		v = CDC_DPORT32;
+		cd_hdr[k]   = v>>16;
+		cd_hdr[k+1] = v;
+	}
+	int w = cd_hdr[1];
+	int h = cd_hdr[2];
+	if(cd_hdr[0]!=0x4356 || w>512 || h>256){
 		cd_cmd = SS_CMD;
 		return -1;
 	}
 
 	cd_stage = 3;
-	words = (w && h)? (0x0400 + w*h + 1)/2 : 0;
-	p = (u16*)COVER_BUF;
+	longs = (w && h)? (0x0400 + w*h + 3)/4 : 0;
+	p = (u32*)COVER_BUF;
 	reset_timer();
-	while(words){
-		n = fifo_count();
+	while(longs){
+		n = fifo_count()/2;
 		if(n==0){
 			if(get_timer()>MS2TICK(COVER_DATA_MS)){
-				cd_left = words;
 				cd_cmd = SS_CMD;
 				return -1;
 			}
 			continue;
 		}
 		reset_timer();
-		if(n>words)
-			n = words;
-		words -= n;
+		if(n>longs)
+			n = longs;
+		longs -= n;
 		while(n--)
-			*p++ = CDC_DPORT;
+			*p++ = CDC_DPORT32;
 	}
 	cd_stage = 4;
 	reset_timer();
@@ -299,7 +304,6 @@ static int cover_fetch(int index, int *pw, int *ph)
 	*ph = h;
 	return (w && h)? 1 : 0;
 }
-
 static void draw_image(int flag, u8 *src, int src_llen, int img_w, int img_h, int img_x, int img_y, int adj_x, int adj_y);
 
 extern MENU_DESC sel_menu;
@@ -317,8 +321,9 @@ static void cover_update(int index)
 	   m = first header word ('CV' = 4356), c = SS_CMD after, f = SS_STAT before */
 	{
 		char dbuf[64];
-		snprintf(dbuf, 64, "CV r%d s%d %04x %04x %04x %04x a%d c%04x f%04x",
-			retv, cd_stage, cd_magic&0xffff, cd_w1&0xffff, cd_w2&0xffff, cd_w3&0xffff, cd_arg, cd_cmd&0xffff, cd_stat0&0xffff);
+		snprintf(dbuf, 64, "%d%d %04x %04x %04x %02x %02x %02x %02x %02x a%d %02x",
+			retv, cd_stage, cd_hdr[0], cd_hdr[1], cd_hdr[2], cd_hdr[3]&0xff, cd_hdr[4]&0xff, cd_hdr[5]&0xff,
+			cd_hdr[6]&0xff, cd_hdr[7]&0xff, cd_arg, cd_cmd&0xff);
 		menu_status(&sel_menu, dbuf);
 	}
 	if(retv>0){
