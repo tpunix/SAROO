@@ -506,7 +506,7 @@ no freezes. King of Fighters '96 (1MB cart) starts and works; Castlevania 4MB
 hack works, its save reloads after a power cycle; CD player and reset back
 to the menu work. All checks passed.
 
-COVERS THROUGH THE CD FIFO (2026-11-25, branch cover-fifo, NOT YET RUN ON HARDWARE):
+COVERS THROUGH THE CD FIFO (2026-11-25, branch cover-fifo):
 the last cart traffic in the menu was the cover picture, which the STM32
 wrote into the SDRAM (0x22400000+) and the menu read from there. With
 SAROO_EN set, the FPGA's CD-block emulation (registers 0x25890000, data port
@@ -531,3 +531,6 @@ the SDRAM. New command SSCMD_COVER (0x0050), both firmwares:
 Background music (CD audio over I2S) is not involved and keeps playing.
 Built: mcuapp.bin with Keil MDK 5.43 (0 errors, 0 warnings),
 ssfirm.bin with make / build_menu_wram.ps1.
+Hardware (2026-11-25, both new files): the menu works and covers are shown.
+Still to confirm: no 1 s pause on entering the list (i.e. the FIFO path, not
+the fallback), games without a cover, background music, starting a game.
