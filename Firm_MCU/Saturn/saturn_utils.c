@@ -807,4 +807,133 @@ _no_cover:
 
 
 /******************************************************************************/
+// [COVER_FIFO] Covers sent to the Saturn through the CD data FIFO.
+//
+// SSCMD_COVER (0x0050), SS_ARG = game index: the cover is looked up as in
+// load_cover(), then streamed into the FPGA's CD FIFO: an 8-byte header
+// ('C','V', width, height, both big-endian, 2 bytes 0), then the 1 KB palette
+// and width*height pixels, read straight from cover.bin. No cover: the header
+// with width = height = 0. SS_CMD is cleared when everything is in the FIFO.
+// The Saturn pops the words from its CD data port (0x25818000) as they come.
+// Nothing is written to the SDRAM for the picture, so the Saturn reads
+// nothing from the cart for it either. The CD data interrupt stays off, so
+// the CD transfer code (trans_handle) is not involved; the background music
+// (CD audio over I2S) keeps playing.
+
+static int cover_lookup(int index)
+{
+	int retv;
+
+	if(cover_inited<=0 || index<0 || index>=total_disc)
+		return -1;
+
+	int *ip_cache = ip_cache_table[category_current];
+	if(ip_cache==NULL){
+		ip_cache_table[category_current] = ip_cache_ptr;
+		ip_cache = ip_cache_ptr;
+		ip_cache_ptr += total_disc;
+	}
+
+	int chdr = ip_cache[index];
+	if(chdr==0){
+		u8 ipbuf[256];
+		char gid[20];
+
+		retv = get_disc_ip(index, ipbuf);
+		if(retv<0){
+			ip_cache[index] = -1;
+			return -1;
+		}
+
+		u8 *ip = ipbuf;
+		if(strncmp((char*)ipbuf, "SEGA SEGASATURN ", 16)){
+			ip = ipbuf+0x10;
+		}
+
+		memcpy(gid, ip+0x20, 16);
+		gid[16] = 0;
+		char *p = strrchr(gid, 'V');
+		if(p)
+			*p = 0;
+		p = strchr(gid, ' ');
+		if(p)
+			*p = 0;
+
+		int fsum = adler32(ip+0x30, 64);
+		chdr = find_cover(gid, fsum);
+		ip_cache[index] = (chdr<0)? -1 : chdr;
+	}
+
+	return chdr;
+}
+
+
+// push n bytes (n even) into the FIFO, waiting while it is full; gives up
+// after ~0.5 s without room (the Saturn stopped reading)
+static int cover_fifo_push(u8 *p, int n)
+{
+	int i, wait;
+
+	for(i=0; i<n; i+=2){
+		wait = 0;
+		while(FIFO_STAT&0x0800){
+			if(++wait > 4000000)
+				return -1;
+		}
+		FIFO_DATA = *(u16*)(p+i);
+	}
+	return 0;
+}
+
+
+static u8 cover_chunk[2048];
+
+void cover_send(int index)
+{
+	int w = 0, h = 0, offset = 0;
+	u8 hdr[8];
+	u32 nread;
+
+	int chdr = cover_lookup(index&0x7fff);
+	if(chdr>0){
+		w = *(u16*)(chdr+0x14);
+		h = *(u16*)(chdr+0x16);
+		offset = *(int*)(chdr+0x10);
+		if(w<=0 || h<=0 || w*h > 512*256){
+			w = 0;
+			h = 0;
+		}
+	}
+	printk("\nCover %04x: %dx%d\n", index, w, h);
+
+	// FIFO: STM32 -> Saturn, data interrupt off, empty
+	int key = disable_irq();
+	ST_CTRL &= ~(STIRQ_DAT|0x0200);
+	ST_CTRL |=  0x0100;
+	ST_CTRL &= ~0x0100;
+	restore_irq(key);
+	FIFO_RCNT = 0;
+
+	hdr[0] = 'C';  hdr[1] = 'V';
+	hdr[2] = w>>8; hdr[3] = w;
+	hdr[4] = h>>8; hdr[5] = h;
+	hdr[6] = 0;    hdr[7] = 0;
+	if(cover_fifo_push(hdr, 8)==0 && w && h){
+		int left = 0x0400 + w*h;
+		f_lseek(&cover_fp, offset);
+		while(left>0){
+			int n = (left>2048)? 2048 : left;
+			int n2 = (n+1)&~1;
+			if(f_read(&cover_fp, cover_chunk, n2, &nread)!=FR_OK)
+				memset(cover_chunk, 0, n2);
+			if(cover_fifo_push(cover_chunk, n2))
+				break;
+			left -= n;
+		}
+	}
+
+	SS_CMD = 0;
+}
+
+/******************************************************************************/
 

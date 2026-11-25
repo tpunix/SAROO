@@ -202,6 +202,97 @@ static int sel_pending = -1;
 static int sel_frames;
 static int sel_vblank;
 
+/*
+ * [COVER_FIFO] Covers through the CD data FIFO (needs an mcuapp.bin with
+ * SSCMD_COVER). The STM32 streams an 8-byte header ('C','V', width, height),
+ * the 1 KB palette and the pixels into the FPGA's CD FIFO; the menu pops them
+ * from the CD data port into high work RAM and draws them from there. The
+ * picture never goes through the SDRAM, so the menu reads nothing from the
+ * cart for it, and in the game list the menu doesn't read the cart at all.
+ * With an older mcuapp.bin there is no answer: after one timeout the menu
+ * goes back to the old way (SSCMD_SELECT, picture in the SDRAM).
+ */
+#define COVER_BUF   ((u8*)0x060C0000)	/* high work RAM: the SCU DMA can't read low work RAM */
+#define CDC_DPORT   REG16(0x25818000)	/* CD data port: pops the FIFO */
+static int cover_fifo = 1;
+static int in_list;
+
+static int fifo_count(void)
+{
+	int s = SS_STAT;
+	return (s&0x0800)? 2048 : (s&0x07ff);
+}
+
+/* 1: cover in COVER_BUF, 0: no cover, -1: no answer (older mcuapp.bin) */
+static int cover_fetch(int index, int *pw, int *ph)
+{
+	int n, words, spin;
+	u16 *p;
+
+	SS_ARG = index;
+	SS_CMD = SSCMD_COVER;
+
+	for(spin=0; fifo_count()<4; spin++){
+		if(spin>2000000)
+			return -1;
+	}
+	int magic = CDC_DPORT;
+	int w = CDC_DPORT;
+	int h = CDC_DPORT;
+	n = CDC_DPORT;
+	if(magic!=0x4356 || w>512 || h>256)
+		return -1;
+
+	words = (w && h)? (0x0400 + w*h + 1)/2 : 0;
+	p = (u16*)COVER_BUF;
+	spin = 0;
+	while(words){
+		n = fifo_count();
+		if(n==0){
+			if(++spin>2000000)
+				return -1;
+			continue;
+		}
+		spin = 0;
+		if(n>words)
+			n = words;
+		words -= n;
+		while(n--)
+			*p++ = CDC_DPORT;
+	}
+	for(spin=0; SS_CMD && spin<2000000; spin++);
+
+	*pw = w;
+	*ph = h;
+	return (w && h)? 1 : 0;
+}
+
+static void draw_image(int flag, u8 *src, int src_llen, int img_w, int img_h, int img_x, int img_y, int adj_x, int adj_y);
+
+static void cover_update(int index, int sel_arg)
+{
+	int w, h;
+	int retv = cover_fetch(index, &w, &h);
+	if(retv<0){
+		/* no SSCMD_COVER in this mcuapp.bin: the old way from now on */
+		cover_fifo = 0;
+		SS_ARG = sel_arg;
+		SS_CMD = SSCMD_SELECT;
+		return;
+	}
+	if(retv>0){
+		u8 *pal = COVER_BUF;
+		for(int i=0; i<256; i++){
+			nbg1_set_cram(i, pal[2], pal[1], pal[0]);
+			pal += 4;
+		}
+		draw_image(3, COVER_BUF+0x0400, w, w, h, 0, 0, 176, (h>128)? 24 : 88);
+	}else{
+		memset(COVER_BUF, 0, 128*128);
+		draw_image(4, COVER_BUF, 128, 128, 128, 0, 0, 176, 88);
+	}
+}
+
 static void select_poll(void)
 {
 	int vb = (TVSTAT&0x0008)? 1 : 0;
@@ -211,9 +302,14 @@ static void select_poll(void)
 
 	// no SS_CMD==0 check: the STM32 never clears SS_CMD after SSCMD_SELECT
 	if(sel_pending>=0 && sel_frames>=SELECT_DELAY){
-		SS_ARG = sel_pending;
-		SS_CMD = SSCMD_SELECT;
+		int index = sel_pending;
 		sel_pending = -1;
+		if(cover_fifo){
+			cover_update(index, index);
+		}else{
+			SS_ARG = index;
+			SS_CMD = SSCMD_SELECT;
+		}
 	}
 }
 
@@ -224,12 +320,13 @@ void gif_timer(void)
 	if((TVSTAT&0x0008)==0)
 		return;
 
+	/* [COVER_FIFO] in the game list the covers come through the FIFO: nothing
+	   to poll in the cart */
+	if(in_list && cover_fifo)
+		return;
+
 	int gif_flag = *(u8*)0x22400000;
 	if(gif_flag){
-		u8 *dst = (u8*)(VDP2_VRAM+0x20000);
-		u8 *src = (u8*)(0x22401000);
-		int src_llen = (gif_flag>=3)? 128 : 512;
-
 		int img_w = LE16((u8*)0x22400004);
 		int img_h = LE16((u8*)0x22400006);
 		int img_x = (short)LE16((u8*)0x22400008);
@@ -237,6 +334,30 @@ void gif_timer(void)
 		int adj_x = (short)LE16((u8*)0x2240000c);
 		int adj_y = (short)LE16((u8*)0x2240000e);
 		//printk("img: (%d,%d) %dx%d\n", img_x, img_y, img_w, img_h);
+
+		draw_image(gif_flag, (u8*)(0x22401000), (gif_flag>=3)? 128 : 512,
+			img_w, img_h, img_x, img_y, adj_x, adj_y);
+		*(u8*)0x22400000 = 0;
+	}
+
+	int pal_flag = *(u8*)0x22400002;
+	if(pal_flag){
+		int i;
+		u8 *pal = (u8*)0x22400100;
+		for(i=0; i<256; i++){
+			nbg1_set_cram(i, pal[2], pal[1], pal[0]);
+			pal += 4;
+		}
+		*(u8*)0x22400002 = 0;
+	}
+}
+
+
+/* [COVER_FIFO] the drawing part of gif_timer, unchanged, for both sources */
+static void draw_image(int gif_flag, u8 *src, int src_llen, int img_w, int img_h, int img_x, int img_y, int adj_x, int adj_y)
+{
+	{
+		u8 *dst = (u8*)(VDP2_VRAM+0x20000);
 
 		//if( (last_f!=gif_flag) ){
 		//	printk("gflag: %d\n", gif_flag);
@@ -296,18 +417,6 @@ void gif_timer(void)
 		}
 		//int end = get_timer();
 		//printk("gt: %d ms\n", TICK2MS(end-start));
-		*(u8*)0x22400000 = 0;
-	}
-
-	int pal_flag = *(u8*)0x22400002;
-	if(pal_flag){
-		int i;
-		u8 *pal = (u8*)0x22400100;
-		for(i=0; i<256; i++){
-			nbg1_set_cram(i, pal[2], pal[1], pal[0]);
-			pal += 4;
-		}
-		*(u8*)0x22400002 = 0;
 	}
 }
 
@@ -379,8 +488,16 @@ static void select_notify(int index)
 		if(index & (SELECT_ENTER|SELECT_EXIT)){
 			// entering / leaving the list: send now, drop any pending move
 			sel_pending = -1;
-			SS_ARG = page*MENU_ITEMS + index;
-			SS_CMD = SSCMD_SELECT;
+			if((index & SELECT_ENTER) && cover_fifo){
+				// [COVER_FIFO] SSCMD_COVER also stops the background GIF
+				in_list = 1;
+				cover_update(page*MENU_ITEMS + (index & ~SELECT_ENTER), page*MENU_ITEMS + index);
+			}else{
+				// leaving (restarts the background GIF), or the old way
+				in_list = (index & SELECT_ENTER)? 1 : 0;
+				SS_ARG = page*MENU_ITEMS + index;
+				SS_CMD = SSCMD_SELECT;
+			}
 		}else{
 			// cursor move: send later (select_poll, from gif_timer)
 			sel_pending = page*MENU_ITEMS + index;

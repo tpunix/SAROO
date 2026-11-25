@@ -505,3 +505,29 @@ place): boots, boot animation OK, fast scrolling through the menu with covers:
 no freezes. King of Fighters '96 (1MB cart) starts and works; Castlevania 4MB
 hack works, its save reloads after a power cycle; CD player and reset back
 to the menu work. All checks passed.
+
+COVERS THROUGH THE CD FIFO (2026-11-25, branch cover-fifo, NOT YET RUN ON HARDWARE):
+the last cart traffic in the menu was the cover picture, which the STM32
+wrote into the SDRAM (0x22400000+) and the menu read from there. With
+SAROO_EN set, the FPGA's CD-block emulation (registers 0x25890000, data port
+0x25818000, the cdcfifo) runs at the same time as the SAROO registers
+(0x25897xxx), and CD data goes STM32 RAM -> FIFO -> Saturn, never through
+the SDRAM. New command SSCMD_COVER (0x0050), both firmwares:
+- STM32 (Firm_MCU/Saturn/saturn_utils.c cover_send): looks the cover up as
+  load_cover() does, then pushes an 8-byte header ('C','V', width, height),
+  the 1 KB palette and the pixels into the FIFO straight from cover.bin
+  (FIFO reset, direction STM32->Saturn, data interrupt off so trans_handle is
+  not involved; waits while the FIFO is full, gives up after ~0.5 s), then
+  clears SS_CMD. It also stops the background GIF (gif_decode_exit).
+- Saturn (Firm_Saturn/main.c): in the game list, cover_fetch() pops the
+  words from the CD data port as the FIFO fills (count from SS_STAT), into
+  high work RAM 0x060C0000 (the SCU DMA can't read low work RAM), and the
+  drawing code (draw_image, split out of gif_timer unchanged) copies them to
+  VDP2. In the list the menu no longer polls the cart at all. Leaving the
+  list sends SSCMD_SELECT as before (background GIF, still via the SDRAM).
+- An older mcuapp.bin doesn't answer: after one ~1 s timeout the menu uses
+  the old SSCMD_SELECT path for the rest of the session. The new mcuapp.bin
+  still handles SSCMD_SELECT, so it also works with older ssfirm.bin.
+Background music (CD audio over I2S) is not involved and keeps playing.
+Built: mcuapp.bin with Keil MDK 5.43 (0 errors, 0 warnings),
+ssfirm.bin with make / build_menu_wram.ps1.

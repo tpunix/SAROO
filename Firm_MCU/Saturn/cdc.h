@@ -119,6 +119,7 @@
    AA24 (SS_SCLK) CS0 address bit. */
 #define SSCMD_STVLOAD  0x0040
 #define SSCMD_ROMCTL   0x0041
+#define SSCMD_COVER    0x0050	// [COVER_FIFO] cover through the CD FIFO (saturn_utils.c)
 
 
 #define MSF_TO_FAD(m,s,f) ((m * 4500) + (s * 75) + f)
@@ -407,6 +408,7 @@ void gif_decode_exit(void);
 
 void cover_init(void);
 void load_cover(int index);
+void cover_send(int index);
 
 
 /******************************************************************************/
