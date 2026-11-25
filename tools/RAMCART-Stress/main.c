@@ -77,7 +77,7 @@ typedef struct
 
 enum { KIND_NONE, KIND_1MB, KIND_4MB, KIND_UNKNOWN };
 enum { T_PROBE, T_ALIAS, T_ADDR, T_CACHED, T_RANDOM, T_INV, T_CHK16, T_RETAIN, T_DMA, T_CODE, T_COUNT };
-enum { S_PENDING, S_RUNNING, S_PASS, S_FAIL };
+enum { S_PENDING, S_RUNNING, S_PASS, S_FAIL, S_SKIP };
 enum { PH_START, PH_FILL, PH_WAIT, PH_VERIFY, PH_RANDOM, PH_CODE, PH_DONE, PH_NOCART };
 
 static const char *const test_name[T_COUNT] =
@@ -755,11 +755,50 @@ static void             code_verify(const unsigned int base, const unsigned int 
     }
 }
 
+/* Self-test: the same code generated in work RAM and run there. If this works and the cart call doesn't, the
+   code is right and the cart (or an emulator that can't run code from the cart) is the problem. */
+static unsigned int     code_ram[CODE_SIZE / 4u] __attribute__((aligned(16)));
+static int              selftest_done;  /* 0: not yet, 1: passed, 2: failed */
+
+/* Step marker, written straight to the screen: if test 10 hangs, the last one shown is the step that hung */
+static void             t10_mark(const char *const step_name, const unsigned int n)
+{
+    jo_printf_with_color(1, 27, JO_COLOR_INDEX_Yellow, "T10 %-8s %u AT %08X SELF %s ", step_name, n,
+                         addr_of(pos * CODE_SIZE), selftest_done == 1 ? "OK " : selftest_done == 2 ? "BAD" : "-  ");
+}
+
+/* Z: test 10 on/off (an emulator that can't run code from the cart hangs in test 10) */
+static int              code_test_on = 1;
+
+static void             run_selftest(const unsigned int seed)
+{
+    const unsigned int  ram_through = (unsigned int)code_ram | 0x20000000u;
+    const unsigned int  ram_cached = (unsigned int)code_ram & 0x0FFFFFFFu;
+    unsigned int        expected;
+    unsigned int        got;
+
+    t10_mark("SELFTEST", 0);
+
+    expected = code_write(ram_through, seed);
+    cache_purge();
+    got = ((code_fn)ram_cached)(seed);
+    selftest_done = (got == expected) ? 1 : 2;
+    if (got != expected)
+        record_error_x(ram_through, expected, expected, got, 0);   /* the test program itself is wrong */
+    t10_mark("SELFTEST", 0);
+}
+
 static void             run_code_block(const unsigned int index)
 {
     const unsigned int  base = addr_of(index * CODE_SIZE);
     const unsigned int  seed = run_seed ^ (index * 0x9E3779B9u);
-    const unsigned int  expected = code_write(base, seed);
+    unsigned int        expected;
+
+    if (selftest_done == 0)
+        run_selftest(seed);
+
+    t10_mark("WRITE", 0);
+    expected = code_write(base, seed);
     const code_fn       cached = (code_fn)(base & 0x0FFFFFFFu);
     const code_fn       uncached = (code_fn)base;
     unsigned int        n;
@@ -767,9 +806,20 @@ static void             run_code_block(const unsigned int index)
     unsigned int        bad_runs = 0;
     unsigned int        before;
 
+    /* Cache-through first: one bus read per instruction */
+    t10_mark("UNCACHED", 1);
+    got = uncached(seed);
+    ++code_calls;
+    if (got != expected)
+    {
+        record_error_x(base, expected, expected, got, 0);
+        ++bad_runs;
+    }
     for (n = 0; n < CODE_CALLS; n++)
     {
+        t10_mark("PURGE", n + 1);
         cache_purge();
+        t10_mark("CACHED", n + 1);
         got = cached(seed);
         ++code_calls;
         if (got != expected)
@@ -778,15 +828,10 @@ static void             run_code_block(const unsigned int index)
             ++bad_runs;
         }
     }
-    got = uncached(seed);
-    ++code_calls;
-    if (got != expected)
-    {
-        record_error_x(base, expected, expected, got, 0);
-        ++bad_runs;
-    }
     before = total_errors;
+    t10_mark("VERIFY", 0);
     code_verify(base, seed);
+    t10_mark("DONE", 0);
     /* Wrong result but the code in the RAM is right: an instruction was fetched wrong (READ BAD) */
     if (bad_runs && total_errors == before)
     {
@@ -908,6 +953,8 @@ static void             step(void)
         init_mode = (init_mode + 1) % INIT_MODES;
     if (jo_is_pad1_key_down(JO_KEY_C))
         cd_load_on = !cd_load_on;
+    if (jo_is_pad1_key_down(JO_KEY_Z))
+        code_test_on = !code_test_on;
     cd_kick();
     if (phase == PH_DONE || phase == PH_NOCART)
     {
@@ -946,6 +993,16 @@ static void             step(void)
     case T_CODE:
         if (phase == PH_START)
         {
+            if (!code_test_on)
+            {
+                /* Off (Z): only the work-RAM self-test, nothing runs from the cart */
+                if (selftest_done == 0)
+                    run_selftest(run_seed);
+                finish_test();
+                if (test_errors[T_CODE] == 0)
+                    test_status[T_CODE] = S_SKIP;
+                return;
+            }
             pos = 0;
             phase = PH_CODE;
             return;
@@ -1088,6 +1145,9 @@ static void             draw(void)
         case S_FAIL:
             jo_printf_with_color(18, 5 + i, JO_COLOR_INDEX_Red, "FAIL %-10u ", test_errors[i]);
             break;
+        case S_SKIP:
+            jo_printf_with_color(18, 5 + i, JO_COLOR_INDEX_Yellow, "OFF (Z)         ");
+            break;
         default:
             jo_printf(18, 5 + i, "-               ");
             break;
@@ -1200,10 +1260,15 @@ static void             draw(void)
         jo_printf_with_color(1, 21, JO_COLOR_INDEX_Yellow, "RESULT: TESTING");
     jo_set_printf_color_index(JO_COLOR_INDEX_White);
     jo_printf(1, 22, "TIME %u FRAMES   ", run_frames);
+    if (selftest_done == 1)
+        jo_printf_with_color(21, 22, JO_COLOR_INDEX_Green, "CODE SELFTEST OK ");
+    else if (selftest_done == 2)
+        jo_printf_with_color(21, 22, JO_COLOR_INDEX_Red, "CODE SELFTEST BAD");
     jo_printf(1, 23, "RUNS PASSED %u OF %u   ", pass_count, phase == PH_DONE ? run_count : run_count - 1);
     jo_printf(1, 25, "START: RESTART  A: LOOP %s  C: CD", auto_loop ? "ON " : "OFF");
     jo_printf(1, 26, "B: SETUP NEXT RUN %s",
               init_mode == INIT_TB47 ? "SEGA TB47" : init_mode == INIT_AUTO ? "AUTO     " : "NONE     ");
+    jo_printf(29, 26, "Z:CODE %s", code_test_on ? "ON " : "OFF");
 }
 
 void                    jo_main(void)

@@ -29,7 +29,13 @@ What it does
   the block is read back as data.
   Wrong result, block reads back right -> READ BAD (an instruction fetch
   was wrong). A wrong fetch can also crash the CPU: if the screen stops
-  changing during test 10, that is the failure (note the BLOCK number).
+  changing during test 10, that is the failure. The bottom line shows the
+  step (WRITE, UNCACHED, PURGE n, CACHED n, VERIFY), the block address and
+  the self-test result at the moment it stopped.
+  Before the first block, the same code is run from work RAM (CODE
+  SELFTEST): OK proves the test program itself computes the right answer.
+  EMULATORS: Kronos can't run code from the cart area and hangs at
+  "UNCACHED"; press Z to switch test 10 off there.
 - CD LOAD: LOAD.BIN (128 KB) is read from the disc in the background
   continuously (16 KB per frame) and checked. On a SAROO that keeps the
   STM32 busy on the same SDRAM while the cart is hammered.
@@ -40,6 +46,7 @@ Pad
   A      loop on/off (on at start)
   B      cart setup for the next run: SEGA TB47 (default) / AUTO / NONE
   C      CD load on/off (on at start)
+  Z      test 10 CODE FROM CART on/off (on at start; off shows "OFF (Z)")
 
 Reading the screen
   TIMING THIS RUN  yellow "SEGA ASR0 23301FF0" = Sega timing in force
@@ -69,7 +76,8 @@ Expected results
   SAROO, stock v0.9 FPGA                     FAIL (it can't take Sega timing)
   SAROO, sega-abus-timing FPGA (change 7)    1.1: PASS (163/163 runs,
                                              2026-11-24); test 10 is new
-  Kronos (4 MB cart selected)                PASS
+  Kronos (4 MB cart selected)                PASS with test 10 off (Z);
+                                             test 10 hangs (see above)
 
 Useful comparisons on a SAROO
   - C off vs on: errors only with CD LOAD on point at STM32 contention.
