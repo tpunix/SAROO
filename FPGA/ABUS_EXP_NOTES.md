@@ -424,3 +424,11 @@ EXTRA RAM (2026-11-25): the FPGA maps the whole 16 MB CS0 window onto SDRAM, so
 "Saroo only" hacks (e.g. D&D Shadow over Mystara) use it. RAMCART-Stress 1.3
 test 11 (fill, cached verify, random W/R, check over those 8 MB): PASS on
 hardware at Sega timing with CD load on, together with tests 1-10.
+
+AA24 (2026-11-25): the board (marked 1.66) routes cart address line AA24 to the
+FPGA pin SS_SCLK. The official v0.9 mcuapp.bin has no ROMCTL; a mcuapp.bin built
+from current master (Keil MDK 5.43, see README_SEGA_ABUS.md) has it. With
+ROMCTL(1), RAMCART-Stress 1.4 test 12: 64 address pairs 16 MB apart all stay
+separate, then fill / cached verify / random W/R / check over
+0x23000000-0x23FFFFFF: PASS at Sega timing. Usable cart RAM with AA24 on:
+0x22400000-0x23FFFFFF = 28 MB (0x22000000-0x223FFFFF stays the SAROO's own).

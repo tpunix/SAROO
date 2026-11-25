@@ -132,6 +132,65 @@ fails at 90 ns, so a slower console has little margin. The cart pins have no
 I/O timing constraints in the `.sdc` file, so a rebuild could move the timing
 a little. Re-run RAMCART-Stress after any rebuild.
 
+## Extra cart RAM on a SAROO
+
+The FPGA maps the Saturn's whole 16MB cart window onto the SAROO's SDRAM, so
+there is more RAM than the 4MB cart. Only software that knows about it can use
+it (check for the SAROO first: `0x5253`, "SR", at `0x25807000`); real Sega carts
+and emulators don't have it.
+
+| Range (cache-through) | Size | Needs | Tested here |
+|---|---|---|---|
+| `0x22000000–0x223FFFFF` | 4MB | — | **SAROO's own** (firmware, saves): don't use |
+| `0x22400000–0x227FFFFF` | 4MB | — | standard RAM cart: RAMCART-Stress tests 1–10 |
+| `0x22800000–0x22FFFFFF` | 8MB | any SAROO | test 11: PASS at Sega timing |
+| `0x23000000–0x23FFFFFF` | 16MB | AA24 board + `ROMCTL` | test 12: PASS at Sega timing |
+
+So 12MB (`0x22400000–0x22FFFFFF`) on any SAROO, 28MB (`0x22400000–0x23FFFFFF`)
+with AA24. YZB's "Saroo only" hacks use the 16MB window (not AA24).
+
+**AA24** (the upper 16MB): the board must route cart address line AA24 to the
+FPGA (tested on a board marked 1.66), and the MCU firmware must have
+`SSCMD_ROMCTL` (added to master in Oct 2026; the official v0.9 `mcuapp.bin`
+doesn't have it). A program switches it on itself; the SAROO menu switches it
+off again:
+
+```c
+#define SS_CMD (*(volatile unsigned short *)0x25897010)
+#define SS_ARG (*(volatile unsigned short *)0x25897014)
+SS_ARG = 1;              /* 1 = AA24 on, 0 = off */
+SS_CMD = 0x0041;         /* SSCMD_ROMCTL */
+while (SS_CMD) ;         /* use a timeout: an older MCU firmware never answers */
+/* SS_ARG now holds ST_CTRL bits 15..8; bit 4 set = AA24 on */
+```
+
+Without AA24, `0x23xxxxxx` is a copy of `0x22xxxxxx`, so writing there would
+overwrite the SAROO's own RAM: always check first (RAMCART-Stress test 12 shows
+a safe way).
+
+### Building `mcuapp.bin` with Keil MDK 5.43
+
+`Firm_MCU` is a Keil µVision project (target `App` → `mcuapp.bin`; never put the
+`BootLoader` output, `mcuboot.bin`, on the SD card: that one is flashed). It was
+made with Arm Compiler 6.13 and older packs. With MDK 5.43 (free MDK-Community
+licence: `armlm activate --server https://mdk-preview.keil.arm.com --product
+KEMDK-COM0`) these changes were needed, in a copy of the project:
+
+1. Packs: `Keil::STM32H7xx_DFP` **2.3.1** (4.x has no `stm32h7xx.h`) and
+   `ARM::CMSIS` **5.9.0** (its RTX5 library matches the project's short
+   enums/wchar; the separate `ARM::CMSIS-RTX` pack's library doesn't). Pin both
+   in *Select Software Packs* (untick "Use latest versions").
+2. Compiler: select the installed Arm Compiler 6 (the project names 6.13.1).
+3. Add `…\STM32H7xx_DFP\2.3.1\Drivers\CMSIS\Device\ST\STM32H7xx\Include` to the
+   include path if µVision doesn't find `stm32h7xx.h`.
+4. `inc/main.h`: newer CMSIS declares `__disable_irq()` as `void`, but the code
+   uses its return value as the old PRIMASK. Use
+   `#define disable_irq() ({ uint32_t _pm = __get_PRIMASK(); __disable_irq(); _pm; })`.
+
+Result: 62,600 bytes, same vector table as the official v0.9 build. The
+bootloader loads `/SAROO/mcuapp.bin` from the SD card at every power-up, so
+trying one is a file swap.
+
 ## Installing
 
 > **The SAROO FPGA update has no verify step and no fallback.** If the

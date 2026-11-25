@@ -106,7 +106,10 @@ Expected results
                                              at Sega timing, CD load on:
                                              PASS (2026-11-25); 1.3 test 11
                                              (8 MB XRAM) PASS, Sega timing,
-                                             CD load on (2026-11-25)
+                                             CD load on (2026-11-25); 1.4
+                                             test 12 (AA24, 16 MB) PASS on a
+                                             board marked 1.66 with a current
+                                             mcuapp.bin (2026-11-25)
   Kronos (4 MB cart selected)                PASS with test 10 off (Z);
                                              test 10 hangs (see above)
 
