@@ -90,6 +90,10 @@ Timing patch left as it was:
 | Pocket Fighter | T-1230G | tpunix rewrote that code instead of using a `nop` | Sega timing (firmware value) |
 | Ultraman | T-13308G | 2MB ROM cart; the firmware sets the timing itself | `0x34403440` |
 
+KOF95 and Ultraman also need a dump of their 2MB ROM cart on the SD card, as
+`/SAROO/ISO/KOF95.BIN` and `/SAROO/ISO/ULTRAMAN.BIN`. Without it they crash
+on any SAROO firmware, official or this one.
+
 Tested with this firmware on the change 7 FPGA (2026-11-25): **Marvel Super
 Heroes** and **King of Fighters '96** work (both 1MB-cart games). The others
 are not tested yet. Patch lines in
