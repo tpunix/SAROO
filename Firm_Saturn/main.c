@@ -500,8 +500,34 @@ int mem_test(int size)
 static int last_w, last_h, last_f;
 static int cover_top = 1;
 
+// [SEGA_ABUS] Debounced cover select: a cursor move only records the game;
+// SSCMD_SELECT (which makes the STM32 load the cover into SDRAM) is sent once
+// the cursor has rested SELECT_DELAY frames. Fast scrolling then causes no
+// STM32 SDRAM traffic, which froze the menu at Sega cart timing.
+#define SELECT_DELAY 15
+static int sel_pending = -1;
+static int sel_frames;
+static int sel_vblank;
+
+static void select_poll(void)
+{
+	int vb = (TVSTAT&0x0008)? 1 : 0;
+	if(vb && !sel_vblank && sel_pending>=0 && sel_frames<SELECT_DELAY)
+		sel_frames++;
+	sel_vblank = vb;
+
+	// no SS_CMD==0 check: the STM32 never clears SS_CMD after SSCMD_SELECT
+	if(sel_pending>=0 && sel_frames>=SELECT_DELAY){
+		SS_ARG = sel_pending;
+		SS_CMD = SSCMD_SELECT;
+		sel_pending = -1;
+	}
+}
+
 void gif_timer(void)
 {
+	select_poll();
+
 	if((TVSTAT&0x0008)==0)
 		return;
 
@@ -657,8 +683,16 @@ static void fill_selmenu(void)
 static void select_notify(int index)
 {
 	if(sel_mode==0){
-		SS_ARG = page*MENU_ITEMS + index;
-		SS_CMD = SSCMD_SELECT;
+		if(index & (SELECT_ENTER|SELECT_EXIT)){
+			// entering / leaving the list: send now, drop any pending move
+			sel_pending = -1;
+			SS_ARG = page*MENU_ITEMS + index;
+			SS_CMD = SSCMD_SELECT;
+		}else{
+			// cursor move: send later (select_poll, from gif_timer)
+			sel_pending = page*MENU_ITEMS + index;
+			sel_frames = 0;
+		}
 	}
 }
 

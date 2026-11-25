@@ -460,3 +460,17 @@ SOAK 1.4 (2026-11-25, ~2 h 15 min): RAMCART-Stress 1.4, all 12 tests, Sega timin
 0x23301FF0, CD load on: runs passed 100 of 100, ALL RUNS 0, CD loads 30,329
 data OK, code self-test OK. Covers the 4 MB cart, code fetch from the cart, the
 8 MB above it and the AA24 16 MB, ~4,900 frames per run.
+
+MENU FREEZE CAUSE: COVERS (2026-11-25): with Sega timing everywhere and
+/SAROO/cover.bin removed, the menus didn't freeze. With covers, scrolling fast
+up and down the game list froze quickly. Every cursor move sends SSCMD_SELECT;
+the STM32's load_cover() reads the cover from cover.bin into SDRAM 0x61400c00
+(Saturn 0x22400c00) while the menu runs from the same SDRAM, and gif_timer()
+SCU-DMAs it to VDP2. The CD sector buffer is in the STM32's internal AXI SRAM
+(0x2400a000, 200 x 2352), not the SDRAM, which is why games were never hit.
+Fix in Firm_Saturn/main.c: select_notify() only records a cursor move;
+select_poll() (called from gif_timer) sends SSCMD_SELECT once the cursor has
+rested 15 frames. Enter/exit are sent at once. No SS_CMD==0 check: the STM32
+never clears SS_CMD after SSCMD_SELECT (a first build with the check loaded
+only the first cover). SAROO_ASR0 is now 0x23301FF0 (Sega timing from
+power-on). Fast scrolling with covers: no freeze. One console only.

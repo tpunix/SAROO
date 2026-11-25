@@ -34,15 +34,28 @@ This branch has two independent changes:
 
 2. **Saturn firmware (`Firm_Saturn/`)**: runs games at Sega timing.
    **It needs the new FPGA. Don't use it with the stock FPGA.**
-   - Games start at Sega's `0x23301FF0` (`SAROO_GAME_ASR0` in `abus.h`,
-     written by the clock-speed hook when the game starts). The SAROO boot,
-     menus and CD player stay at SAROO's `0x38803880` (`SAROO_ASR0`): the
-     firmware runs from the cart area, and with Sega timing there too, boot
-     and the menus froze now and then. Retested with the delay-loop fix
-     below (2026-11-25): Sega timing in the boot and menus still freezes, so
-     the split is needed. It also freezes with Sega timing on CS0 only
-     (`0x23303880`), so the cause is the cart area the firmware runs from,
-     not CS1. Games don't run from the cart, so they aren't affected.
+   - Sega's `0x23301FF0` from power-on: the SAROO boot, menus and CD player
+     (`SAROO_ASR0` in `abus.h`) and games (`SAROO_GAME_ASR0`, written by the
+     clock-speed hook when the game starts).
+   - **Debounced covers** (`select_poll()` in `main.c`): a cursor move in the
+     game list only records the game; the cover is requested from the STM32
+     once the cursor has rested for 15 frames (~¼ s). Entering and leaving
+     the list are sent at once.
+
+     Why: the menu runs from the cart area, so every instruction is fetched
+     from the SAROO's SDRAM. Upstream, every cursor move makes the STM32 read
+     a cover from `cover.bin` into that same SDRAM. At Sega timing the
+     Saturn can't wait for the SDRAM (external wait is off), so scrolling
+     fast through the list made an instruction fetch collide with the STM32's
+     writes sooner or later, and the menu froze. Tests (2026-11-25, one
+     console): Sega timing in the menus froze, also on CS0 only
+     (`0x23303880`, CS1 ruled out); with `cover.bin` removed it didn't
+     freeze; fast scrolling with covers froze; with the debounce, fast
+     scrolling with covers doesn't freeze. Games don't run from the cart and
+     the CD buffer is in the STM32's own RAM, so games weren't affected.
+
+     For the earlier split (SAROO timing in the menus, Sega timing in games)
+     build with `-DSAROO_ASR0=0x38803880`.
    - tpunix's per-game patches that `nop` a game's own timing write are
      commented out (marked `[SEGA_ABUS]` in `game_patch.c`), so those games
      set Sega timing themselves, as on a real console. The patches' other
@@ -56,8 +69,8 @@ This branch has two independent changes:
      already does elsewhere, so the compiler keeps them. Without it the boot
      animation runs in an instant and looks skipped, and boot and the menus
      freeze now and then (the CD status poll runs with no delay). With the
-     loops back and the menus at SAROO timing, the freezes and the animation
-     problem are gone (tested 2026-11-25).
+     loops back, those freezes and the animation problem are gone (tested
+     2026-11-25).
 
    To build firmware for the stock FPGA again, use upstream `Firm_Saturn`, or
    build this one with `-DSAROO_ASR0=0x38803880` and the `[SEGA_ABUS]`

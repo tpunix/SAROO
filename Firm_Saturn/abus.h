@@ -16,8 +16,11 @@
  *   0x38803880  8 waits, external wait on   (upstream default since Oct 2023)
  *   0x34403440  4 waits, external wait on   (upstream default Feb-Oct 2023)
  *
- * The menus stay at SAROO's timing: with Sega timing everywhere, boot and the
- * menus froze now and then (2026-11-25).
+ * Both are Sega's timing (2026-11-25). The menu freezes seen at Sega timing
+ * came from the STM32 loading a cover into the SDRAM on every cursor move
+ * while the menu ran from the same SDRAM; the menu now asks for a cover only
+ * after the cursor rests (select_poll in main.c). For the old split, build
+ * with -DSAROO_ASR0=0x38803880.
  *
  * On this branch the per-game patches that stopped games from setting Sega's
  * timing are commented out (marked [SEGA_ABUS] in game_patch.c), so games
@@ -27,7 +30,7 @@
  * Included by crt0.S, so keep this file to preprocessor lines only.
  */
 #ifndef SAROO_ASR0
-#define SAROO_ASR0 0x38803880
+#define SAROO_ASR0 0x23301FF0
 #endif
 
 #ifndef SAROO_GAME_ASR0
