@@ -418,6 +418,13 @@ BOOT ANIMATION / BUILD (2026-11-25): every firmware built here with GCC 8.4 lost
 the empty delay loops (conio.c logo animation, cdblock.c status poll): the
 animation ran in an instant. Fixed with __asm volatile("":::"memory") in the
 loop bodies (as cdblock.c already does elsewhere); animation confirmed back.
+Result (2026-11-25): with the loops back, the rare boot freezes and menu
+freezes are gone too, as well as the animation problem. Every earlier build
+from this tree, including the Sega-timing-everywhere one, lacked these loops,
+so the freezes blamed on Sega timing in the menus were most likely the missing
+delays (cdblock.c status poll with no wait), not the cart timing. The
+menu/game ASR0 split stays until Sega timing in the menus is retested with the
+fixed loops.
 
 EXTRA RAM (2026-11-25): the FPGA maps the whole 16 MB CS0 window onto SDRAM, so
 0x22800000-0x22FFFFFF (8 MB above the 4 MB cart) is RAM on any SAROO. YZB's
