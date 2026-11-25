@@ -432,3 +432,8 @@ ROMCTL(1), RAMCART-Stress 1.4 test 12: 64 address pairs 16 MB apart all stay
 separate, then fill / cached verify / random W/R / check over
 0x23000000-0x23FFFFFF: PASS at Sega timing. Usable cart RAM with AA24 on:
 0x22400000-0x23FFFFFF = 28 MB (0x22000000-0x223FFFFF stays the SAROO's own).
+
+SOAK 1.4 (2026-11-25, ~2 h 15 min): RAMCART-Stress 1.4, all 12 tests, Sega timing
+0x23301FF0, CD load on: runs passed 100 of 100, ALL RUNS 0, CD loads 30,329
+data OK, code self-test OK. Covers the 4 MB cart, code fetch from the cart, the
+8 MB above it and the AA24 16 MB, ~4,900 frames per run.

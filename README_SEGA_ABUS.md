@@ -118,6 +118,7 @@ game's timing write.
 | Cold boots | OK |
 | Castlevania 4MB hack: FMV intro, CD audio, full 4MB cart, saves | OK |
 | Unpatched 4MB RAM demo at Sega timing | runs |
+| RAMCART-Stress 1.4 soak, all 12 tests (4MB cart, code from cart, 8MB extra RAM, AA24 16MB), CD loading on (2026-11-25) | 100 of 100 runs, 0 errors, 30,329 CD loads OK |
 
 Quartus: 1,704 LEs, 955 registers, timing met in all corners (worst setup
 slack 0.274 ns, on the original FSMC path).

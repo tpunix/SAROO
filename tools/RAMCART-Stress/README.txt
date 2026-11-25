@@ -109,7 +109,9 @@ Expected results
                                              CD load on (2026-11-25); 1.4
                                              test 12 (AA24, 16 MB) PASS on a
                                              board marked 1.66 with a current
-                                             mcuapp.bin (2026-11-25)
+                                             mcuapp.bin (2026-11-25); 1.4
+                                             soak: 100/100 runs, all 12
+                                             tests, CD on, 0 errors
   Kronos (4 MB cart selected)                PASS with test 10 off (Z);
                                              test 10 hangs (see above)
 
