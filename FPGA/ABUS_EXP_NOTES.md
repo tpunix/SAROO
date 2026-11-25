@@ -535,3 +535,10 @@ Hardware (2026-11-25, both new files): the menu works and covers are shown.
 Games start normally. No bgsound.pcm on this SD card, so background music is
 not tested. Still to confirm: no 1 s pause on entering the list (the FIFO
 path, not the fallback), games without a cover.
+First test: covers appeared after a pause, i.e. the menu had timed out on the
+first SSCMD_COVER (loop-count timeout, maybe ~0.2 s, shorter than the STM32's
+first lookup, which opens the game's disc image) and fell back to SSCMD_SELECT.
+Changed: no fallback at all (covers only through the FIFO; on failure the
+empty frame); timeouts on the FRT timer (header 3 s, data gaps 1 s); if the
+STM32 never answers, no covers for the session; no wait for SS_CMD==0 before
+the request (STARTUP and SELECT never clear it).

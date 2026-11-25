@@ -209,12 +209,15 @@ static int sel_vblank;
  * from the CD data port into high work RAM and draws them from there. The
  * picture never goes through the SDRAM, so the menu reads nothing from the
  * cart for it, and in the game list the menu doesn't read the cart at all.
- * With an older mcuapp.bin there is no answer: after one timeout the menu
- * goes back to the old way (SSCMD_SELECT, picture in the SDRAM).
+ * This is the only way covers are loaded: if a cover doesn't come, the
+ * empty frame is shown. If the STM32 doesn't answer at all (an mcuapp.bin
+ * without SSCMD_COVER), the menu stops asking for this session: no covers.
  */
 #define COVER_BUF   ((u8*)0x060C0000)	/* high work RAM: the SCU DMA can't read low work RAM */
 #define CDC_DPORT   REG16(0x25818000)	/* CD data port: pops the FIFO */
-static int cover_fifo = 1;
+#define COVER_FIRST_MS  3000	/* header: the STM32 may read the game's disc image first */
+#define COVER_DATA_MS   1000	/* longest gap in the data */
+static int cover_off;			/* the STM32 never answered: no covers this session */
 static int in_list;
 
 static int fifo_count(void)
@@ -223,18 +226,25 @@ static int fifo_count(void)
 	return (s&0x0800)? 2048 : (s&0x07ff);
 }
 
-/* 1: cover in COVER_BUF, 0: no cover, -1: no answer (older mcuapp.bin) */
+/* 1: cover in COVER_BUF, 0: no cover, -1: failed, -2: no answer at all */
 static int cover_fetch(int index, int *pw, int *ph)
 {
-	int n, words, spin;
+	int n, words;
 	u16 *p;
+
+	/* nothing old left in the FIFO (no wait for SS_CMD==0: the STM32 never
+	   clears it after SSCMD_STARTUP or SSCMD_SELECT; cover_send() resets the
+	   FIFO itself before it sends) */
+	while(fifo_count())
+		n = CDC_DPORT;
 
 	SS_ARG = index;
 	SS_CMD = SSCMD_COVER;
 
-	for(spin=0; fifo_count()<4; spin++){
-		if(spin>2000000)
-			return -1;
+	reset_timer();
+	while(fifo_count()<4){
+		if(get_timer()>MS2TICK(COVER_FIRST_MS))
+			return -2;
 	}
 	int magic = CDC_DPORT;
 	int w = CDC_DPORT;
@@ -245,22 +255,23 @@ static int cover_fetch(int index, int *pw, int *ph)
 
 	words = (w && h)? (0x0400 + w*h + 1)/2 : 0;
 	p = (u16*)COVER_BUF;
-	spin = 0;
+	reset_timer();
 	while(words){
 		n = fifo_count();
 		if(n==0){
-			if(++spin>2000000)
+			if(get_timer()>MS2TICK(COVER_DATA_MS))
 				return -1;
 			continue;
 		}
-		spin = 0;
+		reset_timer();
 		if(n>words)
 			n = words;
 		words -= n;
 		while(n--)
 			*p++ = CDC_DPORT;
 	}
-	for(spin=0; SS_CMD && spin<2000000; spin++);
+	reset_timer();
+	while(SS_CMD && get_timer()<MS2TICK(COVER_DATA_MS));
 
 	*pw = w;
 	*ph = h;
@@ -269,17 +280,12 @@ static int cover_fetch(int index, int *pw, int *ph)
 
 static void draw_image(int flag, u8 *src, int src_llen, int img_w, int img_h, int img_x, int img_y, int adj_x, int adj_y);
 
-static void cover_update(int index, int sel_arg)
+static void cover_update(int index)
 {
-	int w, h;
-	int retv = cover_fetch(index, &w, &h);
-	if(retv<0){
-		/* no SSCMD_COVER in this mcuapp.bin: the old way from now on */
-		cover_fifo = 0;
-		SS_ARG = sel_arg;
-		SS_CMD = SSCMD_SELECT;
-		return;
-	}
+	int w = 0, h = 0;
+	int retv = (cover_off)? -1 : cover_fetch(index, &w, &h);
+	if(retv==-2)
+		cover_off = 1;
 	if(retv>0){
 		u8 *pal = COVER_BUF;
 		for(int i=0; i<256; i++){
@@ -304,12 +310,7 @@ static void select_poll(void)
 	if(sel_pending>=0 && sel_frames>=SELECT_DELAY){
 		int index = sel_pending;
 		sel_pending = -1;
-		if(cover_fifo){
-			cover_update(index, index);
-		}else{
-			SS_ARG = index;
-			SS_CMD = SSCMD_SELECT;
-		}
+		cover_update(index);
 	}
 }
 
@@ -322,7 +323,7 @@ void gif_timer(void)
 
 	/* [COVER_FIFO] in the game list the covers come through the FIFO: nothing
 	   to poll in the cart */
-	if(in_list && cover_fifo)
+	if(in_list)
 		return;
 
 	int gif_flag = *(u8*)0x22400000;
@@ -488,13 +489,13 @@ static void select_notify(int index)
 		if(index & (SELECT_ENTER|SELECT_EXIT)){
 			// entering / leaving the list: send now, drop any pending move
 			sel_pending = -1;
-			if((index & SELECT_ENTER) && cover_fifo){
+			if(index & SELECT_ENTER){
 				// [COVER_FIFO] SSCMD_COVER also stops the background GIF
 				in_list = 1;
-				cover_update(page*MENU_ITEMS + (index & ~SELECT_ENTER), page*MENU_ITEMS + index);
+				cover_update(page*MENU_ITEMS + (index & ~SELECT_ENTER));
 			}else{
-				// leaving (restarts the background GIF), or the old way
-				in_list = (index & SELECT_ENTER)? 1 : 0;
+				// leaving the list: SSCMD_SELECT restarts the background GIF
+				in_list = 0;
 				SS_ARG = page*MENU_ITEMS + index;
 				SS_CMD = SSCMD_SELECT;
 			}
