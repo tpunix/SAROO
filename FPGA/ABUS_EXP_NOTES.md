@@ -503,5 +503,5 @@ game start is below it.
 Hardware (2026-11-25, change 7 FPGA, Sega timing from power-on, cover.bin in
 place): boots, boot animation OK, fast scrolling through the menu with covers:
 no freezes. King of Fighters '96 (1MB cart) starts and works; Castlevania 4MB
-hack works, its save reloads after a power cycle. CD player and reset still
-to test.
+hack works, its save reloads after a power cycle; CD player and reset back
+to the menu work. All checks passed.
