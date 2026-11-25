@@ -86,7 +86,9 @@ Expected results
   SAROO, sega-abus-timing FPGA (change 7)    1.1: PASS (163/163 runs,
                                              2026-11-24); 1.2 incl. test 10
                                              at Sega timing, CD load on:
-                                             PASS (2026-11-25)
+                                             PASS (2026-11-25); 1.3 test 11
+                                             (8 MB XRAM) PASS, Sega timing,
+                                             CD load on (2026-11-25)
   Kronos (4 MB cart selected)                PASS with test 10 off (Z);
                                              test 10 hangs (see above)
 

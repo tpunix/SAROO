@@ -413,3 +413,14 @@ So plain code fetch at Sega timing, even with STM32 CD traffic, does not
 reproduce the menu freeze. Not covered by the stress test: the menu's own
 STM32 traffic (SD file access, data the STM32 writes into the SDRAM that the
 Saturn then reads), and CS1 at Sega timing (0x1FF0 half).
+
+BOOT ANIMATION / BUILD (2026-11-25): every firmware built here with GCC 8.4 lost
+the empty delay loops (conio.c logo animation, cdblock.c status poll): the
+animation ran in an instant. Fixed with __asm volatile("":::"memory") in the
+loop bodies (as cdblock.c already does elsewhere); animation confirmed back.
+
+EXTRA RAM (2026-11-25): the FPGA maps the whole 16 MB CS0 window onto SDRAM, so
+0x22800000-0x22FFFFFF (8 MB above the 4 MB cart) is RAM on any SAROO. YZB's
+"Saroo only" hacks (e.g. D&D Shadow over Mystara) use it. RAMCART-Stress 1.3
+test 11 (fill, cached verify, random W/R, check over those 8 MB): PASS on
+hardware at Sega timing with CD load on, together with tests 1-10.
